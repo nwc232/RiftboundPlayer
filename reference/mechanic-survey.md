@@ -12,6 +12,27 @@ before designing the engine's effect system. Grounded in two sources:
 Card text below is quoted directly from card rules text (short, functional
 game text, not narrative prose) for engineering reference.
 
+**Coverage methodology (§6 revised after a first pass got this wrong):**
+§1–5 come from pattern searches (regex over trigger words, bracket
+keywords, replacement-effect language, etc.) run across all 1180 cards, so
+those sections reflect the whole pool. §6 originally did not — it picked
+from the 20 longest ability texts, which is a bad proxy for difficulty: it
+mostly surfaces keyword-heavy vanilla units where parenthetical reminder
+text ("(+2 Might while I'm an attacker)") inflates length without adding
+real complexity, and it can miss short cards that are genuinely gnarly.
+§6 below instead uses two independent, full-pool methods and reports where
+they agree: (1) cross-referencing every card name the Core Rules themselves
+cite in a worked example — i.e. the cases Riftbound's own rules authors
+found necessary to explain — against the live card data; (2) a second regex
+pass over all 1180 cards, stripped of reminder text, flagging structural
+red flags (copy effects, control-change, chained "if you do", double
+"instead," etc.) independent of length. Both methods converge on the same
+two hardest *categories* — copy effects and control-change effects — which
+is real signal, not coincidence from one shaky heuristic. This is still
+pattern-matching across ~1180 cards, not a human reading of every one, so
+treat §6 as "the hardest found by two independent systematic passes," not
+"the provably hardest cards in the game."
+
 A recurring theme worth flagging up front: Riftbound's rules already name
 almost every category the task asked me to look for as a first-class rules
 concept — Passive Abilities, Replacement Effects, Triggered Abilities, and
@@ -335,72 +356,116 @@ needs to tell apart:
 
 ## 6. The 5 hardest-to-model cards found
 
-1. **Svellsongur** (gear) — `As this is attached to a unit, copy that
+Both independent full-pool passes (rules-cited worked examples; structural
+red-flag regex over all 1180 cards) landed on the same two dominant hard
+*categories* — **copy effects** and **control-change effects** — before I
+picked individual cards. I've noted which method(s) confirm each entry.
+
+1. **Shady Spectacles** (gear) — `As this is attached to a unit, choose
+   another friendly unit. The equipped unit becomes a copy of that unit.`
+   *(found by: structural scan — "copy effect")*. This is a live trigger
+   for the Layer-1 Copy mechanism (R477.1.b), but the copy is driven by an
+   attachment relationship rather than a one-shot spell — if the
+   Equipment is re-attached, or the chosen "friendly unit" it's copying
+   changes state, the copy has to be re-derived, not computed once. The
+   rules' own Copy worked example (R477.1.b.1) uses a similar chain —
+   LeBlanc's `Deceiver` legend ability makes a "Reflection" token copy a
+   unit, and *that* token can itself be re-copied by Mirror Image — so
+   copies-of-copies with token identity need to resolve to the right
+   "current" copyable-trait set at each layer pass, not the original.
+
+2. **Svellsongur** (gear) — `As this is attached to a unit, copy that
    unit's text to this Equipment's effect text for as long as this is
-   attached to it.` This isn't a one-time copy (Layer 1 handles those,
-   R477.1.b) — it's a **live, continuously-updating reference**: if the
-   attached unit's text later changes (via some other effect), Svellsongur's
-   text must change with it, and if it's re-attached to a different unit,
-   its text must re-derive from scratch. Modeling this requires the
-   effect system to support a "text pointer" that's recomputed every
-   layer pass rather than a value baked in once at attach-time — and its
-   own copied text might itself contain further triggered/passive
-   abilities that need to be registered and unregistered dynamically as
-   the attachment target changes.
+   attached to it.` *(found by: structural scan — "copy effect"; also the
+   length-sort from the first pass — this one held up)*. Unlike Shady
+   Spectacles, this does **not** fit R477.1.b's definition of a Copy
+   effect ("one Game Object becomes a copy of another") — Svellsongur
+   doesn't become the equipped unit, it mirrors that unit's rules text
+   onto *itself*, permanently, while attached. I couldn't find a rule
+   that names this exact pattern. That's worth flagging as a genuine open
+   question for engine design, not just a hard case: is this a variant of
+   the Copy layer, or a distinct "live text-linking" primitive the rules
+   don't fully spell out? Either way it needs the same "recomputed every
+   layer pass, not baked in once" treatment as #1, plus dynamically
+   registering/unregistering whatever triggered or passive abilities are
+   embedded in the mirrored text.
 
-2. **Mystic Reversal / Rebuttal** (spells) — `Gain control of a spell.
-   You may make new choices for it.` A chain item that's already been
-   through target/choice selection needs to have its **controller
-   reassigned mid-chain** and then be sent *backward* through a step of
-   its own playing process ("make new choices") that it already passed.
-   This breaks a simple "chain item is an immutable record once
-   finalized" model — the engine needs finalized chain items to remain
-   partially mutable (controller, chosen targets) under specific
-   effects, which has knock-on implications for anything that reads
-   "controller of a spell on the chain" elsewhere (e.g. Deflect's cost
-   surcharge, R809, cares who's doing the targeting).
+3. **Mystic Reversal / Rebuttal** (spells) — `Gain control of a spell.
+   You may make new choices for it.` *(found by: structural scan —
+   "control-change"; also rules-adjacent — R809's Deflect example
+   explicitly discusses a spell's "controller" as something that can
+   change mid-resolution)*. A chain item that's already been through
+   target/choice selection needs its **controller reassigned mid-chain**
+   and then re-enter a "make new choices" step it already passed. This
+   breaks a simple "chain item is an immutable record once finalized"
+   model — the engine needs finalized chain items to stay partially
+   mutable (controller, chosen targets), which has knock-on effects
+   anywhere else that reads "controller of a spell on the chain" (e.g.
+   Deflect's cost surcharge, R809, cares who's doing the targeting).
+   Conscription and Possession are simpler variants of the same
+   control-change cluster (target-pool-only or permanent-only), worth
+   building the general mechanism against all three rather than just
+   this one.
 
-3. **Renekton, Brute** (unit) — `When my Might becomes 10 or more,
-   empower me.` This isn't a normal event trigger (play/attack/die) — it's
-   a **state trigger** on a continuously-recomputed Layer-3 value. The
-   engine needs to watch for the *transition* of a derived quantity
-   crossing a threshold (not just "check current Might on every
-   unrelated event"), which means either diffing Might before/after
-   every layer re-evaluation, or maintaining explicit watchers on
-   computed characteristics — a different trigger-detection mechanism
-   than the event-driven triggers in §1.
+4. **Soraka, Wanderer** (unit) — `If another unit you control here would
+   die, if it has less Might than me, instead heal it, exhaust it, and
+   recall it.` *(found by: rules-cited — this is the Core Rules' own
+   canonical hard case, R373.2)*. The rules use Soraka by name to walk
+   through what happens when she dies **simultaneously** with several
+   units her own replacement effect could have saved, while she's *also*
+   the target of an attached "save me instead" effect (their example uses
+   a Guardian-Angel-style gear). Depending on the order the controller
+   chooses to apply the two replacement effects, different units end up
+   saved — and each replacement effect can only be "spent" once per
+   simultaneous batch of events (R370.2, R373.2). This is the strongest
+   real-world stress test for the replacement-effect-ordering rules in
+   §3: it needs simultaneous-event batching, per-controller ordering
+   choice, and one-application-per-source bookkeeping, all interacting
+   at once — the rules needed a full paragraph and a multi-branch worked
+   example to pin it down, which is a good signal it's genuinely hard.
 
-4. **Atakhan** (unit) — `You may kill a friendly unit as an additional
+5. **Atakhan** (unit) — `You may kill a friendly unit as an additional
    cost to play me. If you do, I cost 1 less for each Energy it costs and
-   1 less for each Power it costs.` The cost of playing Atakhan depends on
-   the cost of a *different card* that will no longer exist (having just
-   been killed) by the time Atakhan's own cost needs to be finalized and
-   paid. This forces a specific **snapshot ordering**: read the killed
-   unit's cost, kill it, *then* apply the discount to Atakhan's own cost —
-   all within the "pay additional costs" step, before "determine final
-   cost" normally happens. It's a cost calculation that depends on a
-   costed side-effect of paying a different, earlier part of the same
-   cost.
+   1 less for each Power it costs.` *(found by: length-sort in the first
+   pass, but it survives independent scrutiny)*. Atakhan's own cost
+   depends on the cost of a *different card* that will no longer exist
+   (having just been killed) by the time Atakhan's own cost is finalized.
+   This forces a specific **snapshot ordering**: read the killed unit's
+   cost, kill it, then apply the discount — all within the "pay
+   additional costs" step, before "determine final cost" normally
+   happens. It's a cost calculation that depends on a costed side-effect
+   of paying an earlier part of the same cost.
 
-5. **Baccai Witherclaw** (unit) — `[Empowered][>][>>][Deathknell][>]
-   Channel 2 runes exhausted.` Three concepts nested: a Dependent Keyword
-   (Empowered, R828) gating the *presence* of a second keyword
-   (Deathknell, a Triggered Ability keyword, R808), which itself only
-   applies "when I die" — and the death must occur *while the dependent
-   condition (Empowered) still holds*, per R828.1.d's clarification that
-   dependent triggered abilities key off the state at trigger time. This
-   requires the ability-registration system to support conditionally
-   active triggered abilities (not just conditionally active passive/
-   static text) — i.e., a trigger listener that's dynamically
-   subscribed/unsubscribed based on an unrelated continuous condition,
-   rather than always-registered-but-gated-on-resolution.
+**Also flagged, not in the top 5 but worth designing against early:**
+Renekton, Brute (`When my Might becomes 10 or more, empower me` — a state
+trigger on a continuously-recomputed value, not an event trigger);
+Zilean, Time Mage (the rules' own example at R371.2.b for "may"
+replacement effects that duplicate a to-be-played object); Baron Nashor
+(a replacement effect that conditionally creates a new board object as
+part of resolving where its own source enters); Baccai Witherclaw
+(three-deep keyword nesting: Empowered gating Deathknell gating a
+triggered ability). None of these were dropped for being easy — they lost
+out to the top 5 only because each duplicates a lesson the top 5 already
+covers (state-triggers, delayed replacements, control-hijack, deep
+nesting) rather than teaching something new.
 
-Honorable mention: the **Layers dependency algorithm itself** (R478–479)
-isn't a card, but the worked examples (Fiora, Victorious; the "no
-dependency can be established" case at R479.1) describe a general
-fixpoint + dependency-ordering problem that's genuinely nontrivial to
-implement correctly and will need its own dedicated design discussion,
-independent of any single card.
+**One data-quality note surfaced by this exercise:** the Core Rules'
+worked example for Zhonya's Hourglass quotes it as `heal that unit,
+exhaust it, and recall it` — the current live card text (in
+`riftbound-cards-full.json`) reads `Recall that unit exhausted` instead.
+The rules document and the current card database don't always agree,
+because rules examples don't get retroactively updated when a card is
+errata'd. Any ingestion pipeline that trusts rules-PDF card excerpts as
+ground truth for current card behavior will drift from the real game
+state — the card JSON should be the source of truth for card text, the
+rules PDF only for the mechanics vocabulary.
+
+Honorable mention (not a card): the **Layers dependency algorithm itself**
+(R478–479) — the worked examples (Fiora, Victorious; the "no dependency
+can be established" case at R479.1) describe a general fixpoint +
+dependency-ordering problem that's genuinely nontrivial to implement
+correctly and will need its own dedicated design discussion, independent
+of any single card.
 
 ---
 
@@ -416,4 +481,8 @@ things I think most shape that design, in rough priority order:
    placement changes when optionality resolves.
 3. How much of the Chain (§4) needs to be a generic event-sourced /
    replayable structure vs. a simpler stack, given how small the
-   control-hijack card set (§4, §6.2) actually is.
+   control-hijack card set (§4, §6 — Mystic Reversal/Rebuttal/
+   Conscription/Possession) actually is.
+4. Whether Copy effects (§6, #1–2) are one mechanism or two — Shady
+   Spectacles fits the rules' own Copy layer; Svellsongur arguably
+   doesn't. Worth resolving before either gets built.
