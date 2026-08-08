@@ -1,0 +1,16 @@
+{
+  "name": "riftbound-engine",
+  "version": "0.1.0",
+  "description": "Rules-enforced 1v1 headless engine for the Riftbound TCG",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.10"
+  }
+}
