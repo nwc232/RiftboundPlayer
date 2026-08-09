@@ -19,13 +19,15 @@ function makeState(): GameState {
 
 describe("applyAction", () => {
   it("routes a drawCard action to the draw logic", () => {
-    const { state, events } = applyAction(makeState(), {
+    const result = applyAction(makeState(), {
       type: "drawCard",
       playerId: "p1",
     });
 
-    expect(state.players.p1.hand).toEqual(["u1"]);
-    expect(events).toEqual([
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.players.p1.hand).toEqual(["u1"]);
+    expect(result.events).toEqual([
       { type: "cardDrawn", playerId: "p1", cardId: "u1" },
     ]);
   });
@@ -41,6 +43,9 @@ describe("applyAction", () => {
 
     for (const action of script) {
       const result = applyAction(state, action);
+      if (!result.ok) {
+        throw new Error(`unexpected rejection: ${result.reason}`);
+      }
       state = result.state;
       log.push(...result.events);
     }

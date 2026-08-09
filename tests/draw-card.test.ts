@@ -20,18 +20,22 @@ describe("drawCard", () => {
   it("moves the top card from mainDeck to hand in the returned state", () => {
     const before = makeState();
 
-    const { state } = drawCard(before, "p1");
+    const result = drawCard(before, "p1");
 
-    expect(state.players.p1.hand).toEqual(["c1"]);
-    expect(state.players.p1.mainDeck).toEqual(["c2"]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.players.p1.hand).toEqual(["c1"]);
+    expect(result.state.players.p1.mainDeck).toEqual(["c2"]);
   });
 
   it("reports what happened as a cardDrawn event", () => {
     const before = makeState();
 
-    const { events } = drawCard(before, "p1");
+    const result = drawCard(before, "p1");
 
-    expect(events).toEqual([
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toEqual([
       { type: "cardDrawn", playerId: "p1", cardId: "c1" },
     ]);
   });
@@ -45,12 +49,11 @@ describe("drawCard", () => {
     expect(before.players.p1.mainDeck).toEqual(["c1", "c2"]);
   });
 
-  it("emits no events and keeps the same state when the deck is empty", () => {
+  it("rejects the draw when the deck is empty", () => {
     const before = makeState();
 
-    const { state, events } = drawCard(before, "p2");
+    const result = drawCard(before, "p2");
 
-    expect(events).toEqual([]);
-    expect(state).toBe(before);
+    expect(result).toEqual({ ok: false, reason: "deckEmpty" });
   });
 });

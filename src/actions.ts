@@ -5,13 +5,18 @@ export type Action =
   | { type: "drawCard"; playerId: PlayerId }
   | { type: "playUnitFromHand"; playerId: PlayerId; cardId: CardId };
 
-export interface ActionResult {
-  state: GameState;
-  events: GameEvent[];
-}
+export type RejectionReason =
+  | "cardNotFound"
+  | "wrongCardType"
+  | "notInHand"
+  | "deckEmpty";
 
-function nothingHappened(state: GameState): ActionResult {
-  return { state, events: [] };
+export type ActionResult =
+  | { ok: true; state: GameState; events: GameEvent[] }
+  | { ok: false; reason: RejectionReason };
+
+function rejected(reason: RejectionReason): ActionResult {
+  return { ok: false, reason };
 }
 
 export function drawCard(state: GameState, playerId: PlayerId): ActionResult {
@@ -19,10 +24,11 @@ export function drawCard(state: GameState, playerId: PlayerId): ActionResult {
   const [drawnId, ...remainingDeck] = player.mainDeck;
 
   if (drawnId === undefined) {
-    return nothingHappened(state);
+    return rejected("deckEmpty");
   }
 
   return {
+    ok: true,
     state: {
       ...state,
       players: {
@@ -46,13 +52,16 @@ export function playUnitFromHand(
   const player = state.players[playerId];
   const card = state.cards[cardId];
 
-  if (card === undefined || card.type !== "unit") {
-    return nothingHappened(state);
+  if (card === undefined) {
+    return rejected("cardNotFound");
+  }
+  if (card.type !== "unit") {
+    return rejected("wrongCardType");
   }
 
   const handIndex = player.hand.indexOf(cardId);
   if (handIndex === -1) {
-    return nothingHappened(state);
+    return rejected("notInHand");
   }
 
   const newHand = [
@@ -61,6 +70,7 @@ export function playUnitFromHand(
   ];
 
   return {
+    ok: true,
     state: {
       ...state,
       players: {
@@ -88,7 +98,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       return playUnitFromHand(state, action.playerId, action.cardId);
     default: {
       const unhandled: never = action;
-      return nothingHappened(state);
+      return rejected("cardNotFound");
     }
   }
 }

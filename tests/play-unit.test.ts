@@ -20,19 +20,23 @@ describe("playUnitFromHand", () => {
   it("moves a unit from hand to base and creates it as an exhausted permanent", () => {
     const before = makeState();
 
-    const { state } = playUnitFromHand(before, "p1", "u1");
+    const result = playUnitFromHand(before, "p1", "u1");
 
-    expect(state.players.p1.hand).toEqual(["s1"]);
-    expect(state.players.p1.base).toEqual(["u1"]);
-    expect(state.permanents.u1).toEqual({ cardId: "u1", exhausted: true });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.players.p1.hand).toEqual(["s1"]);
+    expect(result.state.players.p1.base).toEqual(["u1"]);
+    expect(result.state.permanents.u1).toEqual({ cardId: "u1", exhausted: true });
   });
 
   it("reports what happened as a unitPlayed event", () => {
     const before = makeState();
 
-    const { events } = playUnitFromHand(before, "p1", "u1");
+    const result = playUnitFromHand(before, "p1", "u1");
 
-    expect(events).toEqual([
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.events).toEqual([
       { type: "unitPlayed", playerId: "p1", cardId: "u1" },
     ]);
   });
@@ -47,21 +51,19 @@ describe("playUnitFromHand", () => {
     expect(before.permanents.u1).toBeUndefined();
   });
 
-  it("does nothing if the card is not a unit", () => {
+  it("rejects a card that is not a unit", () => {
     const before = makeState();
 
-    const { state, events } = playUnitFromHand(before, "p1", "s1");
+    const result = playUnitFromHand(before, "p1", "s1");
 
-    expect(events).toEqual([]);
-    expect(state).toBe(before);
+    expect(result).toEqual({ ok: false, reason: "wrongCardType" });
   });
 
-  it("does nothing if the card is not in that player's hand", () => {
+  it("rejects a card that is not in that player's hand", () => {
     const before = makeState();
 
-    const { state, events } = playUnitFromHand(before, "p2", "u1");
+    const result = playUnitFromHand(before, "p2", "u1");
 
-    expect(events).toEqual([]);
-    expect(state).toBe(before);
+    expect(result).toEqual({ ok: false, reason: "notInHand" });
   });
 });
