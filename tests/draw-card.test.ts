@@ -1,26 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { drawCard } from "../src/actions.js";
-import type { GameState } from "../src/state.js";
+import { makeState, unit } from "./fixtures.js";
 
-function makeState(): GameState {
-  return {
-    players: {
-      p1: { id: "p1", mainDeck: ["c1", "c2"], hand: [], base: [] },
-      p2: { id: "p2", mainDeck: [], hand: [], base: [] },
-    },
-    cards: {
-      c1: { id: "c1", name: "Test Card One", type: "unit" },
-      c2: { id: "c2", name: "Test Card Two", type: "unit" },
-    },
-    permanents: {},
-  };
+function state() {
+  return makeState({
+    p1: { mainDeck: ["c1", "c2"] },
+    cards: [unit("c1"), unit("c2")],
+  });
 }
 
 describe("drawCard", () => {
   it("moves the top card from mainDeck to hand in the returned state", () => {
-    const before = makeState();
-
-    const result = drawCard(before, "p1");
+    const result = drawCard(state(), "p1");
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -29,9 +20,7 @@ describe("drawCard", () => {
   });
 
   it("reports what happened as a cardDrawn event", () => {
-    const before = makeState();
-
-    const result = drawCard(before, "p1");
+    const result = drawCard(state(), "p1");
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -41,7 +30,7 @@ describe("drawCard", () => {
   });
 
   it("leaves the original state object completely untouched", () => {
-    const before = makeState();
+    const before = state();
 
     drawCard(before, "p1");
 
@@ -50,10 +39,9 @@ describe("drawCard", () => {
   });
 
   it("rejects the draw when the deck is empty", () => {
-    const before = makeState();
-
-    const result = drawCard(before, "p2");
-
-    expect(result).toEqual({ ok: false, reason: "deckEmpty" });
+    expect(drawCard(state(), "p2")).toEqual({
+      ok: false,
+      reason: "deckEmpty",
+    });
   });
 });

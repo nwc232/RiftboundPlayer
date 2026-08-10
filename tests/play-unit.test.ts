@@ -1,48 +1,41 @@
 import { describe, expect, it } from "vitest";
 import { playUnitFromHand } from "../src/actions.js";
-import type { GameState } from "../src/state.js";
+import { cost, makeState, pool, unit } from "./fixtures.js";
 
-function makeState(): GameState {
-  return {
-    players: {
-      p1: { id: "p1", mainDeck: [], hand: ["u1", "s1"], base: [] },
-      p2: { id: "p2", mainDeck: [], hand: [], base: [] },
-    },
-    cards: {
-      u1: { id: "u1", name: "Test Unit", type: "unit" },
-      s1: { id: "s1", name: "Test Spell", type: "spell" },
-    },
-    permanents: {},
-  };
+function freeUnitState() {
+  return makeState({
+    p1: { hand: ["u1", "s1"] },
+    cards: [unit("u1"), { ...unit("s1"), type: "spell" as const }],
+  });
 }
 
 describe("playUnitFromHand", () => {
   it("moves a unit from hand to base and creates it as an exhausted permanent", () => {
-    const before = makeState();
-
-    const result = playUnitFromHand(before, "p1", "u1");
+    const result = playUnitFromHand(freeUnitState(), "p1", "u1");
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.players.p1.hand).toEqual(["s1"]);
     expect(result.state.players.p1.base).toEqual(["u1"]);
-    expect(result.state.permanents.u1).toEqual({ cardId: "u1", exhausted: true });
+    expect(result.state.permanents.u1).toEqual({
+      cardId: "u1",
+      exhausted: true,
+    });
   });
 
-  it("reports what happened as a unitPlayed event", () => {
-    const before = makeState();
-
-    const result = playUnitFromHand(before, "p1", "u1");
+  it("reports the cost payment and the unit entering play", () => {
+    const result = playUnitFromHand(freeUnitState(), "p1", "u1");
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.events).toEqual([
-      { type: "unitPlayed", playerId: "p1", cardId: "u1" },
+    expect(result.events.map((event) => event.type)).toEqual([
+      "costPaid",
+      "unitPlayed",
     ]);
   });
 
   it("leaves the original state object completely untouched", () => {
-    const before = makeState();
+    const before = freeUnitState();
 
     playUnitFromHand(before, "p1", "u1");
 
@@ -52,18 +45,45 @@ describe("playUnitFromHand", () => {
   });
 
   it("rejects a card that is not a unit", () => {
-    const before = makeState();
-
-    const result = playUnitFromHand(before, "p1", "s1");
-
-    expect(result).toEqual({ ok: false, reason: "wrongCardType" });
+    expect(playUnitFromHand(freeUnitState(), "p1", "s1")).toEqual({
+      ok: false,
+      reason: "wrongCardType",
+    });
   });
 
   it("rejects a card that is not in that player's hand", () => {
-    const before = makeState();
+    expect(playUnitFromHand(freeUnitState(), "p2", "u1")).toEqual({
+      ok: false,
+      reason: "notInHand",
+    });
+  });
 
-    const result = playUnitFromHand(before, "p2", "u1");
+  it("rejects a unit the player cannot afford", () => {
+    const before = makeState({
+      p1: { hand: ["u1"], runePool: pool({ energy: 1 }) },
+      cards: [unit("u1", { cost: cost({ energy: 2, power: { fury: 1 } }) })],
+    });
 
-    expect(result).toEqual({ ok: false, reason: "notInHand" });
+    expect(playUnitFromHand(before, "p1", "u1")).toEqual({
+      ok: false,
+      reason: "cannotAffordCost",
+    });
+  });
+
+  it("deducts the cost from the rune pool when the unit is played", () => {
+    const before = makeState({
+      p1: {
+        hand: ["u1"],
+        runePool: pool({ energy: 3, power: { fury: 2 } }),
+      },
+      cards: [unit("u1", { cost: cost({ energy: 2, power: { fury: 1 } }) })],
+    });
+
+    const result = playUnitFromHand(before, "p1", "u1");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.players.p1.runePool.energy).toBe(1);
+    expect(result.state.players.p1.runePool.power).toEqual({ fury: 1 });
   });
 });
