@@ -93,6 +93,30 @@ describe("exhaustRuneForEnergy", () => {
   });
 });
 
+describe("one rune, both abilities", () => {
+  // R414.1.b blocks re-exhausting, but R416 puts no ready requirement on
+  // Recycle — so a single rune can yield 1 Energy and then 1 Power.
+  it("allows exhausting for energy and then recycling the same rune", () => {
+    const channeled = channelRune(
+      makeState({
+        p1: { runeDeck: ["r1"] },
+        cards: [runeCard("r1", "fury")],
+      }),
+      "p1",
+    );
+    if (!channeled.ok) throw new Error("setup failed");
+    const exhausted = exhaustRuneForEnergy(channeled.state, "p1", "r1");
+    if (!exhausted.ok) throw new Error("setup failed");
+
+    const result = recycleRuneForPower(exhausted.state, "p1", "r1");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.players.p1.runePool.energy).toBe(1);
+    expect(result.state.players.p1.runePool.power).toEqual({ fury: 1 });
+  });
+});
+
 describe("recycleRuneForPower", () => {
   it("returns the rune to the rune deck and adds Power of its domain", () => {
     const channeled = channelRune(
