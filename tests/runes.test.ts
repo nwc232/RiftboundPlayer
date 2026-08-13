@@ -4,6 +4,7 @@ import {
   exhaustRuneForEnergy,
   recycleRuneForPower,
 } from "../src/actions.js";
+import { totals } from "../src/cost.js";
 import { makeState, runeCard } from "./fixtures.js";
 
 describe("channelRune", () => {
@@ -52,7 +53,7 @@ describe("exhaustRuneForEnergy", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.runes.r1?.exhausted).toBe(true);
-    expect(result.state.players.p1.runePool.energy).toBe(1);
+    expect(totals(result.state.players.p1.runePool).energy).toBe(1);
     expect(result.events).toEqual([
       { type: "energyAdded", playerId: "p1", amount: 1 },
     ]);
@@ -112,8 +113,9 @@ describe("one rune, both abilities", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.runePool.energy).toBe(1);
-    expect(result.state.players.p1.runePool.power).toEqual({ fury: 1 });
+    const left = totals(result.state.players.p1.runePool);
+    expect(left.energy).toBe(1);
+    expect(left.power).toEqual({ fury: 1 });
   });
 });
 
@@ -134,7 +136,7 @@ describe("recycleRuneForPower", () => {
     if (!result.ok) return;
     expect(result.state.players.p1.runes).toEqual([]);
     expect(result.state.players.p1.runeDeck).toEqual(["r1"]);
-    expect(result.state.players.p1.runePool.power).toEqual({ order: 1 });
+    expect(totals(result.state.players.p1.runePool).power).toEqual({ order: 1 });
     expect(result.state.runes.r1).toBeUndefined();
   });
 });

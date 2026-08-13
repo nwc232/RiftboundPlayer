@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import type { GameEvent } from "../src/events.js";
+import { totals } from "../src/cost.js";
 import { cost, makeState, runeCard, unit } from "./fixtures.js";
 
 describe("applyAction", () => {
@@ -48,9 +49,9 @@ describe("applyAction", () => {
     }
 
     expect(state.players.p1.base).toEqual(["u1"]);
-    expect(state.players.p1.runePool).toEqual({
+    expect(totals(state.players.p1.runePool)).toEqual({
       energy: 0,
-      power: { fury: 0 },
+      power: {},
       universalPower: 0,
     });
     expect(log.map((event) => event.type)).toEqual([

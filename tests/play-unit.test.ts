@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { playUnitFromHand } from "../src/actions.js";
+import { totals } from "../src/cost.js";
 import { cost, makeState, pool, unit } from "./fixtures.js";
 
 function freeUnitState() {
@@ -83,7 +84,8 @@ describe("playUnitFromHand", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.runePool.energy).toBe(1);
-    expect(result.state.players.p1.runePool.power).toEqual({ fury: 1 });
+    const left = totals(result.state.players.p1.runePool);
+    expect(left.energy).toBe(1);
+    expect(left.power).toEqual({ fury: 1 });
   });
 });

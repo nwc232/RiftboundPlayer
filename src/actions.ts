@@ -1,4 +1,4 @@
-import { spend } from "./cost.js";
+import { addEnergy, addPower, spend } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import type { CardId, GameState, PlayerId, PlayerState } from "./state.js";
 
@@ -81,7 +81,10 @@ export function playUnitFromHand(
     return rejected("notInHand");
   }
 
-  const remainingPool = spend(player.runePool, card.cost);
+  const remainingPool = spend(player.runePool, card.cost, {
+    kind: "playCard",
+    cardType: "unit",
+  });
   if (remainingPool === undefined) {
     return rejected("cannotAffordCost");
   }
@@ -168,7 +171,7 @@ export function exhaustRuneForEnergy(
     state: {
       ...withPlayer(state, playerId, {
         ...player,
-        runePool: { ...player.runePool, energy: player.runePool.energy + 1 },
+        runePool: addEnergy(player.runePool, 1),
       }),
       runes: { ...state.runes, [runeId]: { ...rune, exhausted: true } },
     },
@@ -191,9 +194,6 @@ export function recycleRuneForPower(
     return rejected("runeNotControlled");
   }
 
-  const pool = player.runePool;
-  const held = pool.power[rune.domain] ?? 0;
-
   const { [runeId]: _removed, ...remainingRunes } = state.runes;
 
   return {
@@ -203,10 +203,7 @@ export function recycleRuneForPower(
         ...player,
         runes: player.runes.filter((id) => id !== runeId),
         runeDeck: [...player.runeDeck, runeId],
-        runePool: {
-          ...pool,
-          power: { ...pool.power, [rune.domain]: held + 1 },
-        },
+        runePool: addPower(player.runePool, rune.domain, 1),
       }),
       runes: remainingRunes,
     },

@@ -4,8 +4,10 @@ import type {
   Cost,
   Domain,
   GameState,
+  PaymentRestriction,
   PlayerId,
   PlayerState,
+  PowerCount,
   RunePool,
 } from "../src/state.js";
 
@@ -13,8 +15,23 @@ export function cost(partial: Partial<Cost> = {}): Cost {
   return { ...FREE, ...partial };
 }
 
-export function pool(partial: Partial<RunePool> = {}): RunePool {
-  return { ...EMPTY_POOL, ...partial };
+interface BucketSpec {
+  energy?: number;
+  power?: PowerCount;
+  universalPower?: number;
+  restriction?: PaymentRestriction;
+}
+
+/** One bucket per spec; no args gives an empty pool. */
+export function pool(...specs: BucketSpec[]): RunePool {
+  return {
+    buckets: specs.map((spec) => ({
+      restriction: spec.restriction ?? null,
+      energy: spec.energy ?? 0,
+      power: spec.power ?? {},
+      universalPower: spec.universalPower ?? 0,
+    })),
+  };
 }
 
 export function unit(id: string, partial: Partial<CardInstance> = {}): CardInstance {
