@@ -67,6 +67,7 @@ export function makeState(options: {
   }
 
   return {
+    turn: { player: "p1", phase: "main", number: 1 },
     players: {
       p1: player("p1", options.p1 ?? {}),
       p2: player("p2", options.p2 ?? {}),

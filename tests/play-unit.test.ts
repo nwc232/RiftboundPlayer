@@ -53,7 +53,12 @@ describe("playUnitFromHand", () => {
   });
 
   it("rejects a card that is not in that player's hand", () => {
-    expect(playUnitFromHand(freeUnitState(), "p2", "u1")).toEqual({
+    const before = makeState({
+      p1: { hand: ["u1"] },
+      cards: [unit("u1"), unit("elsewhere")],
+    });
+
+    expect(playUnitFromHand(before, "p1", "elsewhere")).toEqual({
       ok: false,
       reason: "notInHand",
     });

@@ -3,11 +3,12 @@ import type { AbilityCost, EffectContext } from "./abilities.js";
 import { spend } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import type { CardId, GameState, PlayerId, PlayerState } from "./state.js";
+import { beginTurn, endTurn as runEndTurn } from "./turn.js";
 
 export type Action =
   | { type: "drawCard"; playerId: PlayerId }
   | { type: "playUnitFromHand"; playerId: PlayerId; cardId: CardId }
-  | { type: "channelRune"; playerId: PlayerId }
+  | { type: "endTurn"; playerId: PlayerId }
   | {
       type: "activateAbility";
       playerId: PlayerId;
@@ -25,6 +26,8 @@ export type RejectionReason =
   | "runeNotControlled"
   | "runeAlreadyExhausted"
   | "cannotAffordCost"
+  | "notYourTurn"
+  | "wrongPhase"
   | "abilityNotFound"
   | "sourceNotControlled"
   | "cannotPayAbilityCost";
@@ -75,6 +78,13 @@ export function playUnitFromHand(
   playerId: PlayerId,
   cardId: CardId,
 ): ActionResult {
+  if (state.turn.player !== playerId) {
+    return rejected("notYourTurn");
+  }
+  if (state.turn.phase !== "main") {
+    return rejected("wrongPhase");
+  }
+
   const player = state.players[playerId];
   const card = state.cards[cardId];
 
@@ -124,37 +134,16 @@ export function playUnitFromHand(
   };
 }
 
-export function channelRune(
+export function endTurn(
   state: GameState,
   playerId: PlayerId,
 ): ActionResult {
-  const player = state.players[playerId];
-  const [runeId, ...remainingDeck] = player.runeDeck;
-
-  if (runeId === undefined) {
-    return rejected("runeDeckEmpty");
+  if (state.turn.player !== playerId) {
+    return rejected("notYourTurn");
   }
 
-  const card = state.cards[runeId];
-  if (card === undefined || card.domain === undefined) {
-    return rejected("cardNotFound");
-  }
-
-  return {
-    ok: true,
-    state: {
-      ...withPlayer(state, playerId, {
-        ...player,
-        runeDeck: remainingDeck,
-        runes: [...player.runes, runeId],
-      }),
-      runes: {
-        ...state.runes,
-        [runeId]: { cardId: runeId, domain: card.domain, exhausted: false },
-      },
-    },
-    events: [{ type: "runeChanneled", playerId, cardId: runeId }],
-  };
+  const progress = runEndTurn(state);
+  return { ok: true, state: progress.state, events: progress.events };
 }
 
 /**
@@ -259,6 +248,14 @@ export function activateAbility(
     return rejected("sourceNotControlled");
   }
 
+  // R381 — by default an activated ability may only be used on its
+  // controller's turn, in an Open State. [Action] and [Reaction] widen that
+  // (R806, R813). With no chain yet the state is always Open, so only the
+  // turn restriction is enforceable here.
+  if (ability.timing === "default" && state.turn.player !== playerId) {
+    return rejected("notYourTurn");
+  }
+
   const context: EffectContext = { controller: playerId, sourceId };
 
   let current = state;
@@ -287,8 +284,8 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       return drawCard(state, action.playerId);
     case "playUnitFromHand":
       return playUnitFromHand(state, action.playerId, action.cardId);
-    case "channelRune":
-      return channelRune(state, action.playerId);
+    case "endTurn":
+      return endTurn(state, action.playerId);
     case "activateAbility":
       return activateAbility(
         state,

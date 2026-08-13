@@ -1,6 +1,7 @@
 import { activated, addEnergy, addPower, basicRune, exhaustSelf } from "../builders.js";
 import { FREE } from "../cost.js";
 import type { CardInstance, Domain, GameState } from "../state.js";
+import { beginTurn } from "../turn.js";
 
 /**
  * A small hand-authored sample using real Riftbound cards. Costs and domains
@@ -53,13 +54,19 @@ const RUNES: CardInstance[] = [
   basicRune("rune-6", "calm"),
 ];
 
+/** p1 starts mid-turn: beginTurn runs Awaken through Draw and leaves us in Main. */
 export function makeDemoState(): GameState {
+  return beginTurn(emptyBoard(), "p1", 1).state;
+}
+
+function emptyBoard(): GameState {
   const cards: GameState["cards"] = {};
   for (const card of [...SAMPLE_CARDS, ...RUNES]) {
     cards[card.id] = card;
   }
 
   return {
+    turn: { player: "p1", phase: "main", number: 1 },
     players: {
       p1: {
         id: "p1",

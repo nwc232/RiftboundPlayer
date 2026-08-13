@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activateAbility, channelRune } from "../src/actions.js";
+import { activateAbility } from "../src/actions.js";
 import { totals } from "../src/cost.js";
 import type { GameState } from "../src/state.js";
 import { makeState, runeCard } from "./fixtures.js";
@@ -9,44 +9,15 @@ const ENERGY = 0;
 const POWER = 1;
 
 function withRune(domain: "fury" | "order" = "fury"): GameState {
-  const result = channelRune(
-    makeState({
-      p1: { runeDeck: ["r1"] },
-      cards: [runeCard("r1", domain)],
-    }),
-    "p1",
-  );
-  if (!result.ok) throw new Error("setup failed");
-  return result.state;
+  const base = makeState({
+    p1: { runes: ["r1"] },
+    cards: [runeCard("r1", domain)],
+  });
+  return {
+    ...base,
+    runes: { r1: { cardId: "r1", domain, exhausted: false } },
+  };
 }
-
-describe("channelRune", () => {
-  it("moves the top rune onto the board ready, in channel order", () => {
-    const before = makeState({
-      p1: { runeDeck: ["r1", "r2"] },
-      cards: [runeCard("r1", "fury"), runeCard("r2", "calm")],
-    });
-
-    const result = channelRune(before, "p1");
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.state.players.p1.runes).toEqual(["r1"]);
-    expect(result.state.players.p1.runeDeck).toEqual(["r2"]);
-    expect(result.state.runes.r1).toEqual({
-      cardId: "r1",
-      domain: "fury",
-      exhausted: false,
-    });
-  });
-
-  it("rejects when the rune deck is empty", () => {
-    expect(channelRune(makeState({ p1: { runeDeck: [] } }), "p1")).toEqual({
-      ok: false,
-      reason: "runeDeckEmpty",
-    });
-  });
-});
 
 describe("the rune's energy ability", () => {
   it("exhausts the rune and adds 1 energy", () => {

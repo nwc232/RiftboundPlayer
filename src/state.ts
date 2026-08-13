@@ -1,4 +1,5 @@
 import type { Ability } from "./abilities.js";
+import type { TurnState } from "./turn.js";
 
 export type PlayerId = "p1" | "p2";
 export type CardId = string;
@@ -92,6 +93,7 @@ export interface PlayerState {
 }
 
 export interface GameState {
+  turn: TurnState;
   players: Record<PlayerId, PlayerState>;
   cards: Record<CardId, CardInstance>;
   permanents: Record<CardId, PermanentState>;

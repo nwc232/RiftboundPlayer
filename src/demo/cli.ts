@@ -10,7 +10,7 @@ const HELP = `
 commands
   state             show the board
   abilities         list abilities you can use right now
-  channel           channel the top rune onto the board
+  end               end your turn
   use <id> <n>      activate ability n of card <id>
   draw              draw a card
   play <id>         play a unit from hand
@@ -19,8 +19,8 @@ commands
   help              this
   quit              leave
 
-not built yet: turns, battlefields, combat, scoring, triggered abilities.
-p2 is an empty seat — there is no opponent to play against.
+not built yet: battlefields, combat, scoring, triggered abilities, the chain.
+p2 has an empty deck, so its turns pass through with nothing to do.
 `;
 
 let state: GameState = makeDemoState();
@@ -63,8 +63,8 @@ function handle(line: string): boolean {
       console.log(lines.length === 0 ? "\n  nothing available\n" : `\n${lines.join("\n")}\n`);
       return true;
     }
-    case "channel":
-      run({ type: "channelRune", playerId: "p1" });
+    case "end":
+      run({ type: "endTurn", playerId: state.turn.player });
       return true;
     case "draw":
       run({ type: "drawCard", playerId: "p1" });

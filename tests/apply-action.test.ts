@@ -3,6 +3,7 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import type { GameEvent } from "../src/events.js";
 import { totals } from "../src/cost.js";
+import type { GameState } from "../src/state.js";
 import { cost, makeState, runeCard, unit } from "./fixtures.js";
 
 describe("applyAction", () => {
@@ -19,24 +20,29 @@ describe("applyAction", () => {
     expect(result.state.players.p1.hand).toEqual(["u1"]);
   });
 
-  it("plays a full turn: channel, exhaust for energy, then pay for a unit", () => {
+  it("taps runes for resources, draws, and pays for a unit", () => {
     const script: Action[] = [
-      { type: "channelRune", playerId: "p1" },
-      { type: "channelRune", playerId: "p1" },
       { type: "activateAbility", playerId: "p1", sourceId: "r1", abilityIndex: 0 },
       { type: "activateAbility", playerId: "p1", sourceId: "r2", abilityIndex: 1 },
       { type: "drawCard", playerId: "p1" },
       { type: "playUnitFromHand", playerId: "p1", cardId: "u1" },
     ];
 
-    let state = makeState({
-      p1: { runeDeck: ["r1", "r2"], mainDeck: ["u1"] },
+    const board = makeState({
+      p1: { runes: ["r1", "r2"], mainDeck: ["u1"] },
       cards: [
         runeCard("r1", "fury"),
         runeCard("r2", "fury"),
         unit("u1", { cost: cost({ energy: 1, power: { fury: 1 } }) }),
       ],
     });
+    let state: GameState = {
+      ...board,
+      runes: {
+        r1: { cardId: "r1", domain: "fury", exhausted: false },
+        r2: { cardId: "r2", domain: "fury", exhausted: false },
+      },
+    };
     const log: GameEvent[] = [];
 
     for (const action of script) {
@@ -55,8 +61,6 @@ describe("applyAction", () => {
       universalPower: 0,
     });
     expect(log.map((event) => event.type)).toEqual([
-      "runeChanneled",
-      "runeChanneled",
       "energyAdded",
       "runeRecycled",
       "powerAdded",

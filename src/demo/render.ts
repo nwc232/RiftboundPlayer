@@ -86,9 +86,18 @@ function renderPlayer(state: GameState, playerId: PlayerId): string[] {
 }
 
 export function renderState(state: GameState): string {
-  return ["", ...renderPlayer(state, "p1"), "", ...renderPlayer(state, "p2"), ""].join(
-    "\n",
+  const header = bold(
+    `turn ${state.turn.number}  ${state.turn.player}  ${state.turn.phase} phase`,
   );
+  return [
+    "",
+    header,
+    "",
+    ...renderPlayer(state, "p1"),
+    "",
+    ...renderPlayer(state, "p2"),
+    "",
+  ].join("\n");
 }
 
 export function renderEvent(event: GameEvent): string {
@@ -107,6 +116,14 @@ export function renderEvent(event: GameEvent): string {
       return `${event.playerId} added ${event.amount} ${event.domain} power`;
     case "costPaid":
       return `${event.playerId} paid ${formatCost(event.cost)} for ${event.cardId}`;
+    case "turnBegan":
+      return bold(`— turn ${event.turn}: ${event.playerId} —`);
+    case "phaseBegan":
+      return dim(`  ${event.phase} phase`);
+    case "objectReadied":
+      return `${event.playerId} readied ${event.cardId}`;
+    case "poolEmptied":
+      return dim(`  ${event.playerId} rune pool emptied`);
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);
