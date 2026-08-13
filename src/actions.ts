@@ -1,4 +1,6 @@
-import { addEnergy, addPower, spend } from "./cost.js";
+import { execute } from "./abilities.js";
+import type { AbilityCost, EffectContext } from "./abilities.js";
+import { spend } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import type { CardId, GameState, PlayerId, PlayerState } from "./state.js";
 
@@ -6,8 +8,12 @@ export type Action =
   | { type: "drawCard"; playerId: PlayerId }
   | { type: "playUnitFromHand"; playerId: PlayerId; cardId: CardId }
   | { type: "channelRune"; playerId: PlayerId }
-  | { type: "exhaustRuneForEnergy"; playerId: PlayerId; runeId: CardId }
-  | { type: "recycleRuneForPower"; playerId: PlayerId; runeId: CardId };
+  | {
+      type: "activateAbility";
+      playerId: PlayerId;
+      sourceId: CardId;
+      abilityIndex: number;
+    };
 
 export type RejectionReason =
   | "cardNotFound"
@@ -18,7 +24,10 @@ export type RejectionReason =
   | "runeNotFound"
   | "runeNotControlled"
   | "runeAlreadyExhausted"
-  | "cannotAffordCost";
+  | "cannotAffordCost"
+  | "abilityNotFound"
+  | "sourceNotControlled"
+  | "cannotPayAbilityCost";
 
 export type ActionResult =
   | { ok: true; state: GameState; events: GameEvent[] }
@@ -148,69 +157,127 @@ export function channelRune(
   };
 }
 
-export function exhaustRuneForEnergy(
+/**
+ * Pays one ability cost, or returns undefined if it can't be paid. Only rune
+ * sources are handled so far — recycling a main-deck card as a cost (Ekko,
+ * Recurrent's "Recycle me") needs permanents to be recyclable first.
+ */
+function payAbilityCost(
   state: GameState,
-  playerId: PlayerId,
-  runeId: CardId,
-): ActionResult {
-  const player = state.players[playerId];
-  const rune = state.runes[runeId];
+  cost: AbilityCost,
+  context: EffectContext,
+): { state: GameState; events: GameEvent[] } | undefined {
+  const { controller, sourceId } = context;
+  const player = state.players[controller];
+  const rune = state.runes[sourceId];
+  const permanent = state.permanents[sourceId];
 
-  if (rune === undefined) {
-    return rejected("runeNotFound");
-  }
-  if (!player.runes.includes(runeId)) {
-    return rejected("runeNotControlled");
-  }
-  if (rune.exhausted) {
-    return rejected("runeAlreadyExhausted");
-  }
+  switch (cost.kind) {
+    // R414.1.b — an already-exhausted object can't be exhausted again. Runes
+    // and permanents both track this, so either can pay it.
+    case "exhaustSelf": {
+      if (rune !== undefined) {
+        if (rune.exhausted) return undefined;
+        return {
+          state: {
+            ...state,
+            runes: { ...state.runes, [sourceId]: { ...rune, exhausted: true } },
+          },
+          events: [],
+        };
+      }
+      if (permanent !== undefined) {
+        if (permanent.exhausted) return undefined;
+        return {
+          state: {
+            ...state,
+            permanents: {
+              ...state.permanents,
+              [sourceId]: { ...permanent, exhausted: true },
+            },
+          },
+          events: [],
+        };
+      }
+      return undefined;
+    }
 
-  return {
-    ok: true,
-    state: {
-      ...withPlayer(state, playerId, {
-        ...player,
-        runePool: addEnergy(player.runePool, 1),
-      }),
-      runes: { ...state.runes, [runeId]: { ...rune, exhausted: true } },
-    },
-    events: [{ type: "energyAdded", playerId, amount: 1 }],
-  };
+    // R416.1.b — runes recycle to the bottom of the rune deck. No ready
+    // requirement, so an exhausted rune can still pay this. Recycling a
+    // main-deck permanent goes to the Main Deck instead and isn't modelled yet.
+    case "recycleSelf": {
+      if (rune === undefined) {
+        return undefined;
+      }
+      const { [sourceId]: _removed, ...remainingRunes } = state.runes;
+      return {
+        state: {
+          ...withPlayer(state, controller, {
+            ...player,
+            runes: player.runes.filter((id) => id !== sourceId),
+            runeDeck: [...player.runeDeck, sourceId],
+          }),
+          runes: remainingRunes,
+        },
+        events: [{ type: "runeRecycled", playerId: controller, cardId: sourceId }],
+      };
+    }
+
+    default: {
+      const unhandled: never = cost;
+      return undefined;
+    }
+  }
 }
 
-export function recycleRuneForPower(
+function controlsSource(
   state: GameState,
   playerId: PlayerId,
-  runeId: CardId,
-): ActionResult {
+  sourceId: CardId,
+): boolean {
   const player = state.players[playerId];
-  const rune = state.runes[runeId];
+  return player.runes.includes(sourceId) || player.base.includes(sourceId);
+}
 
-  if (rune === undefined) {
-    return rejected("runeNotFound");
-  }
-  if (!player.runes.includes(runeId)) {
-    return rejected("runeNotControlled");
+export function activateAbility(
+  state: GameState,
+  playerId: PlayerId,
+  sourceId: CardId,
+  abilityIndex: number,
+): ActionResult {
+  const card = state.cards[sourceId];
+  if (card === undefined) {
+    return rejected("cardNotFound");
   }
 
-  const { [runeId]: _removed, ...remainingRunes } = state.runes;
+  const ability = card.abilities[abilityIndex];
+  if (ability === undefined) {
+    return rejected("abilityNotFound");
+  }
+
+  if (!controlsSource(state, playerId, sourceId)) {
+    return rejected("sourceNotControlled");
+  }
+
+  const context: EffectContext = { controller: playerId, sourceId };
+
+  let current = state;
+  const events: GameEvent[] = [];
+  for (const cost of ability.costs) {
+    const paid = payAbilityCost(current, cost, context);
+    if (paid === undefined) {
+      return rejected("cannotPayAbilityCost");
+    }
+    current = paid.state;
+    events.push(...paid.events);
+  }
+
+  const outcome = execute(current, ability.effect, context);
 
   return {
     ok: true,
-    state: {
-      ...withPlayer(state, playerId, {
-        ...player,
-        runes: player.runes.filter((id) => id !== runeId),
-        runeDeck: [...player.runeDeck, runeId],
-        runePool: addPower(player.runePool, rune.domain, 1),
-      }),
-      runes: remainingRunes,
-    },
-    events: [
-      { type: "runeRecycled", playerId, cardId: runeId },
-      { type: "powerAdded", playerId, domain: rune.domain, amount: 1 },
-    ],
+    state: outcome.state,
+    events: [...events, ...outcome.events],
   };
 }
 
@@ -222,10 +289,13 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       return playUnitFromHand(state, action.playerId, action.cardId);
     case "channelRune":
       return channelRune(state, action.playerId);
-    case "exhaustRuneForEnergy":
-      return exhaustRuneForEnergy(state, action.playerId, action.runeId);
-    case "recycleRuneForPower":
-      return recycleRuneForPower(state, action.playerId, action.runeId);
+    case "activateAbility":
+      return activateAbility(
+        state,
+        action.playerId,
+        action.sourceId,
+        action.abilityIndex,
+      );
     default: {
       const unhandled: never = action;
       return rejected("cardNotFound");

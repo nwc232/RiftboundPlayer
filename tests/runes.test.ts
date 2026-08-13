@@ -1,11 +1,24 @@
 import { describe, expect, it } from "vitest";
-import {
-  channelRune,
-  exhaustRuneForEnergy,
-  recycleRuneForPower,
-} from "../src/actions.js";
+import { activateAbility, channelRune } from "../src/actions.js";
 import { totals } from "../src/cost.js";
+import type { GameState } from "../src/state.js";
 import { makeState, runeCard } from "./fixtures.js";
+
+// Basic runes carry two abilities in printed order (R164.2).
+const ENERGY = 0;
+const POWER = 1;
+
+function withRune(domain: "fury" | "order" = "fury"): GameState {
+  const result = channelRune(
+    makeState({
+      p1: { runeDeck: ["r1"] },
+      cards: [runeCard("r1", domain)],
+    }),
+    "p1",
+  );
+  if (!result.ok) throw new Error("setup failed");
+  return result.state;
+}
 
 describe("channelRune", () => {
   it("moves the top rune onto the board ready, in channel order", () => {
@@ -28,27 +41,16 @@ describe("channelRune", () => {
   });
 
   it("rejects when the rune deck is empty", () => {
-    const before = makeState({ p1: { runeDeck: [] } });
-
-    expect(channelRune(before, "p1")).toEqual({
+    expect(channelRune(makeState({ p1: { runeDeck: [] } }), "p1")).toEqual({
       ok: false,
       reason: "runeDeckEmpty",
     });
   });
 });
 
-describe("exhaustRuneForEnergy", () => {
-  it("exhausts a ready rune and adds 1 energy", () => {
-    const channeled = channelRune(
-      makeState({
-        p1: { runeDeck: ["r1"] },
-        cards: [runeCard("r1", "fury")],
-      }),
-      "p1",
-    );
-    if (!channeled.ok) throw new Error("setup failed");
-
-    const result = exhaustRuneForEnergy(channeled.state, "p1", "r1");
+describe("the rune's energy ability", () => {
+  it("exhausts the rune and adds 1 energy", () => {
+    const result = activateAbility(withRune(), "p1", "r1", ENERGY);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -59,38 +61,34 @@ describe("exhaustRuneForEnergy", () => {
     ]);
   });
 
-  it("rejects a rune that is already exhausted", () => {
-    const channeled = channelRune(
-      makeState({
-        p1: { runeDeck: ["r1"] },
-        cards: [runeCard("r1", "fury")],
-      }),
-      "p1",
-    );
-    if (!channeled.ok) throw new Error("setup failed");
-    const once = exhaustRuneForEnergy(channeled.state, "p1", "r1");
+  it("cannot be paid twice — the rune is already exhausted", () => {
+    const once = activateAbility(withRune(), "p1", "r1", ENERGY);
     if (!once.ok) throw new Error("setup failed");
 
-    expect(exhaustRuneForEnergy(once.state, "p1", "r1")).toEqual({
+    expect(activateAbility(once.state, "p1", "r1", ENERGY)).toEqual({
       ok: false,
-      reason: "runeAlreadyExhausted",
+      reason: "cannotPayAbilityCost",
     });
   });
 
-  it("rejects a rune the player does not control", () => {
-    const channeled = channelRune(
-      makeState({
-        p1: { runeDeck: ["r1"] },
-        cards: [runeCard("r1", "fury")],
-      }),
-      "p1",
-    );
-    if (!channeled.ok) throw new Error("setup failed");
-
-    expect(exhaustRuneForEnergy(channeled.state, "p2", "r1")).toEqual({
+  it("rejects a source the player does not control", () => {
+    expect(activateAbility(withRune(), "p2", "r1", ENERGY)).toEqual({
       ok: false,
-      reason: "runeNotControlled",
+      reason: "sourceNotControlled",
     });
+  });
+});
+
+describe("the rune's power ability", () => {
+  it("recycles the rune to the bottom of the rune deck and adds its domain's Power", () => {
+    const result = activateAbility(withRune("order"), "p1", "r1", POWER);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.players.p1.runes).toEqual([]);
+    expect(result.state.players.p1.runeDeck).toEqual(["r1"]);
+    expect(result.state.runes.r1).toBeUndefined();
+    expect(totals(result.state.players.p1.runePool).power).toEqual({ order: 1 });
   });
 });
 
@@ -98,18 +96,10 @@ describe("one rune, both abilities", () => {
   // R414.1.b blocks re-exhausting, but R416 puts no ready requirement on
   // Recycle — so a single rune can yield 1 Energy and then 1 Power.
   it("allows exhausting for energy and then recycling the same rune", () => {
-    const channeled = channelRune(
-      makeState({
-        p1: { runeDeck: ["r1"] },
-        cards: [runeCard("r1", "fury")],
-      }),
-      "p1",
-    );
-    if (!channeled.ok) throw new Error("setup failed");
-    const exhausted = exhaustRuneForEnergy(channeled.state, "p1", "r1");
-    if (!exhausted.ok) throw new Error("setup failed");
+    const energised = activateAbility(withRune(), "p1", "r1", ENERGY);
+    if (!energised.ok) throw new Error("setup failed");
 
-    const result = recycleRuneForPower(exhausted.state, "p1", "r1");
+    const result = activateAbility(energised.state, "p1", "r1", POWER);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -119,24 +109,11 @@ describe("one rune, both abilities", () => {
   });
 });
 
-describe("recycleRuneForPower", () => {
-  it("returns the rune to the rune deck and adds Power of its domain", () => {
-    const channeled = channelRune(
-      makeState({
-        p1: { runeDeck: ["r1"] },
-        cards: [runeCard("r1", "order")],
-      }),
-      "p1",
-    );
-    if (!channeled.ok) throw new Error("setup failed");
-
-    const result = recycleRuneForPower(channeled.state, "p1", "r1");
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.state.players.p1.runes).toEqual([]);
-    expect(result.state.players.p1.runeDeck).toEqual(["r1"]);
-    expect(totals(result.state.players.p1.runePool).power).toEqual({ order: 1 });
-    expect(result.state.runes.r1).toBeUndefined();
+describe("rejections", () => {
+  it("rejects an ability index the card does not have", () => {
+    expect(activateAbility(withRune(), "p1", "r1", 7)).toEqual({
+      ok: false,
+      reason: "abilityNotFound",
+    });
   });
 });

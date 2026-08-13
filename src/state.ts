@@ -1,3 +1,5 @@
+import type { Ability } from "./abilities.js";
+
 export type PlayerId = "p1" | "p2";
 export type CardId = string;
 export type CardType = "unit" | "spell" | "gear" | "battlefield" | "legend" | "rune";
@@ -61,6 +63,7 @@ export interface CardInstance {
   cost: Cost;
   /** Only runes carry this — the domain of Power they produce when recycled. */
   domain?: Domain;
+  abilities: Ability[];
 }
 
 export interface RuneState {

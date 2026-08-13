@@ -23,8 +23,8 @@ describe("applyAction", () => {
     const script: Action[] = [
       { type: "channelRune", playerId: "p1" },
       { type: "channelRune", playerId: "p1" },
-      { type: "exhaustRuneForEnergy", playerId: "p1", runeId: "r1" },
-      { type: "recycleRuneForPower", playerId: "p1", runeId: "r2" },
+      { type: "activateAbility", playerId: "p1", sourceId: "r1", abilityIndex: 0 },
+      { type: "activateAbility", playerId: "p1", sourceId: "r2", abilityIndex: 1 },
       { type: "drawCard", playerId: "p1" },
       { type: "playUnitFromHand", playerId: "p1", cardId: "u1" },
     ];

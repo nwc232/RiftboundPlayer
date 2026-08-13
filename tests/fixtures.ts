@@ -1,3 +1,4 @@
+import { basicRune } from "../src/builders.js";
 import { EMPTY_POOL, FREE } from "../src/cost.js";
 import type {
   CardInstance,
@@ -35,11 +36,11 @@ export function pool(...specs: BucketSpec[]): RunePool {
 }
 
 export function unit(id: string, partial: Partial<CardInstance> = {}): CardInstance {
-  return { id, name: id, type: "unit", cost: FREE, ...partial };
+  return { id, name: id, type: "unit", cost: FREE, abilities: [], ...partial };
 }
 
 export function runeCard(id: string, domain: Domain): CardInstance {
-  return { id, name: `${domain} rune`, type: "rune", cost: FREE, domain };
+  return basicRune(id, domain);
 }
 
 function player(id: PlayerId, partial: Partial<PlayerState> = {}): PlayerState {
