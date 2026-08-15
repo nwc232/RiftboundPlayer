@@ -48,11 +48,11 @@ describe("beginTurn", () => {
   it("readies everything the turn player controls (R315.1)", () => {
     const exhausted: GameState = {
       ...makeState({
-        p1: { runes: ["r1"], base: ["u2"] },
+        p1: { runes: ["r1"] },
         cards: [runeCard("r1", "fury"), unit("u2")],
+        permanents: [{ cardId: "u2", controller: "p1", exhausted: true }],
       }),
       runes: { r1: { cardId: "r1", domain: "fury", exhausted: true } },
-      permanents: { u2: { cardId: "u2", exhausted: true } },
     };
 
     const { state } = beginTurn(exhausted, "p1", 2);

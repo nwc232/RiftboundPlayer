@@ -51,6 +51,7 @@ export function basicRune(id: string, domain: Domain): CardInstance {
     type: "rune",
     cost: FREE,
     domain,
+    keywords: [],
     abilities: [
       activated([exhaustSelf], addEnergy(1), "reaction"),
       activated([recycleSelf], addPower("selfDomain", 1), "reaction"),

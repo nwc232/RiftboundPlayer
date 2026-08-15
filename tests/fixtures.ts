@@ -5,6 +5,7 @@ import type {
   Cost,
   Domain,
   GameState,
+  Location,
   PaymentRestriction,
   PlayerId,
   PlayerState,
@@ -36,7 +37,15 @@ export function pool(...specs: BucketSpec[]): RunePool {
 }
 
 export function unit(id: string, partial: Partial<CardInstance> = {}): CardInstance {
-  return { id, name: id, type: "unit", cost: FREE, abilities: [], ...partial };
+  return {
+    id,
+    name: id,
+    type: "unit",
+    cost: FREE,
+    abilities: [],
+    keywords: [],
+    ...partial,
+  };
 }
 
 export function runeCard(id: string, domain: Domain): CardInstance {
@@ -48,7 +57,6 @@ function player(id: PlayerId, partial: Partial<PlayerState> = {}): PlayerState {
     id,
     mainDeck: [],
     hand: [],
-    base: [],
     runeDeck: [],
     runes: [],
     runePool: EMPTY_POOL,
@@ -56,14 +64,39 @@ function player(id: PlayerId, partial: Partial<PlayerState> = {}): PlayerState {
   };
 }
 
+interface PermanentSpec {
+  cardId: string;
+  controller?: PlayerId;
+  exhausted?: boolean;
+  location?: Location;
+}
+
 export function makeState(options: {
   p1?: Partial<PlayerState>;
   p2?: Partial<PlayerState>;
   cards?: CardInstance[];
+  permanents?: PermanentSpec[];
+  battlefields?: string[];
 } = {}): GameState {
   const cards: GameState["cards"] = {};
   for (const card of options.cards ?? []) {
     cards[card.id] = card;
+  }
+
+  const permanents: GameState["permanents"] = {};
+  for (const spec of options.permanents ?? []) {
+    const controller = spec.controller ?? "p1";
+    permanents[spec.cardId] = {
+      cardId: spec.cardId,
+      controller,
+      exhausted: spec.exhausted ?? false,
+      location: spec.location ?? { kind: "base", player: controller },
+    };
+  }
+
+  const battlefields: GameState["battlefields"] = {};
+  for (const id of options.battlefields ?? []) {
+    battlefields[id] = { cardId: id, controller: null, contested: false };
   }
 
   return {
@@ -73,7 +106,9 @@ export function makeState(options: {
       p2: player("p2", options.p2 ?? {}),
     },
     cards,
-    permanents: {},
+    permanents,
     runes: {},
+    battlefields,
+    battlefieldOrder: options.battlefields ?? [],
   };
 }

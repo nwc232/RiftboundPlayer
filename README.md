@@ -28,12 +28,13 @@ See `/reference` for provenance notes.
 abilities         list abilities you can use right now
 use <id> <n>      activate ability n of card <id>
 play <id>         play a unit from hand
+move <id> <dest>  standard move; dest is "base" or a battlefield id
 end               end your turn
 log               show everything that has happened
 ```
 
 A sample session — tap two runes and a gear for 3 Energy, play a 3-cost
-unit, then pass the turn twice to watch Awaken/Channel/Draw run:
+unit, pass twice so it readies, then march it onto a battlefield:
 
 ```
 use rune-1 0
@@ -42,10 +43,12 @@ use conduit 0
 play skulker
 end
 end
+move skulker bf-north
 ```
 
 Turns run Awaken → Beginning → Channel → Draw → Main → Ending (R314–317).
 Everything except the Main Phase happens automatically.
 
-Not built yet: battlefields, combat, scoring, triggered abilities, and the
-chain. `p2` has an empty deck, so its turns pass through with nothing to do.
+Not built yet: showdowns, combat, scoring, triggered abilities, the chain.
+Battlefields can be moved to and become contested, but control is never
+established — R190.4 only establishes it at the end of a showdown or combat.

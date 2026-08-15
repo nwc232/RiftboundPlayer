@@ -17,11 +17,9 @@ describe("playUnitFromHand", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.players.p1.hand).toEqual(["s1"]);
-    expect(result.state.players.p1.base).toEqual(["u1"]);
-    expect(result.state.permanents.u1).toEqual({
-      cardId: "u1",
-      exhausted: true,
-    });
+    expect(result.state.permanents.u1?.location).toEqual({ kind: "base", player: "p1" });
+    expect(result.state.permanents.u1?.exhausted).toBe(true);
+    expect(result.state.permanents.u1?.controller).toBe("p1");
   });
 
   it("reports the cost payment and the unit entering play", () => {
@@ -41,7 +39,6 @@ describe("playUnitFromHand", () => {
     playUnitFromHand(before, "p1", "u1");
 
     expect(before.players.p1.hand).toEqual(["u1", "s1"]);
-    expect(before.players.p1.base).toEqual([]);
     expect(before.permanents.u1).toBeUndefined();
   });
 

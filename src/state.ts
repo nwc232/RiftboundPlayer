@@ -65,6 +65,7 @@ export interface CardInstance {
   /** Only runes carry this — the domain of Power they produce when recycled. */
   domain?: Domain;
   abilities: Ability[];
+  keywords: Keyword[];
 }
 
 export interface RuneState {
@@ -73,10 +74,37 @@ export interface RuneState {
   exhausted: boolean;
 }
 
+/** Keywords the engine actually checks. Others exist; they get added as needed. */
+export type Keyword = "ganking";
+
+/** R198 — the places permanents can be: each player's base, and each battlefield. */
+export type Location =
+  | { kind: "base"; player: PlayerId }
+  | { kind: "battlefield"; id: CardId };
+
+export function sameLocation(a: Location, b: Location): boolean {
+  if (a.kind === "base" && b.kind === "base") return a.player === b.player;
+  if (a.kind === "battlefield" && b.kind === "battlefield") return a.id === b.id;
+  return false;
+}
+
+/**
+ * R190 — control is binary and belongs to at most one player. Contested is a
+ * temporary status applied when a unit arrives whose controller doesn't already
+ * control the battlefield (R190.3.a).
+ */
+export interface BattlefieldState {
+  cardId: CardId;
+  controller: PlayerId | null;
+  contested: boolean;
+}
+
 /** Runtime state a card only has once it's a permanent on the board — doesn't exist while the card is in hand/deck. */
 export interface PermanentState {
   cardId: CardId;
+  controller: PlayerId;
   exhausted: boolean;
+  location: Location;
 }
 
 export interface PlayerState {
@@ -84,7 +112,6 @@ export interface PlayerState {
   /** Index 0 is the top of the deck (the next card drawn). */
   mainDeck: CardId[];
   hand: CardId[];
-  base: CardId[];
   /** Index 0 is the top of the rune deck (the next rune channeled). */
   runeDeck: CardId[];
   /** Runes on the board, in the order they were channeled (oldest first). */
@@ -98,4 +125,26 @@ export interface GameState {
   cards: Record<CardId, CardInstance>;
   permanents: Record<CardId, PermanentState>;
   runes: Record<CardId, RuneState>;
+  battlefields: Record<CardId, BattlefieldState>;
+  /** Battlefields in play, in a stable display order. */
+  battlefieldOrder: CardId[];
+}
+
+/** Every permanent at a location, in insertion order. */
+export function permanentsAt(
+  state: GameState,
+  location: Location,
+): PermanentState[] {
+  return Object.values(state.permanents).filter((permanent) =>
+    sameLocation(permanent.location, location),
+  );
+}
+
+export function permanentsControlledBy(
+  state: GameState,
+  playerId: PlayerId,
+): PermanentState[] {
+  return Object.values(state.permanents).filter(
+    (permanent) => permanent.controller === playerId,
+  );
 }

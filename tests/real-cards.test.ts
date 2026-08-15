@@ -15,6 +15,7 @@ const energyConduit: CardInstance = {
   name: "Energy Conduit",
   type: "gear",
   cost: FREE,
+  keywords: [],
   abilities: [activated([exhaustSelf], addEnergy(1), "reaction")],
 };
 
@@ -24,6 +25,7 @@ const sealOfRage: CardInstance = {
   name: "Seal of Rage",
   type: "gear",
   cost: FREE,
+  keywords: [],
   abilities: [activated([exhaustSelf], addPower("fury", 1), "reaction")],
 };
 
@@ -33,15 +35,15 @@ const sealOfUnity: CardInstance = {
   name: "Seal of Unity",
   type: "gear",
   cost: FREE,
+  keywords: [],
   abilities: [activated([exhaustSelf], addPower("order", 1), "reaction")],
 };
 
 function onBoard(card: CardInstance) {
-  const state = makeState({ p1: { base: [card.id] }, cards: [card] });
-  return {
-    ...state,
-    permanents: { [card.id]: { cardId: card.id, exhausted: false } },
-  };
+  return makeState({
+    cards: [card],
+    permanents: [{ cardId: card.id, controller: "p1" }],
+  });
 }
 
 describe("real cards expressed as data", () => {

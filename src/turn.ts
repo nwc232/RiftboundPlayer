@@ -1,4 +1,5 @@
 import type { GameEvent } from "./events.js";
+import { permanentsControlledBy } from "./state.js";
 import type { GameState, PlayerId } from "./state.js";
 
 /** R314–317. Awaken through Draw run as automatic tasks; Main waits for the player. */
@@ -52,11 +53,14 @@ function awaken(progress: Progress, player: PlayerId): Progress {
   }
 
   const permanents = { ...state.permanents };
-  for (const cardId of playerState.base) {
-    const permanent = permanents[cardId];
-    if (permanent !== undefined && permanent.exhausted) {
-      permanents[cardId] = { ...permanent, exhausted: false };
-      events.push({ type: "objectReadied", playerId: player, cardId });
+  for (const permanent of permanentsControlledBy(state, player)) {
+    if (permanent.exhausted) {
+      permanents[permanent.cardId] = { ...permanent, exhausted: false };
+      events.push({
+        type: "objectReadied",
+        playerId: player,
+        cardId: permanent.cardId,
+      });
     }
   }
 

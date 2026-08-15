@@ -1,12 +1,15 @@
 import { activated, addEnergy, addPower, basicRune, exhaustSelf } from "../builders.js";
 import { FREE } from "../cost.js";
-import type { CardInstance, Domain, GameState } from "../state.js";
+import type { CardInstance, Domain, GameState, Keyword } from "../state.js";
 import { beginTurn } from "../turn.js";
 
 /**
  * A small hand-authored sample using real Riftbound cards. Costs and domains
  * come from the card database in /reference; the units chosen are ones with no
  * printed rules text, so nothing here is faked to look more finished than it is.
+ *
+ * The two battlefields are placeholders — real battlefields carry abilities we
+ * cannot model yet, so these are bare locations to move between.
  */
 
 function vanillaUnit(
@@ -14,6 +17,7 @@ function vanillaUnit(
   name: string,
   energy: number,
   domain: Domain,
+  keywords: Keyword[] = [],
 ): CardInstance {
   return {
     id,
@@ -21,6 +25,7 @@ function vanillaUnit(
     type: "unit",
     cost: { ...FREE, energy },
     domain,
+    keywords,
     abilities: [],
   };
 }
@@ -28,12 +33,14 @@ function vanillaUnit(
 export const SAMPLE_CARDS: CardInstance[] = [
   vanillaUnit("skulker", "Shipyard Skulker", 3, "chaos"),
   vanillaUnit("sergeant", "Vanguard Sergeant", 4, "order"),
-  vanillaUnit("phantom", "Playful Phantom", 5, "calm"),
+  // Not printed with Ganking — given it here so the keyword is exercisable.
+  vanillaUnit("phantom", "Playful Phantom", 5, "calm", ["ganking"]),
   {
     id: "conduit",
     name: "Energy Conduit",
     type: "gear",
     cost: FREE,
+    keywords: [],
     abilities: [activated([exhaustSelf], addEnergy(1), "reaction")],
   },
   {
@@ -41,8 +48,14 @@ export const SAMPLE_CARDS: CardInstance[] = [
     name: "Seal of Rage",
     type: "gear",
     cost: FREE,
+    keywords: [],
     abilities: [activated([exhaustSelf], addPower("fury", 1), "reaction")],
   },
+];
+
+const BATTLEFIELDS: CardInstance[] = [
+  { id: "bf-north", name: "North Battlefield", type: "battlefield", cost: FREE, keywords: [], abilities: [] },
+  { id: "bf-south", name: "South Battlefield", type: "battlefield", cost: FREE, keywords: [], abilities: [] },
 ];
 
 const RUNES: CardInstance[] = [
@@ -61,7 +74,7 @@ export function makeDemoState(): GameState {
 
 function emptyBoard(): GameState {
   const cards: GameState["cards"] = {};
-  for (const card of [...SAMPLE_CARDS, ...RUNES]) {
+  for (const card of [...SAMPLE_CARDS, ...BATTLEFIELDS, ...RUNES]) {
     cards[card.id] = card;
   }
 
@@ -72,7 +85,6 @@ function emptyBoard(): GameState {
         id: "p1",
         mainDeck: ["skulker", "sergeant", "phantom"],
         hand: [],
-        base: ["conduit", "seal-rage"],
         runeDeck: RUNES.map((rune) => rune.id),
         runes: [],
         runePool: { buckets: [] },
@@ -81,7 +93,6 @@ function emptyBoard(): GameState {
         id: "p2",
         mainDeck: [],
         hand: [],
-        base: [],
         runeDeck: [],
         runes: [],
         runePool: { buckets: [] },
@@ -89,9 +100,24 @@ function emptyBoard(): GameState {
     },
     cards,
     permanents: {
-      conduit: { cardId: "conduit", exhausted: false },
-      "seal-rage": { cardId: "seal-rage", exhausted: false },
+      conduit: {
+        cardId: "conduit",
+        controller: "p1",
+        exhausted: false,
+        location: { kind: "base", player: "p1" },
+      },
+      "seal-rage": {
+        cardId: "seal-rage",
+        controller: "p1",
+        exhausted: false,
+        location: { kind: "base", player: "p1" },
+      },
     },
     runes: {},
+    battlefields: {
+      "bf-north": { cardId: "bf-north", controller: null, contested: false },
+      "bf-south": { cardId: "bf-south", controller: null, contested: false },
+    },
+    battlefieldOrder: ["bf-north", "bf-south"],
   };
 }

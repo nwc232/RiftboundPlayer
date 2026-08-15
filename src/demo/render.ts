@@ -1,6 +1,7 @@
 import { totals } from "../cost.js";
 import type { GameEvent } from "../events.js";
-import type { Cost, GameState, PlayerId } from "../state.js";
+import { permanentsAt } from "../state.js";
+import type { Cost, GameState, Location, PlayerId } from "../state.js";
 
 const useColor = process.env["NO_COLOR"] === undefined;
 
@@ -52,14 +53,14 @@ function renderPlayer(state: GameState, playerId: PlayerId): string[] {
       : player.hand.map((id) => cardLabel(state, id)).join(", ");
   lines.push(`  hand       ${hand}`);
 
+  const inBase = permanentsAt(state, { kind: "base", player: playerId });
   const base =
-    player.base.length === 0
+    inBase.length === 0
       ? dim("(empty)")
-      : player.base
-          .map((id) => {
-            const exhausted = state.permanents[id]?.exhausted ?? false;
-            const mark = exhausted ? yellow(" exhausted") : green(" ready");
-            return `${cardLabel(state, id)}${mark}`;
+      : inBase
+          .map((permanent) => {
+            const mark = permanent.exhausted ? yellow(" exhausted") : green(" ready");
+            return `${cardLabel(state, permanent.cardId)}${mark}`;
           })
           .join(", ");
   lines.push(`  base       ${base}`);
@@ -85,6 +86,36 @@ function renderPlayer(state: GameState, playerId: PlayerId): string[] {
   return lines;
 }
 
+export function locationName(location: Location): string {
+  return location.kind === "base" ? `${location.player} base` : location.id;
+}
+
+function renderBattlefields(state: GameState): string[] {
+  const lines: string[] = [bold("BATTLEFIELDS")];
+
+  for (const id of state.battlefieldOrder) {
+    const battlefield = state.battlefields[id];
+    if (battlefield === undefined) continue;
+    const card = state.cards[id];
+    const occupants = permanentsAt(state, { kind: "battlefield", id });
+    const who =
+      occupants.length === 0
+        ? dim("(empty)")
+        : occupants
+            .map((p) => `${cardLabel(state, p.cardId)} ${dim(`(${p.controller})`)}`)
+            .join(", ");
+    const status = battlefield.contested
+      ? yellow(" contested")
+      : battlefield.controller === null
+        ? dim(" uncontrolled")
+        : green(` controlled by ${battlefield.controller}`);
+    lines.push(`  ${card?.name ?? id} ${dim(`[${id}]`)}${status}`);
+    lines.push(`    ${who}`);
+  }
+
+  return lines;
+}
+
 export function renderState(state: GameState): string {
   const header = bold(
     `turn ${state.turn.number}  ${state.turn.player}  ${state.turn.phase} phase`,
@@ -94,6 +125,8 @@ export function renderState(state: GameState): string {
     header,
     "",
     ...renderPlayer(state, "p1"),
+    "",
+    ...renderBattlefields(state),
     "",
     ...renderPlayer(state, "p2"),
     "",
@@ -124,6 +157,8 @@ export function renderEvent(event: GameEvent): string {
       return `${event.playerId} readied ${event.cardId}`;
     case "poolEmptied":
       return dim(`  ${event.playerId} rune pool emptied`);
+    case "unitMoved":
+      return `${event.playerId} moved ${event.cardId} from ${locationName(event.from)} to ${locationName(event.to)}`;
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);
@@ -136,7 +171,11 @@ export function renderAvailableAbilities(state: GameState): string[] {
   const player = state.players.p1;
   const lines: string[] = [];
 
-  for (const sourceId of [...player.runes, ...player.base]) {
+  const sources = [
+    ...player.runes,
+    ...permanentsAt(state, { kind: "base", player: "p1" }).map((p) => p.cardId),
+  ];
+  for (const sourceId of sources) {
     const card = state.cards[sourceId];
     if (card === undefined) continue;
     card.abilities.forEach((ability, index) => {

@@ -14,13 +14,15 @@ commands
   use <id> <n>      activate ability n of card <id>
   draw              draw a card
   play <id>         play a unit from hand
+  move <id> <dest>  standard move; dest is base or a battlefield id
   log               show everything that has happened
   reset             start over
   help              this
   quit              leave
 
-not built yet: battlefields, combat, scoring, triggered abilities, the chain.
-p2 has an empty deck, so its turns pass through with nothing to do.
+not built yet: showdowns, combat, scoring, triggered abilities, the chain.
+battlefields can be moved to and become contested, but control is never
+established — that needs a showdown. p2 has an empty deck.
 `;
 
 let state: GameState = makeDemoState();
@@ -76,6 +78,20 @@ function handle(line: string): boolean {
         return true;
       }
       run({ type: "playUnitFromHand", playerId: "p1", cardId });
+      return true;
+    }
+    case "move": {
+      const cardId = args[0];
+      const target = args[1];
+      if (cardId === undefined || target === undefined) {
+        console.log("  usage: move <cardId> <base|battlefieldId>\n");
+        return true;
+      }
+      const destination =
+        target === "base"
+          ? ({ kind: "base", player: state.turn.player } as const)
+          : ({ kind: "battlefield", id: target } as const);
+      run({ type: "standardMove", playerId: state.turn.player, cardId, destination });
       return true;
     }
     case "use": {

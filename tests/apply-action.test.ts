@@ -54,7 +54,7 @@ describe("applyAction", () => {
       log.push(...result.events);
     }
 
-    expect(state.players.p1.base).toEqual(["u1"]);
+    expect(state.permanents.u1?.location).toEqual({ kind: "base", player: "p1" });
     expect(totals(state.players.p1.runePool)).toEqual({
       energy: 0,
       power: {},

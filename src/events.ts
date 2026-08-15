@@ -1,4 +1,4 @@
-import type { CardId, Cost, Domain, PlayerId } from "./state.js";
+import type { CardId, Cost, Domain, Location, PlayerId } from "./state.js";
 import type { Phase } from "./turn.js";
 
 export type GameEvent =
@@ -12,4 +12,11 @@ export type GameEvent =
   | { type: "turnBegan"; playerId: PlayerId; turn: number }
   | { type: "phaseBegan"; playerId: PlayerId; phase: Phase }
   | { type: "objectReadied"; playerId: PlayerId; cardId: CardId }
-  | { type: "poolEmptied"; playerId: PlayerId };
+  | { type: "poolEmptied"; playerId: PlayerId }
+  | {
+      type: "unitMoved";
+      playerId: PlayerId;
+      cardId: CardId;
+      from: Location;
+      to: Location;
+    };
