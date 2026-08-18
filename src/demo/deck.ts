@@ -88,6 +88,8 @@ function emptyBoard(): GameState {
         runeDeck: RUNES.map((rune) => rune.id),
         runes: [],
         runePool: { buckets: [] },
+        points: 0,
+        scoredThisTurn: [],
       },
       p2: {
         id: "p2",
@@ -96,6 +98,8 @@ function emptyBoard(): GameState {
         runeDeck: [],
         runes: [],
         runePool: { buckets: [] },
+        points: 0,
+        scoredThisTurn: [],
       },
     },
     cards,
@@ -115,9 +119,11 @@ function emptyBoard(): GameState {
     },
     runes: {},
     battlefields: {
-      "bf-north": { cardId: "bf-north", controller: null, contested: false },
-      "bf-south": { cardId: "bf-south", controller: null, contested: false },
+      "bf-north": { cardId: "bf-north", controller: null, contestedBy: null },
+      "bf-south": { cardId: "bf-south", controller: null, contestedBy: null },
     },
     battlefieldOrder: ["bf-north", "bf-south"],
+    showdown: null,
+    winner: null,
   };
 }

@@ -94,14 +94,14 @@ describe("contested status (R190.3.a)", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.battlefields["bf-north"]?.contested).toBe(true);
+    expect(result.state.battlefields["bf-north"]?.contestedBy).toBe("p1");
   });
 
   it("does not mark it contested when the mover already controls it", () => {
     const controlled: GameState = {
       ...board(),
       battlefields: {
-        "bf-north": { cardId: "bf-north", controller: "p1", contested: false },
+        "bf-north": { cardId: "bf-north", controller: "p1", contestedBy: null },
       },
     };
 
@@ -109,7 +109,7 @@ describe("contested status (R190.3.a)", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.battlefields["bf-north"]?.contested).toBe(false);
+    expect(result.state.battlefields["bf-north"]?.contestedBy).toBeNull();
   });
 
   it("applies when a unit is played straight to a battlefield", () => {
@@ -124,6 +124,6 @@ describe("contested status (R190.3.a)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.permanents.u1?.location).toEqual(NORTH);
-    expect(result.state.battlefields["bf-north"]?.contested).toBe(true);
+    expect(result.state.battlefields["bf-north"]?.contestedBy).toBe("p1");
   });
 });

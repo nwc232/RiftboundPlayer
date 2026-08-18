@@ -29,6 +29,7 @@ abilities         list abilities you can use right now
 use <id> <n>      activate ability n of card <id>
 play <id>         play a unit from hand
 move <id> <dest>  standard move; dest is "base" or a battlefield id
+pass              pass focus during a showdown
 end               end your turn
 log               show everything that has happened
 ```
@@ -44,11 +45,20 @@ play skulker
 end
 end
 move skulker bf-north
+pass
+pass
 ```
+
+Moving onto an uncontrolled battlefield contests it, which opens a
+showdown in the following cleanup. Both players passing closes it, p1
+establishes control, and that Conquer scores a point. Pass two more
+turns and the same battlefield is Held at the start of p1's turn for
+another point. First to 8 wins (R194.3).
 
 Turns run Awaken → Beginning → Channel → Draw → Main → Ending (R314–317).
 Everything except the Main Phase happens automatically.
 
-Not built yet: showdowns, combat, scoring, triggered abilities, the chain.
-Battlefields can be moved to and become contested, but control is never
-established — R190.4 only establishes it at the end of a showdown or combat.
+Not built yet: combat (units from opposing players at one battlefield),
+triggered abilities, and the chain. The chain stays absent deliberately —
+with no spells and no triggered abilities, nothing can go on it, and R348
+reduces a showdown to "both players pass".

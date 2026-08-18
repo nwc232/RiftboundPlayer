@@ -1,4 +1,5 @@
-import type { GameEvent } from "./events.js";
+import type { GameEvent, Progress } from "./events.js";
+import { checkForWinner, holdControlledBattlefields } from "./scoring.js";
 import { permanentsControlledBy } from "./state.js";
 import type { GameState, PlayerId } from "./state.js";
 
@@ -19,11 +20,6 @@ export interface TurnState {
 
 export function opponentOf(playerId: PlayerId): PlayerId {
   return playerId === "p1" ? "p2" : "p1";
-}
-
-interface Progress {
-  state: GameState;
-  events: GameEvent[];
 }
 
 function enterPhase(
@@ -67,6 +63,16 @@ function awaken(progress: Progress, player: PlayerId): Progress {
   return {
     state: { ...state, runes, permanents },
     events: [...progress.events, ...events],
+  };
+}
+
+/** R315.2.b — the turn player Holds every battlefield they control. */
+function scoringStep(progress: Progress, player: PlayerId): Progress {
+  const held = holdControlledBattlefields(progress.state, player);
+  const won = checkForWinner(held.state);
+  return {
+    state: won.state,
+    events: [...progress.events, ...held.events, ...won.events],
   };
 }
 
@@ -143,22 +149,30 @@ function emptyAllPools(progress: Progress): Progress {
 /**
  * Runs Awaken through Draw, leaving the turn in its Main Phase.
  *
- * Not modelled yet: the Scoring Step (R315.2.b) needs battlefields, and Burn
- * Out (R431) needs to happen when the deck runs dry during the Draw Phase.
+ * Not modelled yet: Burn Out (R431) when the deck runs dry during the Draw Phase.
  */
 export function beginTurn(
   state: GameState,
   player: PlayerId,
   number: number,
 ): Progress {
+  // R470 is per turn, so both players' scoring records reset as the turn starts.
   let progress: Progress = {
-    state: { ...state, turn: { player, phase: "awaken", number } },
+    state: {
+      ...state,
+      turn: { player, phase: "awaken", number },
+      players: {
+        p1: { ...state.players.p1, scoredThisTurn: [] },
+        p2: { ...state.players.p2, scoredThisTurn: [] },
+      },
+    },
     events: [{ type: "turnBegan", playerId: player, turn: number }],
   };
 
   progress = enterPhase(progress, player, "awaken");
   progress = awaken(progress, player);
   progress = enterPhase(progress, player, "beginning");
+  progress = scoringStep(progress, player);
   progress = enterPhase(progress, player, "channel");
   progress = channelTwo(progress, player);
   progress = enterPhase(progress, player, "draw");

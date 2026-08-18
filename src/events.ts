@@ -1,4 +1,12 @@
-import type { CardId, Cost, Domain, Location, PlayerId } from "./state.js";
+import type {
+  CardId,
+  Cost,
+  Domain,
+  GameState,
+  Location,
+  PlayerId,
+} from "./state.js";
+import type { ScoreMethod } from "./scoring.js";
 import type { Phase } from "./turn.js";
 
 export type GameEvent =
@@ -19,4 +27,22 @@ export type GameEvent =
       cardId: CardId;
       from: Location;
       to: Location;
-    };
+    }
+  | { type: "showdownOpened"; battlefieldId: CardId; attacker: PlayerId }
+  | { type: "focusPassed"; playerId: PlayerId }
+  | { type: "showdownClosed"; battlefieldId: CardId }
+  | { type: "battlefieldControlled"; playerId: PlayerId; battlefieldId: CardId }
+  | { type: "battlefieldControlLost"; playerId: PlayerId; battlefieldId: CardId }
+  | {
+      type: "battlefieldScored";
+      playerId: PlayerId;
+      battlefieldId: CardId;
+      method: ScoreMethod;
+    }
+  | { type: "pointGained"; playerId: PlayerId; points: number }
+  | { type: "gameWon"; playerId: PlayerId; points: number };
+
+export interface Progress {
+  state: GameState;
+  events: GameEvent[];
+}

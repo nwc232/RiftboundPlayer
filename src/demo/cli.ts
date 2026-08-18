@@ -10,6 +10,7 @@ const HELP = `
 commands
   state             show the board
   abilities         list abilities you can use right now
+  pass              pass focus during a showdown
   end               end your turn
   use <id> <n>      activate ability n of card <id>
   draw              draw a card
@@ -20,9 +21,9 @@ commands
   help              this
   quit              leave
 
-not built yet: showdowns, combat, scoring, triggered abilities, the chain.
-battlefields can be moved to and become contested, but control is never
-established — that needs a showdown. p2 has an empty deck.
+not built yet: combat (units from both players at one battlefield),
+triggered abilities, the chain. p2 has an empty deck.
+first to 8 points wins.
 `;
 
 let state: GameState = makeDemoState();
@@ -63,6 +64,11 @@ function handle(line: string): boolean {
     case "a": {
       const lines = renderAvailableAbilities(state);
       console.log(lines.length === 0 ? "\n  nothing available\n" : `\n${lines.join("\n")}\n`);
+      return true;
+    }
+    case "pass": {
+      const focus = state.showdown?.focus ?? state.turn.player;
+      run({ type: "passFocus", playerId: focus });
       return true;
     }
     case "end":

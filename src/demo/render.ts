@@ -1,4 +1,5 @@
 import { totals } from "../cost.js";
+import { VICTORY_SCORE } from "../scoring.js";
 import type { GameEvent } from "../events.js";
 import { permanentsAt } from "../state.js";
 import type { Cost, GameState, Location, PlayerId } from "../state.js";
@@ -82,6 +83,7 @@ function renderPlayer(state: GameState, playerId: PlayerId): string[] {
     `  decks      ${dim(`main ${player.mainDeck.length}, rune ${player.runeDeck.length}`)}`,
   );
   lines.push(`  pool       ${formatPool(state, playerId)}`);
+  lines.push(`  points     ${bold(String(player.points))}${dim(` / ${VICTORY_SCORE}`)}`);
 
   return lines;
 }
@@ -104,8 +106,8 @@ function renderBattlefields(state: GameState): string[] {
         : occupants
             .map((p) => `${cardLabel(state, p.cardId)} ${dim(`(${p.controller})`)}`)
             .join(", ");
-    const status = battlefield.contested
-      ? yellow(" contested")
+    const status = battlefield.contestedBy !== null
+      ? yellow(` contested by ${battlefield.contestedBy}`)
       : battlefield.controller === null
         ? dim(" uncontrolled")
         : green(` controlled by ${battlefield.controller}`);
@@ -117,8 +119,13 @@ function renderBattlefields(state: GameState): string[] {
 }
 
 export function renderState(state: GameState): string {
+  const showdown = state.showdown;
   const header = bold(
-    `turn ${state.turn.number}  ${state.turn.player}  ${state.turn.phase} phase`,
+    state.winner !== null
+      ? `game over — ${state.winner} wins`
+      : showdown !== null
+        ? `turn ${state.turn.number}  showdown at ${showdown.battlefieldId}  focus: ${showdown.focus}`
+        : `turn ${state.turn.number}  ${state.turn.player}  ${state.turn.phase} phase`,
   );
   return [
     "",
@@ -159,6 +166,22 @@ export function renderEvent(event: GameEvent): string {
       return dim(`  ${event.playerId} rune pool emptied`);
     case "unitMoved":
       return `${event.playerId} moved ${event.cardId} from ${locationName(event.from)} to ${locationName(event.to)}`;
+    case "showdownOpened":
+      return bold(`showdown opens at ${event.battlefieldId} — ${event.attacker} attacks and has focus`);
+    case "focusPassed":
+      return dim(`  ${event.playerId} passes`);
+    case "showdownClosed":
+      return dim(`  showdown at ${event.battlefieldId} closes`);
+    case "battlefieldControlled":
+      return green(`${event.playerId} takes control of ${event.battlefieldId}`);
+    case "battlefieldControlLost":
+      return `${event.playerId} loses control of ${event.battlefieldId}`;
+    case "battlefieldScored":
+      return `${event.playerId} ${event.method === "conquer" ? "conquers" : "holds"} ${event.battlefieldId}`;
+    case "pointGained":
+      return green(`${event.playerId} scores — now ${event.points} point${event.points === 1 ? "" : "s"}`);
+    case "gameWon":
+      return bold(`${event.playerId} WINS with ${event.points} points`);
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);

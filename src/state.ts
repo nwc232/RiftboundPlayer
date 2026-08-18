@@ -1,4 +1,5 @@
 import type { Ability } from "./abilities.js";
+import type { ShowdownState } from "./showdown.js";
 import type { TurnState } from "./turn.js";
 
 export type PlayerId = "p1" | "p2";
@@ -96,7 +97,8 @@ export function sameLocation(a: Location, b: Location): boolean {
 export interface BattlefieldState {
   cardId: CardId;
   controller: PlayerId | null;
-  contested: boolean;
+  /** Who applied Contested — they gain Focus (R345) and are the Attacker (R464.2.c.1). */
+  contestedBy: PlayerId | null;
 }
 
 /** Runtime state a card only has once it's a permanent on the board — doesn't exist while the card is in hand/deck. */
@@ -117,6 +119,9 @@ export interface PlayerState {
   /** Runes on the board, in the order they were channeled (oldest first). */
   runes: CardId[];
   runePool: RunePool;
+  points: number;
+  /** R470 — a battlefield may only be scored once per turn per player. */
+  scoredThisTurn: CardId[];
 }
 
 export interface GameState {
@@ -128,6 +133,8 @@ export interface GameState {
   battlefields: Record<CardId, BattlefieldState>;
   /** Battlefields in play, in a stable display order. */
   battlefieldOrder: CardId[];
+  showdown: ShowdownState | null;
+  winner: PlayerId | null;
 }
 
 /** Every permanent at a location, in insertion order. */

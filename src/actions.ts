@@ -11,6 +11,7 @@ import type {
   PlayerId,
   PlayerState,
 } from "./state.js";
+import { passFocus as runPassFocus, runCleanup } from "./showdown.js";
 import { beginTurn, endTurn as runEndTurn } from "./turn.js";
 
 export type Action =
@@ -28,6 +29,7 @@ export type Action =
       destination: Location;
     }
   | { type: "endTurn"; playerId: PlayerId }
+  | { type: "passFocus"; playerId: PlayerId }
   | {
       type: "activateAbility";
       playerId: PlayerId;
@@ -54,7 +56,11 @@ export type RejectionReason =
   | "notOnBoard"
   | "alreadyExhausted"
   | "invalidDestination"
-  | "alreadyThere";
+  | "alreadyThere"
+  | "noShowdown"
+  | "notYourFocus"
+  | "showdownInProgress"
+  | "gameOver";
 
 export type ActionResult =
   | { ok: true; state: GameState; events: GameEvent[] }
@@ -62,6 +68,17 @@ export type ActionResult =
 
 function rejected(reason: RejectionReason): ActionResult {
   return { ok: false, reason };
+}
+
+/** R453 — a cleanup runs when a move (or any board change) completes. */
+function thenCleanup(result: ActionResult): ActionResult {
+  if (!result.ok) return result;
+  const cleaned = runCleanup(result.state);
+  return {
+    ok: true,
+    state: cleaned.state,
+    events: [...result.events, ...cleaned.events],
+  };
 }
 
 function withPlayer(
@@ -108,6 +125,10 @@ export function playUnitFromHand(
   }
   if (state.turn.phase !== "main") {
     return rejected("wrongPhase");
+  }
+  // R343.1.a — cards can't be played during a showdown state by default.
+  if (state.showdown !== null) {
+    return rejected("showdownInProgress");
   }
 
   const player = state.players[playerId];
@@ -186,7 +207,7 @@ function applyContested(
 
   return {
     ...state.battlefields,
-    [destination.id]: { ...battlefield, contested: true },
+    [destination.id]: { ...battlefield, contestedBy: mover },
   };
 }
 
@@ -206,6 +227,10 @@ export function standardMove(
   }
   if (state.turn.phase !== "main") {
     return rejected("wrongPhase");
+  }
+  // R144.1.c — a standard move can't be performed during a showdown or combat.
+  if (state.showdown !== null) {
+    return rejected("showdownInProgress");
   }
 
   const card = state.cards[cardId];
@@ -263,12 +288,33 @@ export function standardMove(
   };
 }
 
+/** R347.2 — the player with Focus passes; two passes in sequence close it. */
+export function passFocus(state: GameState, playerId: PlayerId): ActionResult {
+  if (state.showdown === null) {
+    return rejected("noShowdown");
+  }
+  if (state.showdown.focus !== playerId) {
+    return rejected("notYourFocus");
+  }
+
+  const progress = runPassFocus(state, playerId);
+  return thenCleanup({
+    ok: true,
+    state: progress.state,
+    events: progress.events,
+  });
+}
+
 export function endTurn(
   state: GameState,
   playerId: PlayerId,
 ): ActionResult {
   if (state.turn.player !== playerId) {
     return rejected("notYourTurn");
+  }
+  // A showdown has to resolve before the turn can end.
+  if (state.showdown !== null) {
+    return rejected("showdownInProgress");
   }
 
   const progress = runEndTurn(state);
@@ -411,23 +457,28 @@ export function activateAbility(
 }
 
 export function applyAction(state: GameState, action: Action): ActionResult {
+  if (state.winner !== null) {
+    return rejected("gameOver");
+  }
+
   switch (action.type) {
     case "drawCard":
       return drawCard(state, action.playerId);
     case "playUnitFromHand":
-      return playUnitFromHand(
-        state,
-        action.playerId,
-        action.cardId,
-        action.destination,
+      return thenCleanup(
+        playUnitFromHand(
+          state,
+          action.playerId,
+          action.cardId,
+          action.destination,
+        ),
       );
     case "standardMove":
-      return standardMove(
-        state,
-        action.playerId,
-        action.cardId,
-        action.destination,
+      return thenCleanup(
+        standardMove(state, action.playerId, action.cardId, action.destination),
       );
+    case "passFocus":
+      return passFocus(state, action.playerId);
     case "endTurn":
       return endTurn(state, action.playerId);
     case "activateAbility":

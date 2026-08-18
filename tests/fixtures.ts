@@ -60,6 +60,8 @@ function player(id: PlayerId, partial: Partial<PlayerState> = {}): PlayerState {
     runeDeck: [],
     runes: [],
     runePool: EMPTY_POOL,
+    points: 0,
+    scoredThisTurn: [],
     ...partial,
   };
 }
@@ -96,7 +98,7 @@ export function makeState(options: {
 
   const battlefields: GameState["battlefields"] = {};
   for (const id of options.battlefields ?? []) {
-    battlefields[id] = { cardId: id, controller: null, contested: false };
+    battlefields[id] = { cardId: id, controller: null, contestedBy: null };
   }
 
   return {
@@ -110,5 +112,7 @@ export function makeState(options: {
     runes: {},
     battlefields,
     battlefieldOrder: options.battlefields ?? [],
+    showdown: null,
+    winner: null,
   };
 }
