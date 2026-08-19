@@ -2,6 +2,7 @@ import type { Ability } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
 import type { PendingDecision } from "./decisions.js";
 import type { ShowdownState } from "./showdown.js";
+import type { Task } from "./tasks.js";
 import type { TurnState } from "./turn.js";
 
 export type PlayerId = "p1" | "p2";
@@ -159,6 +160,11 @@ export interface GameState {
   priorityPasses: number;
   /** A choice the engine is waiting on; blocks everything else while set. */
   pending: PendingDecision | null;
+  /**
+   * R319/R334 — outstanding work, drained before priority is awarded or any
+   * chain item resolves. Empty whenever the game is waiting on a player.
+   */
+  tasks: Task[];
 }
 
 /** Every permanent at a location, in insertion order. */

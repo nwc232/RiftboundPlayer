@@ -20,7 +20,8 @@ import {
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
 import { collectTriggers } from "./triggers.js";
-import { passFocus as runPassFocus, runCleanup } from "./showdown.js";
+import { enqueue, runTasks } from "./tasks.js";
+import { passFocus as runPassFocus } from "./showdown.js";
 import { beginTurn, endTurn as runEndTurn } from "./turn.js";
 
 export type Action =
@@ -109,20 +110,25 @@ function rejected(reason: RejectionReason): ActionResult {
 function thenCleanup(result: ActionResult): ActionResult {
   if (!result.ok) return result;
 
-  const cleaned = runCleanup(result.state);
-  const events = [...result.events, ...cleaned.events];
+  const worked = runTasks(enqueue(result.state, { kind: "cleanup" }));
+  const events = [...result.events, ...worked.events];
 
-  const triggered = collectTriggers(cleaned.state, events);
+  // R334.2 — pending chain items are only processed once every task is done.
+  if (worked.state.tasks.length > 0) {
+    return { ok: true, state: worked.state, events };
+  }
+
+  const triggered = collectTriggers(worked.state, events);
   if (triggered.length === 0) {
-    return { ok: true, state: cleaned.state, events };
+    return { ok: true, state: worked.state, events };
   }
 
   const state: GameState = {
-    ...cleaned.state,
-    chain: [...cleaned.state.chain, ...triggered],
+    ...worked.state,
+    chain: [...worked.state.chain, ...triggered],
     // R383.3.c — triggers go on the chain in any state; as with a spell, the
     // controller of the newest item then receives priority.
-    priority: triggered[triggered.length - 1]?.controller ?? cleaned.state.priority,
+    priority: triggered[triggered.length - 1]?.controller ?? worked.state.priority,
     priorityPasses: 0,
   };
 
@@ -179,6 +185,10 @@ function nextDecision(state: GameState): PendingDecision | null {
 /** Attaches any outstanding decision to the state, blocking other actions. */
 function awaitDecisions(result: ActionResult): ActionResult {
   if (!result.ok) return result;
+
+  // R320.1 — a task-raised decision outranks anything on the chain, because the
+  // queue has to drain before a chain item may be finalized at all.
+  if (result.state.tasks.length > 0) return result;
 
   const pending = nextDecision(result.state);
   if (pending === null) {
