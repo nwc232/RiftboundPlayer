@@ -144,6 +144,18 @@ export function renderState(state: GameState): string {
           }),
           "",
         ];
+  const pendingLine =
+    state.pending === null
+      ? []
+      : [
+          yellow(
+            `awaiting ${state.pending.player}: ${state.pending.prompt.kind}` +
+              (state.pending.prompt.kind === "chooseTargets"
+                ? ` — legal: ${state.pending.prompt.legal.join(", ") || "(none)"}`
+                : ""),
+          ),
+          "",
+        ];
   const header = bold(
     state.winner !== null
       ? `game over — ${state.winner} wins`
@@ -157,6 +169,7 @@ export function renderState(state: GameState): string {
     "",
     header,
     "",
+    ...pendingLine,
     ...chainLine,
     ...renderPlayer(state, "p1"),
     "",
@@ -229,6 +242,12 @@ export function renderEvent(event: GameEvent): string {
       return bold(`${event.cardId} triggers — onto the chain`);
     case "triggerResolved":
       return `${event.cardId}'s trigger resolves`;
+    case "decisionRequired":
+      return bold(`${event.playerId} must decide: ${event.kind}`);
+    case "targetsChosen":
+      return `${event.playerId} targets ${event.targets.join(", ")}`;
+    case "abilityDeclined":
+      return dim(`  ${event.playerId} declines ${event.cardId}'s trigger`);
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);

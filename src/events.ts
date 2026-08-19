@@ -56,7 +56,10 @@ export type GameEvent =
   | { type: "spellCountered"; playerId: PlayerId; cardId: CardId }
   | { type: "priorityPassed"; playerId: PlayerId }
   | { type: "abilityTriggered"; playerId: PlayerId; cardId: CardId }
-  | { type: "triggerResolved"; playerId: PlayerId; cardId: CardId };
+  | { type: "triggerResolved"; playerId: PlayerId; cardId: CardId }
+  | { type: "decisionRequired"; playerId: PlayerId; kind: string }
+  | { type: "targetsChosen"; playerId: PlayerId; targets: CardId[] }
+  | { type: "abilityDeclined"; playerId: PlayerId; cardId: CardId };
 
 export interface Progress {
   state: GameState;

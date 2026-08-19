@@ -1,5 +1,6 @@
 import type { Ability } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
+import type { PendingDecision } from "./decisions.js";
 import type { ShowdownState } from "./showdown.js";
 import type { TurnState } from "./turn.js";
 
@@ -156,6 +157,8 @@ export interface GameState {
   priority: PlayerId | null;
   /** R339 — the chain resolves once every player has passed in sequence. */
   priorityPasses: number;
+  /** A choice the engine is waiting on; blocks everything else while set. */
+  pending: PendingDecision | null;
 }
 
 /** Every permanent at a location, in insertion order. */

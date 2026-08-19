@@ -12,6 +12,8 @@ import type {
   PlayerState,
 } from "./state.js";
 import { chainExists, chainItemCardId, newestItem } from "./chain.js";
+import { legalTargets } from "./decisions.js";
+import type { PendingDecision } from "./decisions.js";
 import { collectTriggers } from "./triggers.js";
 import { passFocus as runPassFocus, runCleanup } from "./showdown.js";
 import { beginTurn, endTurn as runEndTurn } from "./turn.js";
@@ -33,6 +35,14 @@ export type Action =
   | { type: "endTurn"; playerId: PlayerId }
   | { type: "passFocus"; playerId: PlayerId }
   | { type: "passPriority"; playerId: PlayerId }
+  | {
+      type: "decide";
+      playerId: PlayerId;
+      /** For chooseTargets. */
+      targets?: CardId[];
+      /** For confirmOptional — whether to perform the ability at all. */
+      perform?: boolean;
+    }
   | {
       type: "playSpell";
       playerId: PlayerId;
@@ -72,7 +82,11 @@ export type RejectionReason =
   | "gameOver"
   | "notYourPriority"
   | "wrongTiming"
-  | "invalidTarget";
+  | "invalidTarget"
+  | "decisionPending"
+  | "noDecision"
+  | "notYourDecision"
+  | "wrongTargetCount";
 
 export type ActionResult =
   | { ok: true; state: GameState; events: GameEvent[] }
@@ -107,7 +121,7 @@ function thenCleanup(result: ActionResult): ActionResult {
     priorityPasses: 0,
   };
 
-  return {
+  return awaitDecisions({
     ok: true,
     state,
     events: [
@@ -118,7 +132,132 @@ function thenCleanup(result: ActionResult): ActionResult {
         cardId: chainItemCardId(item),
       })),
     ],
+  });
+}
+
+/**
+ * R329.2 — a chain item stays Pending until its choices are made. Returns the
+ * decision its controller still owes, if any, for the newest item on the chain.
+ */
+function nextDecision(state: GameState): PendingDecision | null {
+  const chainIndex = state.chain.length - 1;
+  const item = state.chain[chainIndex];
+  if (item === undefined || item.kind !== "trigger") return null;
+
+  const ability = state.cards[item.sourceId]?.abilities[item.abilityIndex];
+  if (ability === undefined || ability.kind !== "triggered") return null;
+
+  // R383.3.a is decided before targets are chosen — declining removes the
+  // item, so there is no point choosing targets for it first.
+  if (ability.optional === true && !item.optionalResolved) {
+    return {
+      player: item.controller,
+      prompt: { kind: "confirmOptional", chainIndex },
+    };
+  }
+
+  if (ability.targeting !== undefined && item.targets.length === 0) {
+    return {
+      player: item.controller,
+      prompt: {
+        kind: "chooseTargets",
+        chainIndex,
+        count: ability.targeting.count,
+        legal: legalTargets(state, item.controller, ability.targeting.filter),
+      },
+    };
+  }
+
+  return null;
+}
+
+/** Attaches any outstanding decision to the state, blocking other actions. */
+function awaitDecisions(result: ActionResult): ActionResult {
+  if (!result.ok) return result;
+
+  const pending = nextDecision(result.state);
+  if (pending === null) {
+    return { ...result, state: { ...result.state, pending: null } };
+  }
+
+  return {
+    ok: true,
+    state: { ...result.state, pending },
+    events: [
+      ...result.events,
+      {
+        type: "decisionRequired",
+        playerId: pending.player,
+        kind: pending.prompt.kind,
+      },
+    ],
   };
+}
+
+/** R355.8 / R383.3.a — resolve the outstanding choice. */
+export function decide(
+  state: GameState,
+  playerId: PlayerId,
+  choice: { targets?: CardId[]; perform?: boolean },
+): ActionResult {
+  const pending = state.pending;
+  if (pending === null) return rejected("noDecision");
+  if (pending.player !== playerId) return rejected("notYourDecision");
+
+  const { prompt } = pending;
+  const item = state.chain[prompt.chainIndex];
+  if (item === undefined || item.kind !== "trigger") return rejected("noDecision");
+
+  if (prompt.kind === "confirmOptional") {
+    // R383.3.a.2 — declining removes it from the chain; it never triggered.
+    if (choice.perform === false) {
+      return awaitDecisions({
+        ok: true,
+        state: {
+          ...state,
+          chain: state.chain.filter((_, i) => i !== prompt.chainIndex),
+          priorityPasses: 0,
+        },
+        events: [
+          {
+            type: "abilityDeclined",
+            playerId,
+            cardId: item.sourceId,
+          },
+        ],
+      });
+    }
+
+    return awaitDecisions({
+      ok: true,
+      state: {
+        ...state,
+        chain: state.chain.map((entry, i) =>
+          i === prompt.chainIndex && entry.kind === "trigger"
+            ? { ...entry, optionalResolved: true }
+            : entry,
+        ),
+      },
+      events: [],
+    });
+  }
+
+  const targets = choice.targets ?? [];
+  if (targets.length !== prompt.count) return rejected("wrongTargetCount");
+  if (!targets.every((id) => prompt.legal.includes(id))) {
+    return rejected("invalidTarget");
+  }
+
+  return awaitDecisions({
+    ok: true,
+    state: {
+      ...state,
+      chain: state.chain.map((entry, i) =>
+        i === prompt.chainIndex ? { ...entry, targets } : entry,
+      ),
+    },
+    events: [{ type: "targetsChosen", playerId, targets }],
+  });
 }
 
 function withPlayer(
@@ -513,7 +652,7 @@ export function passPriority(
     priorityPasses: 0,
   };
 
-  return thenCleanup({ ok: true, state: current, events });
+  return awaitDecisions(thenCleanup({ ok: true, state: current, events }));
 }
 
 export function endTurn(
@@ -672,6 +811,10 @@ export function applyAction(state: GameState, action: Action): ActionResult {
   if (state.winner !== null) {
     return rejected("gameOver");
   }
+  // R320.1 — nothing finalizes or resolves while a choice is outstanding.
+  if (state.pending !== null && action.type !== "decide") {
+    return rejected("decisionPending");
+  }
 
   switch (action.type) {
     case "drawCard":
@@ -693,6 +836,11 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       return passFocus(state, action.playerId);
     case "passPriority":
       return passPriority(state, action.playerId);
+    case "decide":
+      return decide(state, action.playerId, {
+        ...(action.targets !== undefined ? { targets: action.targets } : {}),
+        ...(action.perform !== undefined ? { perform: action.perform } : {}),
+      });
     case "playSpell":
       return thenCleanup(
         playSpell(state, action.playerId, action.cardId, action.targets),

@@ -11,6 +11,8 @@ commands
   state             show the board
   abilities         list abilities you can use right now
   pass              pass priority (chain) or focus (showdown)
+  choose <id>       answer a target choice
+  yes / no          answer a "you may" choice
   end               end your turn
   use <id> <n>      activate ability n of card <id>
   draw              draw a card
@@ -25,11 +27,11 @@ commands
 p2 garrisons bf-south with a Tank and a Backline unit — attack it to see
 combat. first to 8 points wins.
 
-Cloud Drake has a play trigger — it goes on the chain and both players
-get priority before it resolves.
+Cloud Drake has a play trigger. Riptide Rex has one that needs a target —
+the engine stops and asks before anything else may happen.
 
-not built yet: triggers that need a chosen target, Assault/Shield might
-modifiers, and choosing your own damage assignment.
+not built yet: Assault/Shield might modifiers, and choosing your own
+combat damage assignment.
 `;
 
 let state: GameState = makeDemoState();
@@ -82,6 +84,27 @@ function handle(line: string): boolean {
       run({ type: "passFocus", playerId: focus });
       return true;
     }
+    case "choose": {
+      const target = args[0];
+      if (target === undefined) {
+        console.log("  usage: choose <targetId>\n");
+        return true;
+      }
+      run({
+        type: "decide",
+        playerId: state.pending?.player ?? state.turn.player,
+        targets: [target],
+      });
+      return true;
+    }
+    case "yes":
+    case "no":
+      run({
+        type: "decide",
+        playerId: state.pending?.player ?? state.turn.player,
+        perform: command === "yes",
+      });
+      return true;
     case "cast": {
       const cardId = args[0];
       if (cardId === undefined) {

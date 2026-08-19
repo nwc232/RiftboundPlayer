@@ -120,5 +120,6 @@ export function makeState(options: {
     chain: [],
     priority: null,
     priorityPasses: 0,
+    pending: null,
   };
 }

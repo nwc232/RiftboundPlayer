@@ -1,5 +1,6 @@
 import type { Effect } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
+import type { TargetFilter } from "./decisions.js";
 import type { GameEvent } from "./events.js";
 import type { ScoreMethod } from "./scoring.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
@@ -28,6 +29,8 @@ export interface TriggeredAbility {
    * the text is decided on resolution instead and is not this flag.
    */
   optional?: boolean;
+  /** R355.5 — declared here, chosen by the controller as the trigger finalizes. */
+  targeting?: { count: number; filter: TargetFilter };
 }
 
 function matches(

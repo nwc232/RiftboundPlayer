@@ -22,6 +22,8 @@ export type ChainItem =
       abilityIndex: number;
       controller: PlayerId;
       targets: CardId[];
+      /** R383.3.a — set once the controller has answered the "you may". */
+      optionalResolved?: boolean;
     };
 
 /** What a chain item is identified by on the board — its card either way. */

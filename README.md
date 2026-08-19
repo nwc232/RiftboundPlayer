@@ -31,6 +31,8 @@ play <id>         play a unit from hand
 move <id> <dest>  standard move; dest is "base" or a battlefield id
 cast <id> [tgt]   play a spell onto the chain
 pass              pass priority (chain) or focus (showdown)
+choose <id>       answer a target choice
+yes / no          answer a "you may" choice
 end               end your turn
 log               show everything that has happened
 ```
@@ -104,10 +106,38 @@ only in who they watch. Note that "as X happens" is deliberately *not*
 modelled here: R369.1 makes that a replacement effect, which changes the
 event rather than firing after it.
 
-Not built yet: triggers that need a chosen target (R355.5.b makes that
-choice happen at the trigger's own finalization, which needs a choice
-mechanism), and the Assault/Shield Might modifiers (arithmetic-layer
-effects, R477.3). Damage assignment is computed rather than chosen —
-every constraint in R465.2.c is enforced, so the assignment is always
-legal, but you are not yet offered the choice between equally legal
-orderings.
+When a chain item needs a decision, the engine stops and asks. Nothing
+else may proceed until it is answered (R320.1). Riptide Rex demonstrates
+both halves — a target chosen at finalization (R355.5), and the legal set
+filtered to enemy units at a battlefield:
+
+```
+end
+end
+end
+end
+use rune-1 0
+use rune-2 0
+use rune-3 0
+use rune-4 0
+use rune-5 0
+use rune-6 0
+play rex
+choose grunt
+pass
+pass
+```
+
+Optional triggers use the same mechanism. R383.3.a makes "you may" as the
+*first* clause a decision about whether to perform the ability at all,
+taken at finalization — declining removes it from the chain and it counts
+as never having triggered (R383.3.a.2). A "you may" later in the text is a
+different thing, decided on resolution.
+
+Not built yet: the Assault/Shield Might modifiers (arithmetic-layer
+effects, R477.3), and choosing your own combat damage assignment — that
+one needs combat restructured from a synchronous run into a resumable
+flow, so it uses this same decision mechanism.
+
+Known deviations from the rules are tracked at the end of
+`reference/mechanic-survey.md`.

@@ -1,11 +1,11 @@
 import {
   activated,
+  dealDamage,
   draw,
   addEnergy,
   addPower,
   basicRune,
   counterSpell,
-  dealDamage,
   exhaustSelf,
   spell,
 } from "../builders.js";
@@ -49,12 +49,27 @@ export const SAMPLE_CARDS: CardInstance[] = [
   vanillaUnit("phantom", "Playful Phantom", 5, 5, "calm", ["ganking"]),
   // Cloud Drake — "When you play me, draw 1." (6 energy, 5 Might)
   {
-    ...vanillaUnit("drake", "Cloud Drake", 4, 5, "calm"),
+    ...vanillaUnit("drake", "Cloud Drake", 6, 5, "calm"),
     abilities: [
       {
         kind: "triggered",
         trigger: { on: "unitPlayed", subject: "self" },
         effect: draw(1),
+      },
+    ],
+  },
+  // Riptide Rex — "When you play me, deal 6 to an enemy unit at a battlefield."
+  {
+    ...vanillaUnit("rex", "Riptide Rex", 6, 6, "chaos"),
+    abilities: [
+      {
+        kind: "triggered",
+        trigger: { on: "unitPlayed", subject: "self" },
+        effect: dealDamage(6),
+        targeting: {
+          count: 1,
+          filter: { type: "unit", controller: "enemy", location: "battlefield" },
+        },
       },
     ],
   },
@@ -121,7 +136,7 @@ function emptyBoard(): GameState {
     players: {
       p1: {
         id: "p1",
-        mainDeck: ["drake", "skulker", "incinerate", "sergeant", "phantom"],
+        mainDeck: ["rex", "skulker", "incinerate", "drake", "sergeant", "phantom"],
         hand: [],
         trash: [],
         runeDeck: RUNES.map((rune) => rune.id),
@@ -184,5 +199,6 @@ function emptyBoard(): GameState {
     chain: [],
     priority: null,
     priorityPasses: 0,
+    pending: null,
   };
 }
