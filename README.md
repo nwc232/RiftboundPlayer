@@ -58,7 +58,15 @@ another point. First to 8 wins (R194.3).
 Turns run Awaken → Beginning → Channel → Draw → Main → Ending (R314–317).
 Everything except the Main Phase happens automatically.
 
-Not built yet: combat (units from opposing players at one battlefield),
-triggered abilities, and the chain. The chain stays absent deliberately —
-with no spells and no triggered abilities, nothing can go on it, and R348
-reduces a showdown to "both players pass".
+`p2` garrisons the south battlefield with a Tank and a Backline unit, so
+`move skulker bf-south` starts a real combat: summed Might on each side,
+damage assigned Tank-first and Backline-last (R465.2.c.6), lethal before
+moving on, survivors healed, and a repelled attacker recalled home.
+
+Not built yet: triggered abilities, the chain, and the Assault/Shield
+Might modifiers (they are arithmetic-layer effects, R477.3). Damage
+assignment is computed rather than chosen — every constraint in R465.2.c
+is enforced, so the assignment is always legal, but you are not yet
+offered the choice between equally legal orderings. The chain stays
+absent deliberately: with no spells and no triggered abilities nothing
+can go on it, and R348 reduces a showdown to "both players pass".

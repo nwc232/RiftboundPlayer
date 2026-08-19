@@ -40,8 +40,14 @@ function formatPool(state: GameState, playerId: PlayerId): string {
 function cardLabel(state: GameState, cardId: string): string {
   const card = state.cards[cardId];
   if (card === undefined) return cardId;
-  const cost = card.type === "unit" ? dim(` (${formatCost(card.cost)})`) : "";
-  return `${card.name}${cost} ${dim(`[${cardId}]`)}`;
+  if (card.type !== "unit") return `${card.name} ${dim(`[${cardId}]`)}`;
+
+  const damage = state.permanents[cardId]?.damage ?? 0;
+  const might =
+    damage > 0
+      ? yellow(`${card.might ?? 0}M -${damage}`)
+      : dim(`${card.might ?? 0}M`);
+  return `${card.name} ${might} ${dim(`[${cardId}]`)}`;
 }
 
 function renderPlayer(state: GameState, playerId: PlayerId): string[] {
@@ -182,6 +188,12 @@ export function renderEvent(event: GameEvent): string {
       return green(`${event.playerId} scores — now ${event.points} point${event.points === 1 ? "" : "s"}`);
     case "gameWon":
       return bold(`${event.playerId} WINS with ${event.points} points`);
+    case "combatDamageDealt":
+      return `combat at ${event.battlefieldId} — ${event.attacker} deals ${event.attackerMight}, defender deals ${event.defenderMight}`;
+    case "unitKilled":
+      return yellow(`${event.cardId} dies (${event.playerId})`);
+    case "unitRecalled":
+      return `${event.cardId} is recalled to ${event.playerId} base`;
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);

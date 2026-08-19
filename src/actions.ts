@@ -175,6 +175,7 @@ export function playUnitFromHand(
           controller: playerId,
           exhausted: true,
           location: destination,
+          damage: 0,
         },
       },
       battlefields: applyContested(state, destination, playerId),

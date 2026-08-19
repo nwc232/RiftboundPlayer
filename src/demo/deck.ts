@@ -16,6 +16,7 @@ function vanillaUnit(
   id: string,
   name: string,
   energy: number,
+  might: number,
   domain: Domain,
   keywords: Keyword[] = [],
 ): CardInstance {
@@ -26,15 +27,16 @@ function vanillaUnit(
     cost: { ...FREE, energy },
     domain,
     keywords,
+    might,
     abilities: [],
   };
 }
 
 export const SAMPLE_CARDS: CardInstance[] = [
-  vanillaUnit("skulker", "Shipyard Skulker", 3, "chaos"),
-  vanillaUnit("sergeant", "Vanguard Sergeant", 4, "order"),
+  vanillaUnit("skulker", "Shipyard Skulker", 3, 3, "chaos"),
+  vanillaUnit("sergeant", "Vanguard Sergeant", 4, 4, "order"),
   // Not printed with Ganking — given it here so the keyword is exercisable.
-  vanillaUnit("phantom", "Playful Phantom", 5, "calm", ["ganking"]),
+  vanillaUnit("phantom", "Playful Phantom", 5, 5, "calm", ["ganking"]),
   {
     id: "conduit",
     name: "Energy Conduit",
@@ -43,6 +45,9 @@ export const SAMPLE_CARDS: CardInstance[] = [
     keywords: [],
     abilities: [activated([exhaustSelf], addEnergy(1), "reaction")],
   },
+  // p2's garrison, so combat is reachable in the demo.
+  vanillaUnit("grunt", "Sentry Grunt", 2, 2, "order", ["tank"]),
+  vanillaUnit("archer", "Backline Archer", 2, 2, "order", ["backline"]),
   {
     id: "seal-rage",
     name: "Seal of Rage",
@@ -85,6 +90,7 @@ function emptyBoard(): GameState {
         id: "p1",
         mainDeck: ["skulker", "sergeant", "phantom"],
         hand: [],
+        trash: [],
         runeDeck: RUNES.map((rune) => rune.id),
         runes: [],
         runePool: { buckets: [] },
@@ -95,6 +101,7 @@ function emptyBoard(): GameState {
         id: "p2",
         mainDeck: [],
         hand: [],
+        trash: [],
         runeDeck: [],
         runes: [],
         runePool: { buckets: [] },
@@ -109,18 +116,34 @@ function emptyBoard(): GameState {
         controller: "p1",
         exhausted: false,
         location: { kind: "base", player: "p1" },
+        damage: 0,
       },
       "seal-rage": {
         cardId: "seal-rage",
         controller: "p1",
         exhausted: false,
         location: { kind: "base", player: "p1" },
+        damage: 0,
+      },
+      grunt: {
+        cardId: "grunt",
+        controller: "p2",
+        exhausted: false,
+        location: { kind: "battlefield", id: "bf-south" },
+        damage: 0,
+      },
+      archer: {
+        cardId: "archer",
+        controller: "p2",
+        exhausted: false,
+        location: { kind: "battlefield", id: "bf-south" },
+        damage: 0,
       },
     },
     runes: {},
     battlefields: {
       "bf-north": { cardId: "bf-north", controller: null, contestedBy: null },
-      "bf-south": { cardId: "bf-south", controller: null, contestedBy: null },
+      "bf-south": { cardId: "bf-south", controller: "p2", contestedBy: null },
     },
     battlefieldOrder: ["bf-north", "bf-south"],
     showdown: null,

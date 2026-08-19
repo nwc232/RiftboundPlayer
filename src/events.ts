@@ -40,7 +40,16 @@ export type GameEvent =
       method: ScoreMethod;
     }
   | { type: "pointGained"; playerId: PlayerId; points: number }
-  | { type: "gameWon"; playerId: PlayerId; points: number };
+  | { type: "gameWon"; playerId: PlayerId; points: number }
+  | {
+      type: "combatDamageDealt";
+      battlefieldId: CardId;
+      attacker: PlayerId;
+      attackerMight: number;
+      defenderMight: number;
+    }
+  | { type: "unitKilled"; playerId: PlayerId; cardId: CardId }
+  | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId };
 
 export interface Progress {
   state: GameState;

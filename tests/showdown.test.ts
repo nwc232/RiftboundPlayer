@@ -70,6 +70,7 @@ describe("opening a showdown", () => {
           controller: "p2",
           exhausted: false,
           location: NORTH,
+          damage: 0,
         },
       },
       battlefields: {

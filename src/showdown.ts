@@ -1,3 +1,4 @@
+import { isCombatAt, resolveCombat } from "./combat.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, score } from "./scoring.js";
 import { permanentsAt } from "./state.js";
@@ -57,6 +58,16 @@ function closeShowdown(state: GameState): Progress {
 
   if (battlefield === undefined) {
     return { state: cleared, events };
+  }
+
+  // R348.1 — a combat showdown proceeds into the remaining steps of combat.
+  if (isCombatAt(cleared, showdown.battlefieldId)) {
+    const combat = resolveCombat(
+      cleared,
+      showdown.battlefieldId,
+      showdown.attacker,
+    );
+    return { state: combat.state, events: [...events, ...combat.events] };
   }
 
   const counts = unitsAtByController(cleared, showdown.battlefieldId);

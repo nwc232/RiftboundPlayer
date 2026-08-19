@@ -57,6 +57,7 @@ function player(id: PlayerId, partial: Partial<PlayerState> = {}): PlayerState {
     id,
     mainDeck: [],
     hand: [],
+    trash: [],
     runeDeck: [],
     runes: [],
     runePool: EMPTY_POOL,
@@ -70,6 +71,7 @@ interface PermanentSpec {
   cardId: string;
   controller?: PlayerId;
   exhausted?: boolean;
+  damage?: number;
   location?: Location;
 }
 
@@ -93,6 +95,7 @@ export function makeState(options: {
       controller,
       exhausted: spec.exhausted ?? false,
       location: spec.location ?? { kind: "base", player: controller },
+      damage: spec.damage ?? 0,
     };
   }
 

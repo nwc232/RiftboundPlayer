@@ -21,9 +21,11 @@ commands
   help              this
   quit              leave
 
-not built yet: combat (units from both players at one battlefield),
-triggered abilities, the chain. p2 has an empty deck.
-first to 8 points wins.
+p2 garrisons bf-south with a Tank and a Backline unit — attack it to see
+combat. first to 8 points wins.
+
+not built yet: triggered abilities, the chain, Assault/Shield might
+modifiers, and choosing your own damage assignment.
 `;
 
 let state: GameState = makeDemoState();

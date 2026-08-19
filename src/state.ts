@@ -67,6 +67,8 @@ export interface CardInstance {
   domain?: Domain;
   abilities: Ability[];
   keywords: Keyword[];
+  /** Units only. Absent elsewhere; treated as 0. */
+  might?: number;
 }
 
 export interface RuneState {
@@ -76,7 +78,7 @@ export interface RuneState {
 }
 
 /** Keywords the engine actually checks. Others exist; they get added as needed. */
-export type Keyword = "ganking";
+export type Keyword = "ganking" | "tank" | "backline";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =
@@ -107,6 +109,8 @@ export interface PermanentState {
   controller: PlayerId;
   exhausted: boolean;
   location: Location;
+  /** R142 — marked damage, cleared by healing. Lethal at or above Might. */
+  damage: number;
 }
 
 export interface PlayerState {
@@ -114,6 +118,7 @@ export interface PlayerState {
   /** Index 0 is the top of the deck (the next card drawn). */
   mainDeck: CardId[];
   hand: CardId[];
+  trash: CardId[];
   /** Index 0 is the top of the rune deck (the next rune channeled). */
   runeDeck: CardId[];
   /** Runes on the board, in the order they were channeled (oldest first). */
