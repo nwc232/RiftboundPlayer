@@ -150,9 +150,12 @@ export function renderState(state: GameState): string {
       : [
           yellow(
             `awaiting ${state.pending.player}: ${state.pending.prompt.kind}` +
-              (state.pending.prompt.kind === "chooseTargets"
-                ? ` — legal: ${state.pending.prompt.legal.join(", ") || "(none)"}`
-                : ""),
+              (state.pending.prompt.kind === "assignCombatDamage"
+                ? ` — ${state.pending.prompt.remaining} Might left, ` +
+                  `assign next to: ${state.pending.prompt.legal.join(", ")}`
+                : state.pending.prompt.kind === "chooseTargets"
+                  ? ` — legal: ${state.pending.prompt.legal.join(", ") || "(none)"}`
+                  : ""),
           ),
           "",
         ];

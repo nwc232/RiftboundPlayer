@@ -20,7 +20,7 @@ import {
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
 import { collectTriggers } from "./triggers.js";
-import { enqueue, runTasks } from "./tasks.js";
+import { applyCombatAssignment, enqueue, runTasks } from "./tasks.js";
 import { passFocus as runPassFocus } from "./showdown.js";
 import { beginTurn, endTurn as runEndTurn } from "./turn.js";
 
@@ -107,28 +107,23 @@ function rejected(reason: RejectionReason): ActionResult {
  * abilities are then evaluated against everything that just happened, because
  * R383.2.c checks a trigger's condition after the inciting event is processed.
  */
-function thenCleanup(result: ActionResult): ActionResult {
-  if (!result.ok) return result;
-
-  const worked = runTasks(enqueue(result.state, { kind: "cleanup" }));
-  const events = [...result.events, ...worked.events];
-
+function afterTasks(current: GameState, events: GameEvent[]): ActionResult {
   // R334.2 — pending chain items are only processed once every task is done.
-  if (worked.state.tasks.length > 0) {
-    return { ok: true, state: worked.state, events };
+  if (current.tasks.length > 0) {
+    return { ok: true, state: current, events };
   }
 
-  const triggered = collectTriggers(worked.state, events);
+  const triggered = collectTriggers(current, events);
   if (triggered.length === 0) {
-    return { ok: true, state: worked.state, events };
+    return { ok: true, state: current, events };
   }
 
   const state: GameState = {
-    ...worked.state,
-    chain: [...worked.state.chain, ...triggered],
+    ...current,
+    chain: [...current.chain, ...triggered],
     // R383.3.c — triggers go on the chain in any state; as with a spell, the
     // controller of the newest item then receives priority.
-    priority: triggered[triggered.length - 1]?.controller ?? worked.state.priority,
+    priority: triggered[triggered.length - 1]?.controller ?? current.priority,
     priorityPasses: 0,
   };
 
@@ -144,6 +139,26 @@ function thenCleanup(result: ActionResult): ActionResult {
       })),
     ],
   });
+}
+
+function thenCleanup(result: ActionResult): ActionResult {
+  if (!result.ok) return result;
+
+  const worked = runTasks(enqueue(result.state, { kind: "cleanup" }));
+  return afterTasks(worked.state, [...result.events, ...worked.events]);
+}
+
+/** Records an answer a task was waiting on, then lets the queue carry on. */
+function resumeTasks(
+  state: GameState,
+  cardId: CardId,
+  playerId: PlayerId,
+): ActionResult {
+  const worked = runTasks(applyCombatAssignment(state, cardId));
+  return afterTasks(worked.state, [
+    { type: "targetsChosen", playerId, targets: [cardId] },
+    ...worked.events,
+  ]);
 }
 
 /**
@@ -220,6 +235,19 @@ export function decide(
   if (pending.player !== playerId) return rejected("notYourDecision");
 
   const { prompt } = pending;
+
+  // A task-raised decision belongs to the queue, not to a chain item: answer
+  // it, then let the queue carry on from where it suspended.
+  if (prompt.kind === "assignCombatDamage") {
+    const chosen = choice.targets ?? [];
+    if (chosen.length !== 1) return rejected("wrongTargetCount");
+    const cardId = chosen[0];
+    if (cardId === undefined || !prompt.legal.includes(cardId)) {
+      return rejected("invalidTarget");
+    }
+    return resumeTasks(state, cardId, playerId);
+  }
+
   const item = state.chain[prompt.chainIndex];
   if (item === undefined || item.kind !== "trigger") return rejected("noDecision");
 

@@ -1,4 +1,4 @@
-import { isCombatAt, killLethalUnits, resolveCombat } from "./combat.js";
+import { combatSides, isCombatAt, killLethalUnits } from "./combat.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, score } from "./scoring.js";
 import { permanentsAt } from "./state.js";
@@ -61,13 +61,31 @@ function closeShowdown(state: GameState): Progress {
   }
 
   // R348.1 — a combat showdown proceeds into the remaining steps of combat.
+  // Queued rather than run inline: R465.2.c makes damage assignment a player
+  // decision, and a task can suspend for one where a function call cannot.
   if (isCombatAt(cleared, showdown.battlefieldId)) {
-    const combat = resolveCombat(
+    const { attackerMight } = combatSides(
       cleared,
       showdown.battlefieldId,
       showdown.attacker,
     );
-    return { state: combat.state, events: [...events, ...combat.events] };
+    return {
+      state: {
+        ...cleared,
+        tasks: [
+          ...cleared.tasks,
+          {
+            kind: "combatDamage",
+            battlefieldId: showdown.battlefieldId,
+            attacker: showdown.attacker,
+            assigning: showdown.attacker,
+            remaining: attackerMight,
+            assigned: [],
+          },
+        ],
+      },
+      events,
+    };
   }
 
   const counts = unitsAtByController(cleared, showdown.battlefieldId);

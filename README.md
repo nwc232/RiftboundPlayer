@@ -61,10 +61,43 @@ another point. First to 8 wins (R194.3).
 Turns run Awaken → Beginning → Channel → Draw → Main → Ending (R314–317).
 Everything except the Main Phase happens automatically.
 
-`p2` garrisons the south battlefield with a Tank and a Backline unit, so
-`move skulker bf-south` starts a real combat: summed Might on each side,
-damage assigned Tank-first and Backline-last (R465.2.c.6), lethal before
-moving on, survivors healed, and a repelled attacker recalled home.
+`p2` garrisons the south battlefield with a Tank, two identical Watchmen,
+and a Backline unit, so `move skulker bf-south` starts a real combat:
+summed Might on each side, lethal assigned before moving on, survivors
+healed, and a repelled attacker recalled home.
+
+Damage assignment is yours to make. R465.2.c.6 forces the Tank first and
+the Backline last, but the two Watchmen tie, and R465.2.c.7 makes that
+order your choice — so the engine stops and asks, offering only the units
+that are legal right now:
+
+```
+end
+end
+use rune-1 0
+use rune-2 0
+use conduit 0
+play skulker
+end
+end
+move skulker bf-south
+pass
+pass
+choose watch-b
+```
+
+Skulker's 3 Might goes 2 into the Tank (forced, exactly lethal) leaving 1
+to place — and whichever Watchman you name is the one that dies. The
+amount is never asked for: R465.2.c.3 forces exactly lethal and c.4
+forbids more while other units are unassigned, so naming the unit
+determines the number. Where only one unit is legally assignable the
+engine doesn't ask at all.
+
+Combat runs on an explicit queue of Outstanding Tasks (R319/R334) rather
+than as a single function call, which is what lets it suspend mid-way for
+that choice. R334.1 is the reason the queue is the right shape: chain
+items added while tasks are being handled "remain there until the Tasks
+are complete", and R334.2 processes them all afterward.
 
 Spells go on the chain rather than resolving immediately (R359.3), which
 is what gives the opponent a window to respond:
@@ -135,9 +168,7 @@ as never having triggered (R383.3.a.2). A "you may" later in the text is a
 different thing, decided on resolution.
 
 Not built yet: the Assault/Shield Might modifiers (arithmetic-layer
-effects, R477.3), and choosing your own combat damage assignment — that
-one needs combat restructured from a synchronous run into a resumable
-flow, so it uses this same decision mechanism.
+effects, R477.3), which need the layer system.
 
 Known deviations from the rules are tracked at the end of
 `reference/mechanic-survey.md`.

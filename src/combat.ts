@@ -37,53 +37,132 @@ export function isCombatAt(state: GameState, battlefieldId: CardId): boolean {
   return controllers.size >= 2;
 }
 
-/**
- * R465.2.c.6–8 — Tank must be assigned damage first, Backline last. Units with
- * neither sit in between. Order within a band is the assigning player's choice;
- * we keep board order, which is one of the legal choices.
- */
-function assignmentOrder(
-  state: GameState,
-  units: PermanentState[],
-): PermanentState[] {
-  const band = (permanent: PermanentState): number => {
-    const keywords = state.cards[permanent.cardId]?.keywords ?? [];
-    if (keywords.includes("tank")) return 0;
-    if (keywords.includes("backline")) return 2;
-    return 1;
-  };
-  return [...units].sort((a, b) => band(a) - band(b));
+/** One unit's share of a player's summed Might, before any of it is dealt. */
+export interface Assignment {
+  cardId: CardId;
+  amount: number;
+}
+
+/** R465.2.c.6 — Tank must be assigned damage first, Backline last. */
+function bandOf(state: GameState, permanent: PermanentState): number {
+  const keywords = state.cards[permanent.cardId]?.keywords ?? [];
+  if (keywords.includes("tank")) return 0;
+  if (keywords.includes("backline")) return 2;
+  return 1;
 }
 
 /**
- * R465.2.c — assign `total` damage across `targets`, giving each exactly lethal
- * before moving on (R465.2.c.3) and never over-assigning while other units
- * remain unassigned (R465.2.c.4). Leftover damage, once everything has lethal,
- * piles onto the last unit.
+ * R465.2.c.7 — the units that may legally be assigned damage next: everything
+ * still unassigned in the highest-priority band that has anyone left in it.
+ * Within a band the order is the assigning player's free choice, which is
+ * exactly the choice the engine has to offer them.
+ */
+export function nextAssignable(
+  state: GameState,
+  targets: PermanentState[],
+  assigned: Assignment[],
+): PermanentState[] {
+  const done = new Set(assigned.map((entry) => entry.cardId));
+  const left = targets.filter((target) => !done.has(target.cardId));
+  if (left.length === 0) return [];
+
+  const top = Math.min(...left.map((target) => bandOf(state, target)));
+  return left.filter((target) => bandOf(state, target) === top);
+}
+
+/**
+ * R465.2.c.3 — exactly lethal before moving on; R465.2.c.4 — never more than
+ * that while other units remain unassigned. Once nothing else is left to
+ * assign to, the final unit absorbs whatever damage is still in hand.
+ */
+export function amountFor(
+  state: GameState,
+  permanent: PermanentState,
+  remaining: number,
+  isLastUnassigned: boolean,
+): number {
+  if (isLastUnassigned) return remaining;
+  return Math.min(lethalRemaining(state, permanent), remaining);
+}
+
+/**
+ * One legal assignment of `total` across `targets`, always taking the first
+ * legal unit at each step. Used where no player choice is offered — either
+ * because only one unit is assignable or as a canonical reference ordering.
  */
 export function assignDamage(
   state: GameState,
   total: number,
   targets: PermanentState[],
 ): Map<CardId, number> {
-  const order = assignmentOrder(state, targets);
-  const assigned = new Map<CardId, number>();
+  const assigned: Assignment[] = [];
   let remaining = total;
 
-  for (const permanent of order) {
-    if (remaining <= 0) break;
-    const needed = lethalRemaining(state, permanent);
-    const amount = Math.min(needed, remaining);
-    assigned.set(permanent.cardId, amount);
+  while (remaining > 0) {
+    const legal = nextAssignable(state, targets, assigned);
+    const next = legal[0];
+    if (next === undefined) break;
+
+    const amount = amountFor(
+      state,
+      next,
+      remaining,
+      assigned.length + 1 === targets.length,
+    );
+    assigned.push({ cardId: next.cardId, amount });
     remaining -= amount;
   }
 
-  const last = order[order.length - 1];
-  if (remaining > 0 && last !== undefined) {
-    assigned.set(last.cardId, (assigned.get(last.cardId) ?? 0) + remaining);
+  return new Map(assigned.map((entry) => [entry.cardId, entry.amount]));
+}
+
+/** R465.2.a/b — each side's summed Might, read before any damage is dealt. */
+export function combatSides(
+  state: GameState,
+  battlefieldId: CardId,
+  attacker: PlayerId,
+): {
+  attackers: PermanentState[];
+  defenders: PermanentState[];
+  attackerMight: number;
+  defenderMight: number;
+} {
+  const defender: PlayerId = attacker === "p1" ? "p2" : "p1";
+  const present = unitsAt(state, battlefieldId);
+  const attackers = present.filter((unit) => unit.controller === attacker);
+  const defenders = present.filter((unit) => unit.controller === defender);
+  const sum = (units: PermanentState[]) =>
+    units.reduce((total, unit) => total + mightOf(state, unit.cardId), 0);
+
+  return {
+    attackers,
+    defenders,
+    attackerMight: sum(attackers),
+    defenderMight: sum(defenders),
+  };
+}
+
+/**
+ * R465.2.c.1.a / R465.2.d — assigning is not dealing. Both players assign
+ * against the same pre-damage board, and only then is all of it dealt at once.
+ */
+export function dealAssigned(state: GameState, assigned: Assignment[]): Progress {
+  const permanents = { ...state.permanents };
+  const events: GameEvent[] = [];
+
+  for (const { cardId, amount } of assigned) {
+    const permanent = permanents[cardId];
+    if (permanent === undefined) continue;
+    permanents[cardId] = { ...permanent, damage: permanent.damage + amount };
+    events.push({
+      type: "damageDealt",
+      playerId: permanent.controller,
+      cardId,
+      amount,
+    });
   }
 
-  return assigned;
+  return { state: { ...state, permanents }, events };
 }
 
 /** R428 — killed permanents go straight to the trash from the board. */
@@ -147,57 +226,18 @@ function healAllUnits(state: GameState): GameState {
 }
 
 /**
- * Runs the Combat Damage Step (R465) and the Resolution Step (R466) for a
- * combat at `battlefieldId`.
- *
- * Damage assignment is computed rather than asked for. The constraints in
- * R465.2.c are all enforced, so the result is always a legal assignment — but
- * the player isn't yet offered the choice between equally legal orderings.
+ * R466 — the Resolution Step, run once combat damage has been dealt: deaths,
+ * then the combat cleanup's inserted heal and recall, then the combat result
+ * and control.
  */
-export function resolveCombat(
+export function resolveCombatAftermath(
   state: GameState,
   battlefieldId: CardId,
   attacker: PlayerId,
 ): Progress {
   const defender: PlayerId = attacker === "p1" ? "p2" : "p1";
   const events: GameEvent[] = [];
-
-  const attackers = unitsAt(state, battlefieldId).filter(
-    (unit) => unit.controller === attacker,
-  );
-  const defenders = unitsAt(state, battlefieldId).filter(
-    (unit) => unit.controller === defender,
-  );
-
-  const attackerMight = attackers.reduce(
-    (sum, unit) => sum + mightOf(state, unit.cardId),
-    0,
-  );
-  const defenderMight = defenders.reduce(
-    (sum, unit) => sum + mightOf(state, unit.cardId),
-    0,
-  );
-
-  events.push({
-    type: "combatDamageDealt",
-    battlefieldId,
-    attacker,
-    attackerMight,
-    defenderMight,
-  });
-
-  // R465.2.c — the attacker assigns first, but all damage is dealt at once
-  // (R465.2.c.1.a), so both assignments read the same pre-damage board.
-  const toDefenders = assignDamage(state, attackerMight, defenders);
-  const toAttackers = assignDamage(state, defenderMight, attackers);
-
-  const permanents = { ...state.permanents };
-  for (const [cardId, amount] of [...toDefenders, ...toAttackers]) {
-    const permanent = permanents[cardId];
-    if (permanent === undefined) continue;
-    permanents[cardId] = { ...permanent, damage: permanent.damage + amount };
-  }
-  let current: GameState = { ...state, permanents };
+  let current: GameState = state;
 
   // Units with lethal damage die in the cleanup that follows.
   const killed = killLethalUnits(current);

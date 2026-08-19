@@ -18,7 +18,20 @@ export type DecisionPrompt =
    */
   | { kind: "confirmOptional"; chainIndex: number }
   /** R355.5 / R402.2 — targets are chosen as the item finalizes, not on resolution. */
-  | { kind: "chooseTargets"; chainIndex: number; count: number; legal: CardId[] };
+  | { kind: "chooseTargets"; chainIndex: number; count: number; legal: CardId[] }
+  /**
+   * R465.2.c — which unit to assign combat damage to next. The amount is not
+   * asked for: c.3 forces exactly lethal and c.4 forbids more while other units
+   * are unassigned, so choosing the unit determines the number. Only raised
+   * when more than one unit is legally assignable (R465.2.c.7).
+   */
+  | {
+      kind: "assignCombatDamage";
+      battlefieldId: CardId;
+      /** Summed Might still to be assigned. */
+      remaining: number;
+      legal: CardId[];
+    };
 
 /** What a targeted ability will accept. Deliberately small; grows with cards. */
 export interface TargetFilter {

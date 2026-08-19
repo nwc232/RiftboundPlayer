@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
-import { assignDamage, isCombatAt, resolveCombat } from "../src/combat.js";
+import { assignDamage, isCombatAt } from "../src/combat.js";
 import type { GameState, Keyword, Location } from "../src/state.js";
 import { makeState, unit } from "./fixtures.js";
 
@@ -97,6 +97,130 @@ describe("damage assignment (R465.2.c)", () => {
   });
 });
 
+/** Both sides already at bf-north with the showdown open and p1 attacking. */
+function staged(
+  attackers: { id: string; might: number; keywords?: Keyword[] }[],
+  defenders: { id: string; might: number; keywords?: Keyword[] }[],
+): GameState {
+  const base = battle(attackers, defenders);
+  const permanents = { ...base.permanents };
+  for (const attacker of attackers) {
+    permanents[attacker.id] = { ...permanents[attacker.id]!, location: NORTH };
+  }
+
+  return {
+    ...base,
+    permanents,
+    battlefields: {
+      "bf-north": { cardId: "bf-north", controller: null, contestedBy: "p1" },
+    },
+    showdown: {
+      battlefieldId: "bf-north",
+      attacker: "p1",
+      focus: "p1",
+      consecutivePasses: 0,
+    },
+  };
+}
+
+const OPEN_COMBAT: Action[] = [P1_PASS, P2_PASS];
+
+describe("choosing damage assignment (R465.2.c)", () => {
+  it("asks the attacker first (R465.2.c)", () => {
+    const state = run(
+      staged([{ id: "a1", might: 1 }, { id: "a2", might: 5 }], [
+        { id: "d1", might: 1 },
+        { id: "d2", might: 1 },
+      ]),
+      OPEN_COMBAT,
+    );
+
+    expect(state.pending?.player).toBe("p1");
+    expect(state.pending?.prompt).toMatchObject({ legal: ["d1", "d2"] });
+  });
+
+  it("does not ask when only one unit is legally assignable", () => {
+    const state = run(
+      staged([{ id: "a1", might: 3 }], [{ id: "d1", might: 1 }]),
+      OPEN_COMBAT,
+    );
+
+    expect(state.pending).toBeNull();
+    expect(state.permanents.d1).toBeUndefined();
+  });
+
+  it("offers only the Tank band while a Tank is unassigned (R465.2.c.6)", () => {
+    const state = run(
+      staged([{ id: "a1", might: 9 }], [
+        { id: "plain", might: 1 },
+        { id: "tank1", might: 1, keywords: ["tank"] },
+        { id: "tank2", might: 1, keywords: ["tank"] },
+      ]),
+      OPEN_COMBAT,
+    );
+
+    // R465.2.c.7 — two Tanks tie, so their order is p1's choice; "plain" is not.
+    expect(state.pending?.prompt).toMatchObject({ legal: ["tank1", "tank2"] });
+  });
+
+  it("refuses a unit outside the legal band", () => {
+    const state = run(
+      staged([{ id: "a1", might: 9 }], [
+        { id: "plain", might: 1 },
+        { id: "tank1", might: 1, keywords: ["tank"] },
+        { id: "tank2", might: 1, keywords: ["tank"] },
+      ]),
+      OPEN_COMBAT,
+    );
+
+    expect(
+      applyAction(state, { type: "decide", playerId: "p1", targets: ["plain"] }),
+    ).toEqual({ ok: false, reason: "invalidTarget" });
+  });
+
+  it("blocks every other action while the assignment is outstanding", () => {
+    const state = run(
+      staged([{ id: "a1", might: 1 }, { id: "a2", might: 5 }], [
+        { id: "d1", might: 1 },
+        { id: "d2", might: 1 },
+      ]),
+      OPEN_COMBAT,
+    );
+
+    expect(applyAction(state, P1_PASS)).toEqual({
+      ok: false,
+      reason: "decisionPending",
+    });
+  });
+
+  /**
+   * R465.2.c.1.a — assigning is not dealing. Both players assign against the
+   * same pre-damage board, so units that are already doomed still hit back.
+   */
+  it("lets doomed defenders deal their damage anyway", () => {
+    const start = run(
+      staged([{ id: "a1", might: 1 }, { id: "a2", might: 5 }], [
+        { id: "d1", might: 1 },
+        { id: "d2", might: 1 },
+      ]),
+      OPEN_COMBAT,
+    );
+
+    const after = run(start, [
+      // p1 assigns 6 across both defenders; both die.
+      { type: "decide", playerId: "p1", targets: ["d1"] },
+      // p2 still assigns their full 2 Might, killing the 1-Might attacker.
+      { type: "decide", playerId: "p2", targets: ["a1"] },
+    ]);
+
+    expect(after.permanents.d1).toBeUndefined();
+    expect(after.permanents.d2).toBeUndefined();
+    expect(after.permanents.a1).toBeUndefined();
+    expect(after.permanents.a2).toBeDefined();
+    expect(after.battlefields["bf-north"]?.controller).toBe("p1");
+  });
+});
+
 describe("resolving combat", () => {
   it("kills the loser and lets the winner take the battlefield", () => {
     const start = run(
@@ -128,7 +252,13 @@ describe("resolving combat", () => {
       [{ id: "a1", might: 1 }],
       [{ id: "d1", might: 1 }, { id: "d2", might: 1 }],
     );
-    const start = run(state, [charge("a1"), P1_PASS, P2_PASS]);
+    // p1 has a genuine choice of which defender to assign their 1 Might to.
+    const start = run(state, [
+      charge("a1"),
+      P1_PASS,
+      P2_PASS,
+      { type: "decide", playerId: "p1", targets: ["d1"] },
+    ]);
 
     // a1's 1 damage kills one defender; the defenders' 2 damage kills a1.
     expect(start.permanents.a1).toBeUndefined();
@@ -161,7 +291,7 @@ describe("resolving combat", () => {
       [{ id: "a1", might: 2 }, { id: "a2", might: 2 }],
       [{ id: "d1", might: 3 }],
     );
-    const readied: GameState = {
+    const staged: GameState = {
       ...state,
       permanents: {
         ...state.permanents,
@@ -175,9 +305,30 @@ describe("resolving combat", () => {
           contestedBy: "p1",
         },
       },
+      showdown: {
+        battlefieldId: "bf-north",
+        attacker: "p1",
+        focus: "p1",
+        consecutivePasses: 0,
+      },
     };
 
-    const { state: after } = resolveCombat(readied, "bf-north", "p1");
+    // p1's 4 Might has only d1 to go to, so no choice is offered. p2's 3 Might
+    // splits between two identical attackers, which is a real choice.
+    const open = run(staged, [P1_PASS, P2_PASS]);
+    expect(open.pending).toEqual({
+      player: "p2",
+      prompt: {
+        kind: "assignCombatDamage",
+        battlefieldId: "bf-north",
+        remaining: 3,
+        legal: ["a1", "a2"],
+      },
+    });
+
+    const after = run(open, [
+      { type: "decide", playerId: "p2", targets: ["a1"] },
+    ]);
 
     // 4 combined attacker Might kills the 3-Might defender; its 3 back kills a1
     // only, because assignment must reach lethal before moving on.

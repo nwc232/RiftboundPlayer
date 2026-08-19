@@ -521,6 +521,12 @@ Recorded as they're found, so they don't get lost between slices.
   control-stealing effects exist.
 - **Assault / Shield (R477.3).** Combat uses printed Might; these are
   arithmetic-layer modifiers and need the layer system.
-- **Damage assignment choice (R465.2.c).** Every constraint is enforced so
-  the assignment is always legal, but the player isn't offered the choice
-  between equally legal orderings.
+- **Staged showdown/combat choice (R323.12/13).** When more than one
+  showdown or combat is staged, the Turn Player *chooses* which battlefield
+  opens. The engine takes the first in board order. Now a small fix rather
+  than a new mechanism: the task queue can suspend for the choice the same
+  way combat damage assignment does.
+- **Excess damage placement (R465.2.c.4).** Once every unit has lethal
+  assigned, leftover damage piles onto the last unit assigned rather than
+  being offered as a choice. Unobservable until something triggers on
+  damage amounts.

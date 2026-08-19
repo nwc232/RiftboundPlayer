@@ -93,8 +93,12 @@ export const SAMPLE_CARDS: CardInstance[] = [
     keywords: [],
     abilities: [activated([exhaustSelf], addEnergy(1), "reaction")],
   },
-  // p2's garrison, so combat is reachable in the demo.
+  // p2's garrison, so combat is reachable in the demo. The two identical
+  // Watchmen sit in the same assignment band as each other, which is what makes
+  // damage assignment a real choice rather than a forced order (R465.2.c.7).
   vanillaUnit("grunt", "Sentry Grunt", 2, 2, "order", ["tank"]),
+  vanillaUnit("watch-a", "Watchman", 1, 1, "order"),
+  vanillaUnit("watch-b", "Watchman", 1, 1, "order"),
   vanillaUnit("archer", "Backline Archer", 2, 2, "order", ["backline"]),
   {
     id: "seal-rage",
@@ -175,6 +179,20 @@ function emptyBoard(): GameState {
       },
       grunt: {
         cardId: "grunt",
+        controller: "p2",
+        exhausted: false,
+        location: { kind: "battlefield", id: "bf-south" },
+        damage: 0,
+      },
+      "watch-a": {
+        cardId: "watch-a",
+        controller: "p2",
+        exhausted: false,
+        location: { kind: "battlefield", id: "bf-south" },
+        damage: 0,
+      },
+      "watch-b": {
+        cardId: "watch-b",
         controller: "p2",
         exhausted: false,
         location: { kind: "battlefield", id: "bf-south" },
