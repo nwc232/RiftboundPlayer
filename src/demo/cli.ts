@@ -25,8 +25,11 @@ commands
 p2 garrisons bf-south with a Tank and a Backline unit — attack it to see
 combat. first to 8 points wins.
 
-not built yet: triggered abilities, Assault/Shield might modifiers, and
-choosing your own damage assignment.
+Cloud Drake has a play trigger — it goes on the chain and both players
+get priority before it resolves.
+
+not built yet: triggers that need a chosen target, Assault/Shield might
+modifiers, and choosing your own damage assignment.
 `;
 
 let state: GameState = makeDemoState();

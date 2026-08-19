@@ -1,6 +1,7 @@
 import { addEnergy as creditEnergy, addPower as creditPower } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import type { CardId, Domain, GameState, PlayerId } from "./state.js";
+import type { TriggeredAbility } from "./triggers.js";
 
 /**
  * The vocabulary of what an effect can say. No behaviour lives here — these are
@@ -28,7 +29,7 @@ export interface ActivatedAbility {
   effect: Effect;
 }
 
-export type Ability = ActivatedAbility;
+export type Ability = ActivatedAbility | TriggeredAbility;
 
 export interface EffectContext {
   controller: PlayerId;
@@ -174,11 +175,13 @@ export function execute(
     case "counterSpell": {
       const targetId = context.targets[effect.targetIndex];
       if (targetId === undefined) return { state, events: [] };
-      const index = state.chain.findIndex((item) => item.cardId === targetId);
+      // R359.3.d targets a spell; a triggered ability is not counterable here.
+      const index = state.chain.findIndex(
+        (item) => item.kind === "spell" && item.cardId === targetId,
+      );
       if (index === -1) return { state, events: [] };
 
-      const item = state.chain[index]!;
-      const owner = item.controller;
+      const owner = state.chain[index]!.controller;
       return {
         state: {
           ...state,

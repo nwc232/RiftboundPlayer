@@ -54,7 +54,9 @@ export type GameEvent =
   | { type: "spellPlayed"; playerId: PlayerId; cardId: CardId }
   | { type: "spellResolved"; playerId: PlayerId; cardId: CardId }
   | { type: "spellCountered"; playerId: PlayerId; cardId: CardId }
-  | { type: "priorityPassed"; playerId: PlayerId };
+  | { type: "priorityPassed"; playerId: PlayerId }
+  | { type: "abilityTriggered"; playerId: PlayerId; cardId: CardId }
+  | { type: "triggerResolved"; playerId: PlayerId; cardId: CardId };
 
 export interface Progress {
   state: GameState;

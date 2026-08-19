@@ -154,6 +154,8 @@ export interface GameState {
   chain: ChainItem[];
   /** Who may act while the chain is up. Null outside a chain. */
   priority: PlayerId | null;
+  /** R339 — the chain resolves once every player has passed in sequence. */
+  priorityPasses: number;
 }
 
 /** Every permanent at a location, in insertion order. */

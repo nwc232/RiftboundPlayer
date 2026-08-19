@@ -1,6 +1,7 @@
 import { totals } from "../cost.js";
 import { VICTORY_SCORE } from "../scoring.js";
 import type { GameEvent } from "../events.js";
+import { chainItemCardId } from "../chain.js";
 import { permanentsAt } from "../state.js";
 import type { Cost, GameState, Location, PlayerId } from "../state.js";
 
@@ -132,12 +133,14 @@ export function renderState(state: GameState): string {
       : [
           bold("CHAIN") + dim("  (newest resolves first)"),
           ...[...state.chain].reverse().map((item, i) => {
-            const name = state.cards[item.cardId]?.name ?? item.cardId;
+            const id = chainItemCardId(item);
+            const name = state.cards[id]?.name ?? id;
+            const label = item.kind === "trigger" ? `${name} (trigger)` : name;
             const targets =
               item.targets.length === 0
                 ? ""
                 : dim(` → ${item.targets.join(", ")}`);
-            return `  ${state.chain.length - i}. ${name} ${dim(`(${item.controller})`)}${targets}`;
+            return `  ${state.chain.length - i}. ${label} ${dim(`(${item.controller})`)}${targets}`;
           }),
           "",
         ];
@@ -222,6 +225,10 @@ export function renderEvent(event: GameEvent): string {
       return yellow(`${event.cardId} is countered`);
     case "priorityPassed":
       return dim(`  ${event.playerId} passes priority`);
+    case "abilityTriggered":
+      return bold(`${event.cardId} triggers — onto the chain`);
+    case "triggerResolved":
+      return `${event.cardId}'s trigger resolves`;
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);
@@ -242,6 +249,7 @@ export function renderAvailableAbilities(state: GameState): string[] {
     const card = state.cards[sourceId];
     if (card === undefined) continue;
     card.abilities.forEach((ability, index) => {
+      if (ability.kind !== "activated") return;
       const effect =
         ability.effect.op === "addEnergy"
           ? `add ${ability.effect.amount} energy`

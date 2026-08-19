@@ -82,8 +82,32 @@ executing. Timing is enforced from printed keywords: [Reaction] to act
 while the chain is up (R813), [Action] during a showdown (R806),
 otherwise your own Main Phase in an Open State.
 
-Not built yet: triggered abilities, and the Assault/Shield Might
-modifiers (they are arithmetic-layer effects, R477.3). Damage assignment
-is computed rather than chosen — every constraint in R465.2.c is
-enforced, so the assignment is always legal, but you are not yet offered
-the choice between equally legal orderings.
+Triggered abilities are detected from the event stream and go on the
+chain like anything else (R383.3), so the opponent gets a window before
+they resolve. Cloud Drake ("when you play me, draw 1") demonstrates it:
+
+```
+end
+end
+use rune-1 0
+use rune-2 0
+use rune-3 0
+use rune-4 0
+play drake
+pass
+pass
+```
+
+A trigger's condition is an event plus a subject, not a bare keyword —
+"when I enter" and "when another unit enters" share an event and differ
+only in who they watch. Note that "as X happens" is deliberately *not*
+modelled here: R369.1 makes that a replacement effect, which changes the
+event rather than firing after it.
+
+Not built yet: triggers that need a chosen target (R355.5.b makes that
+choice happen at the trigger's own finalization, which needs a choice
+mechanism), and the Assault/Shield Might modifiers (arithmetic-layer
+effects, R477.3). Damage assignment is computed rather than chosen —
+every constraint in R465.2.c is enforced, so the assignment is always
+legal, but you are not yet offered the choice between equally legal
+orderings.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activateAbility, endTurn, playUnitFromHand } from "../src/actions.js";
 import { totals } from "../src/cost.js";
+import type { ActivatedAbility } from "../src/abilities.js";
 import type { GameState } from "../src/state.js";
 import { beginTurn } from "../src/turn.js";
 import { cost, makeState, pool, runeCard, unit } from "./fixtures.js";
@@ -136,7 +137,10 @@ describe("phase and turn gating", () => {
         r1: {
           ...start.cards.r1!,
           abilities: [
-            { ...start.cards.r1!.abilities[0]!, timing: "default" as const },
+            {
+              ...(start.cards.r1!.abilities[0]! as ActivatedAbility),
+              timing: "default" as const,
+            },
           ],
         },
       },

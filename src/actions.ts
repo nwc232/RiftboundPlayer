@@ -1,5 +1,5 @@
 import { execute } from "./abilities.js";
-import type { AbilityCost, Effect, EffectContext } from "./abilities.js";
+import type { AbilityCost, EffectContext } from "./abilities.js";
 import { spend } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import { permanentsAt, sameLocation } from "./state.js";
@@ -11,7 +11,8 @@ import type {
   PlayerId,
   PlayerState,
 } from "./state.js";
-import { chainExists, newestItem } from "./chain.js";
+import { chainExists, chainItemCardId, newestItem } from "./chain.js";
+import { collectTriggers } from "./triggers.js";
 import { passFocus as runPassFocus, runCleanup } from "./showdown.js";
 import { beginTurn, endTurn as runEndTurn } from "./turn.js";
 
@@ -81,14 +82,42 @@ function rejected(reason: RejectionReason): ActionResult {
   return { ok: false, reason };
 }
 
-/** R453 — a cleanup runs when a move (or any board change) completes. */
+/**
+ * R453 — a cleanup runs when a move (or any board change) completes. Triggered
+ * abilities are then evaluated against everything that just happened, because
+ * R383.2.c checks a trigger's condition after the inciting event is processed.
+ */
 function thenCleanup(result: ActionResult): ActionResult {
   if (!result.ok) return result;
+
   const cleaned = runCleanup(result.state);
+  const events = [...result.events, ...cleaned.events];
+
+  const triggered = collectTriggers(cleaned.state, events);
+  if (triggered.length === 0) {
+    return { ok: true, state: cleaned.state, events };
+  }
+
+  const state: GameState = {
+    ...cleaned.state,
+    chain: [...cleaned.state.chain, ...triggered],
+    // R383.3.c — triggers go on the chain in any state; as with a spell, the
+    // controller of the newest item then receives priority.
+    priority: triggered[triggered.length - 1]?.controller ?? cleaned.state.priority,
+    priorityPasses: 0,
+  };
+
   return {
     ok: true,
-    state: cleaned.state,
-    events: [...result.events, ...cleaned.events],
+    state,
+    events: [
+      ...events,
+      ...triggered.map((item) => ({
+        type: "abilityTriggered" as const,
+        playerId: item.controller,
+        cardId: chainItemCardId(item),
+      })),
+    ],
   };
 }
 
@@ -339,6 +368,10 @@ export function playSpell(
   if (!canPlayAtThisTiming(state, playerId, card.keywords)) {
     return rejected("wrongTiming");
   }
+  // R338.1 — while the chain is up, only the player holding priority may act.
+  if (chainExists(state) && state.priority !== playerId) {
+    return rejected("notYourPriority");
+  }
 
   const remainingPool = spend(player.runePool, card.cost, {
     kind: "playCard",
@@ -349,7 +382,9 @@ export function playSpell(
   // R355.8 — valid choices must exist for every target before it goes on.
   for (const targetId of targets) {
     const isOnBoard = state.permanents[targetId] !== undefined;
-    const isOnChain = state.chain.some((item) => item.cardId === targetId);
+    const isOnChain = state.chain.some(
+      (item) => item.kind === "spell" && item.cardId === targetId,
+    );
     if (!isOnBoard && !isOnChain) return rejected("invalidTarget");
   }
 
@@ -365,9 +400,14 @@ export function playSpell(
         ],
         runePool: remainingPool,
       }),
-      chain: [...state.chain, { cardId, controller: playerId, targets }],
-      // R337.4 — the opponent gets the chance to respond.
-      priority: playerId === "p1" ? "p2" : "p1",
+      chain: [
+        ...state.chain,
+        { kind: "spell" as const, cardId, controller: playerId, targets },
+      ],
+      // R337.4 — the controller of the newest item receives priority; the
+      // chain only resolves once both players pass in sequence (R339).
+      priority: playerId,
+      priorityPasses: 0,
     },
     events: [
       { type: "costPaid", playerId, cardId, cost: card.cost },
@@ -406,12 +446,13 @@ export function passPriority(
 
   const opponent = playerId === "p1" ? "p2" : "p1";
   const events: GameEvent[] = [{ type: "priorityPassed", playerId }];
+  const passes = state.priorityPasses + 1;
 
-  // The first pass hands priority over; the second resolves the top item.
-  if (state.priority !== state.chain[state.chain.length - 1]?.controller) {
+  // R339 — only once everyone has passed in sequence does the top item resolve.
+  if (passes < 2) {
     return {
       ok: true,
-      state: { ...state, priority: opponent },
+      state: { ...state, priority: opponent, priorityPasses: passes },
       events,
     };
   }
@@ -419,30 +460,46 @@ export function passPriority(
   const item = newestItem(state);
   if (item === undefined) return rejected("noShowdown");
 
-  const card = state.cards[item.cardId];
+  const sourceId = chainItemCardId(item);
+  const card = state.cards[sourceId];
   let current: GameState = {
     ...state,
     chain: state.chain.slice(0, -1),
   };
 
-  // R359.3.d — execute the spell, then it goes to its owner's trash.
   if (card !== undefined) {
-    const outcome = execute(current, spellEffectOf(card), {
+    const ability = card.abilities[
+      item.kind === "trigger" ? item.abilityIndex : 0
+    ];
+    const effect = ability?.effect ?? { op: "seq" as const, steps: [] };
+
+    const outcome = execute(current, effect, {
       controller: item.controller,
-      sourceId: item.cardId,
+      sourceId,
       targets: item.targets,
     });
     current = outcome.state;
     events.push(...outcome.events);
-    current = withPlayer(current, item.controller, {
-      ...current.players[item.controller],
-      trash: [...current.players[item.controller].trash, item.cardId],
-    });
-    events.push({
-      type: "spellResolved",
-      playerId: item.controller,
-      cardId: item.cardId,
-    });
+
+    if (item.kind === "spell") {
+      // R359.3.d — a resolved spell goes to its owner's trash. A triggered
+      // ability has no card to move; its source stays where it is.
+      current = withPlayer(current, item.controller, {
+        ...current.players[item.controller],
+        trash: [...current.players[item.controller].trash, item.cardId],
+      });
+      events.push({
+        type: "spellResolved",
+        playerId: item.controller,
+        cardId: item.cardId,
+      });
+    } else {
+      events.push({
+        type: "triggerResolved",
+        playerId: item.controller,
+        cardId: sourceId,
+      });
+    }
   }
 
   // R340.2/340.4 — an empty chain reopens the state; otherwise the controller
@@ -453,14 +510,10 @@ export function passPriority(
     priority: stillUp
       ? (current.chain[current.chain.length - 1]?.controller ?? null)
       : null,
+    priorityPasses: 0,
   };
 
   return thenCleanup({ ok: true, state: current, events });
-}
-
-/** A spell's rules text is its single ability's effect. */
-function spellEffectOf(card: { abilities: { effect: Effect }[] }): Effect {
-  return card.abilities[0]?.effect ?? { op: "seq", steps: [] };
 }
 
 export function endTurn(
@@ -576,7 +629,8 @@ export function activateAbility(
   }
 
   const ability = card.abilities[abilityIndex];
-  if (ability === undefined) {
+  // Only activated abilities can be activated; triggered ones fire on their own.
+  if (ability === undefined || ability.kind !== "activated") {
     return rejected("abilityNotFound");
   }
 
@@ -621,7 +675,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
 
   switch (action.type) {
     case "drawCard":
-      return drawCard(state, action.playerId);
+      return thenCleanup(drawCard(state, action.playerId));
     case "playUnitFromHand":
       return thenCleanup(
         playUnitFromHand(
@@ -640,21 +694,18 @@ export function applyAction(state: GameState, action: Action): ActionResult {
     case "passPriority":
       return passPriority(state, action.playerId);
     case "playSpell":
-      return playSpell(
-        state,
-        action.playerId,
-        action.cardId,
-        action.targets,
+      return thenCleanup(
+        playSpell(state, action.playerId, action.cardId, action.targets),
       );
     case "endTurn":
-      return endTurn(state, action.playerId);
+      return thenCleanup(endTurn(state, action.playerId));
     case "activateAbility":
-      return activateAbility(
+      return thenCleanup(activateAbility(
         state,
         action.playerId,
         action.sourceId,
         action.abilityIndex,
-      );
+      ));
     default: {
       const unhandled: never = action;
       return rejected("cardNotFound");

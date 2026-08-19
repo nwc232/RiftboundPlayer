@@ -119,5 +119,6 @@ export function makeState(options: {
     winner: null,
     chain: [],
     priority: null,
+    priorityPasses: 0,
   };
 }

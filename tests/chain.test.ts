@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
+import { chainItemCardId } from "../src/chain.js";
 import type { Action } from "../src/actions.js";
 import { counterSpell, dealDamage, draw, spell } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
@@ -46,21 +47,21 @@ describe("putting a spell on the chain", () => {
     const state = run(board({ p1: ["inc"] }), [CAST_INC]);
 
     expect(state.chain).toHaveLength(1);
-    expect(state.chain[0]?.cardId).toBe("inc");
+    expect(chainItemCardId(state.chain[0]!)).toBe("inc");
     expect(state.permanents.target?.damage).toBe(0);
   });
 
-  it("hands priority to the opponent (R337.4)", () => {
+  it("keeps priority with the caster, who must pass first (R337.4)", () => {
     const state = run(board({ p1: ["inc"] }), [CAST_INC]);
 
-    expect(state.priority).toBe("p2");
+    expect(state.priority).toBe("p1");
   });
 
   it("resolves once both players pass (R339, R340.1)", () => {
     const state = run(board({ p1: ["inc"] }), [
       CAST_INC,
-      P2_PRIORITY,
       P1_PRIORITY,
+      P2_PRIORITY,
     ]);
 
     expect(state.chain).toHaveLength(0);
@@ -78,8 +79,8 @@ describe("putting a spell on the chain", () => {
       },
       [
         { type: "playSpell", playerId: "p1", cardId: "big", targets: ["target"] },
-        P2_PRIORITY,
         P1_PRIORITY,
+        P2_PRIORITY,
       ],
     );
 
@@ -92,15 +93,19 @@ describe("reaction timing", () => {
   it("lets a [Reaction] spell be played while the chain is up (R813)", () => {
     const state = run(board({ p1: ["inc"], p2: ["ww"] }), [
       CAST_INC,
+      P1_PRIORITY,
       { type: "playSpell", playerId: "p2", cardId: "ww", targets: ["inc"] },
     ]);
 
     expect(state.chain).toHaveLength(2);
-    expect(state.chain[1]?.cardId).toBe("ww");
+    expect(chainItemCardId(state.chain[1]!)).toBe("ww");
   });
 
   it("refuses a spell without [Reaction] while the chain is up", () => {
-    const withChain = run(board({ p1: ["inc"], p2: ["study"] }), [CAST_INC]);
+    const withChain = run(board({ p1: ["inc"], p2: ["study"] }), [
+      CAST_INC,
+      P1_PRIORITY,
+    ]);
 
     expect(
       applyAction(withChain, {
@@ -126,9 +131,10 @@ describe("countering", () => {
   it("resolves the counter first and stops the spell beneath it", () => {
     const state = run(board({ p1: ["inc"], p2: ["ww"] }), [
       CAST_INC,
-      { type: "playSpell", playerId: "p2", cardId: "ww", targets: ["inc"] },
       P1_PRIORITY,
+      { type: "playSpell", playerId: "p2", cardId: "ww", targets: ["inc"] },
       P2_PRIORITY,
+      P1_PRIORITY,
     ]);
 
     // Wind Wall was newest so it resolved first, removing Incinerate.
@@ -141,9 +147,10 @@ describe("countering", () => {
   it("leaves the target unharmed because the countered spell never executes", () => {
     const state = run(board({ p1: ["inc"], p2: ["ww"] }), [
       CAST_INC,
-      { type: "playSpell", playerId: "p2", cardId: "ww", targets: ["inc"] },
       P1_PRIORITY,
+      { type: "playSpell", playerId: "p2", cardId: "ww", targets: ["inc"] },
       P2_PRIORITY,
+      P1_PRIORITY,
     ]);
 
     expect(state.permanents.target).toBeDefined();
@@ -155,7 +162,7 @@ describe("priority", () => {
   it("refuses a pass from the player without priority", () => {
     const state = run(board({ p1: ["inc"] }), [CAST_INC]);
 
-    expect(applyAction(state, P1_PRIORITY)).toEqual({
+    expect(applyAction(state, P2_PRIORITY)).toEqual({
       ok: false,
       reason: "notYourPriority",
     });

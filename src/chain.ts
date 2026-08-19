@@ -8,11 +8,25 @@ import type { CardId, GameState, PlayerId } from "./state.js";
  * Index 0 is the oldest item; the last entry is the newest and resolves first
  * (R340.1).
  */
-export interface ChainItem {
-  cardId: CardId;
-  controller: PlayerId;
-  /** Chosen when the item was played (R355), read again on resolution. */
-  targets: CardId[];
+export type ChainItem =
+  | {
+      kind: "spell";
+      cardId: CardId;
+      controller: PlayerId;
+      /** Chosen when the item was played (R355), read again on resolution. */
+      targets: CardId[];
+    }
+  | {
+      kind: "trigger";
+      sourceId: CardId;
+      abilityIndex: number;
+      controller: PlayerId;
+      targets: CardId[];
+    };
+
+/** What a chain item is identified by on the board — its card either way. */
+export function chainItemCardId(item: ChainItem): CardId {
+  return item.kind === "spell" ? item.cardId : item.sourceId;
 }
 
 export function chainExists(state: GameState): boolean {

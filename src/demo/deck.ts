@@ -1,5 +1,6 @@
 import {
   activated,
+  draw,
   addEnergy,
   addPower,
   basicRune,
@@ -46,6 +47,17 @@ export const SAMPLE_CARDS: CardInstance[] = [
   vanillaUnit("sergeant", "Vanguard Sergeant", 4, 4, "order"),
   // Not printed with Ganking — given it here so the keyword is exercisable.
   vanillaUnit("phantom", "Playful Phantom", 5, 5, "calm", ["ganking"]),
+  // Cloud Drake — "When you play me, draw 1." (6 energy, 5 Might)
+  {
+    ...vanillaUnit("drake", "Cloud Drake", 4, 5, "calm"),
+    abilities: [
+      {
+        kind: "triggered",
+        trigger: { on: "unitPlayed", subject: "self" },
+        effect: draw(1),
+      },
+    ],
+  },
   // Incinerate — "[Action] Deal 2 to a unit at a battlefield." (2 energy)
   spell("incinerate", "Incinerate", { ...FREE, energy: 2 }, dealDamage(2), [
     "action",
@@ -109,7 +121,7 @@ function emptyBoard(): GameState {
     players: {
       p1: {
         id: "p1",
-        mainDeck: ["skulker", "incinerate", "sergeant", "phantom"],
+        mainDeck: ["drake", "skulker", "incinerate", "sergeant", "phantom"],
         hand: [],
         trash: [],
         runeDeck: RUNES.map((rune) => rune.id),
@@ -171,5 +183,6 @@ function emptyBoard(): GameState {
     winner: null,
     chain: [],
     priority: null,
+    priorityPasses: 0,
   };
 }
