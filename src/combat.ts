@@ -105,7 +105,16 @@ export function killUnits(state: GameState, cardIds: CardId[]): Progress {
       ...players[owner],
       trash: [...players[owner].trash, cardId],
     };
-    events.push({ type: "unitKilled", playerId: owner, cardId });
+    // R323.4/R808.1.d.3 — note the location before the card leaves the board.
+    // Attributes are deliberately not noted: printed values live on the card,
+    // which is never removed from `state.cards`, so they survive the death.
+    // Modified values don't exist until continuous effects do.
+    events.push({
+      type: "unitKilled",
+      playerId: owner,
+      cardId,
+      location: permanent.location,
+    });
   }
 
   return { state: { ...state, permanents, players }, events };

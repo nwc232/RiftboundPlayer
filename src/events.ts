@@ -48,7 +48,18 @@ export type GameEvent =
       attackerMight: number;
       defenderMight: number;
     }
-  | { type: "unitKilled"; playerId: PlayerId; cardId: CardId }
+  /**
+   * R323.4 — the cleanup notes a dying unit's location *before* R323.5 moves it
+   * to the trash, because a death trigger's "here" has to mean where it stood.
+   * Carried on the event so any death-watching ability can read it, not just
+   * Deathknell.
+   */
+  | {
+      type: "unitKilled";
+      playerId: PlayerId;
+      cardId: CardId;
+      location: Location;
+    }
   | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId }
   | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }
   | { type: "spellPlayed"; playerId: PlayerId; cardId: CardId }

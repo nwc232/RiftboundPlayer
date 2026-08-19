@@ -11,7 +11,12 @@ import type {
   PlayerId,
   PlayerState,
 } from "./state.js";
-import { chainExists, chainItemCardId, newestItem } from "./chain.js";
+import {
+  chainExists,
+  chainItemCardId,
+  newestItem,
+  sourceLocationOf,
+} from "./chain.js";
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
 import { collectTriggers } from "./triggers.js";
@@ -612,10 +617,13 @@ export function passPriority(
     ];
     const effect = ability?.effect ?? { op: "seq" as const, steps: [] };
 
+    const sourceLocation = sourceLocationOf(current, item);
+
     const outcome = execute(current, effect, {
       controller: item.controller,
       sourceId,
       targets: item.targets,
+      ...(sourceLocation !== undefined ? { sourceLocation } : {}),
     });
     current = outcome.state;
     events.push(...outcome.events);

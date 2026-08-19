@@ -493,12 +493,29 @@ things I think most shape that design, in rough priority order:
 
 Recorded as they're found, so they don't get lost between slices.
 
-- **Death-trigger snapshot (R323.4).** The cleanup orders *3a: note each
-  dying unit's Deathknell trigger along with its current location and
-  attributes* before *3b: kill it*. The engine kills first and derives the
-  trigger from the `unitKilled` event, which carries the card id but not
-  the location it died at. A Deathknell referring to "here" would have
-  nothing to resolve against. No current card exercises it.
+- **Death-trigger attributes (R323.4).** Location is now noted before the
+  kill and carried to the trigger, so "here" resolves (Kog'Maw, Caustic).
+  *Attributes* deliberately are not: printed values live on the card, which
+  is never removed from `state.cards`, so they survive the death anyway —
+  Unsung Hero's "if I was [Mighty]" reads correctly today. Only once
+  modifiers attach to the permanent does the noted value diverge from the
+  printed one, so the field gets widened with the layer system.
+- **Trigger queued after the trash move (R808.1.d.2).** The rule adds the
+  trigger to the chain *before* the card moves to the trash; the engine
+  kills first and derives the trigger from the resulting event. Nothing
+  happens in between — no player gets priority mid-cleanup (R320.1/R321) —
+  so it is unobservable, and keeping `collectTriggers` the single place
+  that reads the event stream is worth more than matching the step order.
+  It becomes observable once replacement effects exist, because
+  R808.1.d.1 removes an already-queued trigger when a death is replaced
+  (Draven + Zhonya's Hourglass).
+- **Simultaneous-death conditions.** Lonely / Loyal Poro ask whether they
+  "died alone", which R323.4 evaluates at 3a — before *any* unit dies, so
+  two friendly units dying together did not die alone. The engine's
+  kill-then-read order would answer the opposite. Also needs conditional
+  effects, which the `Effect` vocabulary doesn't have.
+- **Death cause not tagged.** Draven, Audacious triggers on dying *in
+  combat*; `unitKilled` doesn't record what killed the unit.
 - **Owner vs controller (R56).** A killed card goes to its *owner's*
   trash. The engine uses controller, which only differs once
   control-stealing effects exist.
@@ -507,5 +524,3 @@ Recorded as they're found, so they don't get lost between slices.
 - **Damage assignment choice (R465.2.c).** Every constraint is enforced so
   the assignment is always legal, but the player isn't offered the choice
   between equally legal orderings.
-- **Targeted triggers (R355.5.b).** A trigger needing a chosen target must
-  take that choice at its own finalization; no choice mechanism exists yet.

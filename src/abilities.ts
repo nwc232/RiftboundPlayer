@@ -1,6 +1,6 @@
 import { addEnergy as creditEnergy, addPower as creditPower } from "./cost.js";
 import type { GameEvent } from "./events.js";
-import type { CardId, Domain, GameState, PlayerId } from "./state.js";
+import type { CardId, Domain, GameState, Location, PlayerId } from "./state.js";
 import type { TriggeredAbility } from "./triggers.js";
 
 /**
@@ -36,6 +36,11 @@ export interface EffectContext {
   sourceId: CardId;
   /** Targets chosen while playing (R355.5). Empty for most abilities. */
   targets: CardId[];
+  /**
+   * Where the source is — or, if it has since died, where it was when the
+   * ability triggered (R323.4). This is what "here" resolves against.
+   */
+  sourceLocation?: Location;
 }
 
 export interface EffectOutcome {

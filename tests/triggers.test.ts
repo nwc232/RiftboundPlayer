@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
-import { chainItemCardId } from "../src/chain.js";
+import { chainItemCardId, sourceLocationOf } from "../src/chain.js";
 import { draw } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import type { CardInstance, GameState } from "../src/state.js";
@@ -139,6 +139,75 @@ describe("death triggers (R428.1.a.1.b)", () => {
     expect(after.permanents.scrapheap).toBeUndefined();
     expect(after.chain).toHaveLength(1);
     expect(chainItemCardId(after.chain[0]!)).toBe("scrapheap");
+  });
+});
+
+/**
+ * R323.4 orders the cleanup 3a (note the dying unit's location, add the
+ * trigger) before 3b (kill it). Without the note, a Deathknell reading "at my
+ * battlefield" — Kog'Maw, Caustic — would have nothing to resolve "here"
+ * against, because the permanent carrying the location is gone by then.
+ */
+describe("death-trigger location snapshot (R323.4)", () => {
+  const AT_BF = { kind: "battlefield", id: "bf" } as const;
+
+  function dyingAtBattlefield(): GameState {
+    return makeState({
+      p1: { mainDeck: ["a"], runePool: pool({ energy: 9 }) },
+      cards: [scrapheap, unit("a")],
+      permanents: [
+        {
+          cardId: "scrapheap",
+          controller: "p1",
+          location: AT_BF,
+          damage: 5,
+        },
+      ],
+      battlefields: ["bf"],
+    });
+  }
+
+  it("notes the location on the kill event, before the card leaves the board", () => {
+    const result = applyAction(dyingAtBattlefield(), {
+      type: "drawCard",
+      playerId: "p1",
+    });
+    if (!result.ok) throw new Error(`rejected: ${result.reason}`);
+
+    expect(result.events.find((event) => event.type === "unitKilled")).toEqual({
+      type: "unitKilled",
+      playerId: "p1",
+      cardId: "scrapheap",
+      location: AT_BF,
+    });
+  });
+
+  it("carries it onto the trigger, so 'here' still resolves after the death", () => {
+    const state = run(dyingAtBattlefield(), [
+      { type: "drawCard", playerId: "p1" },
+    ]);
+    const item = state.chain[0]!;
+
+    expect(state.permanents.scrapheap).toBeUndefined();
+    expect(state.players.p1.trash).toEqual(["scrapheap"]);
+    expect(sourceLocationOf(state, item)).toEqual(AT_BF);
+  });
+
+  it("keeps no snapshot for a living source — its location is looked up", () => {
+    const state = run(
+      makeState({
+        p1: { hand: ["drake"], mainDeck: ["a"], runePool: pool({ energy: 9 }) },
+        cards: [cloudDrake, unit("a")],
+      }),
+      [{ type: "playUnitFromHand", playerId: "p1", cardId: "drake" }],
+    );
+    const item = state.chain[0]!;
+
+    expect(item.kind === "trigger" ? item.sourceLocation : "n/a").toBeUndefined();
+    expect(sourceLocationOf(state, item)).toEqual({
+      kind: "base",
+      player: "p1",
+    });
   });
 });
 

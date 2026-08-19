@@ -3,7 +3,7 @@ import type { ChainItem } from "./chain.js";
 import type { TargetFilter } from "./decisions.js";
 import type { GameEvent } from "./events.js";
 import type { ScoreMethod } from "./scoring.js";
-import type { CardId, GameState, PlayerId } from "./state.js";
+import type { CardId, GameState, Location, PlayerId } from "./state.js";
 
 /**
  * R383 — a triggered ability is a Condition plus an Effect. The condition is
@@ -59,6 +59,8 @@ function matches(
 interface TriggerSource {
   sourceId: CardId;
   controller: PlayerId;
+  /** Only for a source that has already left the board — see R323.4. */
+  location?: Location;
 }
 
 /**
@@ -86,7 +88,11 @@ function triggerSources(state: GameState, events: GameEvent[]): TriggerSource[] 
 
   for (const event of events) {
     if (event.type === "unitKilled") {
-      sources.push({ sourceId: event.cardId, controller: event.playerId });
+      sources.push({
+        sourceId: event.cardId,
+        controller: event.playerId,
+        location: event.location,
+      });
     }
   }
 
@@ -107,7 +113,10 @@ export function collectTriggers(
 ): ChainItem[] {
   const found: { controller: PlayerId; item: ChainItem }[] = [];
 
-  for (const { sourceId, controller } of triggerSources(state, events)) {
+  for (const { sourceId, controller, location } of triggerSources(
+    state,
+    events,
+  )) {
     const card = state.cards[sourceId];
     if (card === undefined) continue;
 
@@ -126,6 +135,7 @@ export function collectTriggers(
           abilityIndex,
           controller,
           targets: [],
+          ...(location !== undefined ? { sourceLocation: location } : {}),
         },
       });
     });
