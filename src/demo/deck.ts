@@ -1,4 +1,13 @@
-import { activated, addEnergy, addPower, basicRune, exhaustSelf } from "../builders.js";
+import {
+  activated,
+  addEnergy,
+  addPower,
+  basicRune,
+  counterSpell,
+  dealDamage,
+  exhaustSelf,
+  spell,
+} from "../builders.js";
 import { FREE } from "../cost.js";
 import type { CardInstance, Domain, GameState, Keyword } from "../state.js";
 import { beginTurn } from "../turn.js";
@@ -37,6 +46,18 @@ export const SAMPLE_CARDS: CardInstance[] = [
   vanillaUnit("sergeant", "Vanguard Sergeant", 4, 4, "order"),
   // Not printed with Ganking — given it here so the keyword is exercisable.
   vanillaUnit("phantom", "Playful Phantom", 5, 5, "calm", ["ganking"]),
+  // Incinerate — "[Action] Deal 2 to a unit at a battlefield." (2 energy)
+  spell("incinerate", "Incinerate", { ...FREE, energy: 2 }, dealDamage(2), [
+    "action",
+  ]),
+  // Wind Wall — "[Reaction] Counter a spell." (3 energy + 2 calm)
+  spell(
+    "windwall",
+    "Wind Wall",
+    { ...FREE, energy: 3, power: { calm: 2 } },
+    counterSpell(),
+    ["reaction"],
+  ),
   {
     id: "conduit",
     name: "Energy Conduit",
@@ -88,7 +109,7 @@ function emptyBoard(): GameState {
     players: {
       p1: {
         id: "p1",
-        mainDeck: ["skulker", "sergeant", "phantom"],
+        mainDeck: ["skulker", "incinerate", "sergeant", "phantom"],
         hand: [],
         trash: [],
         runeDeck: RUNES.map((rune) => rune.id),
@@ -148,5 +169,7 @@ function emptyBoard(): GameState {
     battlefieldOrder: ["bf-north", "bf-south"],
     showdown: null,
     winner: null,
+    chain: [],
+    priority: null,
   };
 }

@@ -1,5 +1,5 @@
 import { execute } from "./abilities.js";
-import type { AbilityCost, EffectContext } from "./abilities.js";
+import type { AbilityCost, Effect, EffectContext } from "./abilities.js";
 import { spend } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import { permanentsAt, sameLocation } from "./state.js";
@@ -11,6 +11,7 @@ import type {
   PlayerId,
   PlayerState,
 } from "./state.js";
+import { chainExists, newestItem } from "./chain.js";
 import { passFocus as runPassFocus, runCleanup } from "./showdown.js";
 import { beginTurn, endTurn as runEndTurn } from "./turn.js";
 
@@ -30,6 +31,13 @@ export type Action =
     }
   | { type: "endTurn"; playerId: PlayerId }
   | { type: "passFocus"; playerId: PlayerId }
+  | { type: "passPriority"; playerId: PlayerId }
+  | {
+      type: "playSpell";
+      playerId: PlayerId;
+      cardId: CardId;
+      targets?: CardId[];
+    }
   | {
       type: "activateAbility";
       playerId: PlayerId;
@@ -60,7 +68,10 @@ export type RejectionReason =
   | "noShowdown"
   | "notYourFocus"
   | "showdownInProgress"
-  | "gameOver";
+  | "gameOver"
+  | "notYourPriority"
+  | "wrongTiming"
+  | "invalidTarget";
 
 export type ActionResult =
   | { ok: true; state: GameState; events: GameEvent[] }
@@ -306,6 +317,152 @@ export function passFocus(state: GameState, playerId: PlayerId): ActionResult {
   });
 }
 
+/**
+ * R354–359 — playing a spell. Steps 1–6 run atomically here: the card moves to
+ * the chain, targets are taken from the action, the cost is paid, and it
+ * finalizes. A spell then *lingers* on the chain (R359.3) rather than resolving,
+ * which is what gives the opponent a window to react.
+ */
+export function playSpell(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+  targets: CardId[] = [],
+): ActionResult {
+  const player = state.players[playerId];
+  const card = state.cards[cardId];
+
+  if (card === undefined) return rejected("cardNotFound");
+  if (card.type !== "spell") return rejected("wrongCardType");
+  if (!player.hand.includes(cardId)) return rejected("notInHand");
+
+  if (!canPlayAtThisTiming(state, playerId, card.keywords)) {
+    return rejected("wrongTiming");
+  }
+
+  const remainingPool = spend(player.runePool, card.cost, {
+    kind: "playCard",
+    cardType: "spell",
+  });
+  if (remainingPool === undefined) return rejected("cannotAffordCost");
+
+  // R355.8 — valid choices must exist for every target before it goes on.
+  for (const targetId of targets) {
+    const isOnBoard = state.permanents[targetId] !== undefined;
+    const isOnChain = state.chain.some((item) => item.cardId === targetId);
+    if (!isOnBoard && !isOnChain) return rejected("invalidTarget");
+  }
+
+  const handIndex = player.hand.indexOf(cardId);
+  return {
+    ok: true,
+    state: {
+      ...withPlayer(state, playerId, {
+        ...player,
+        hand: [
+          ...player.hand.slice(0, handIndex),
+          ...player.hand.slice(handIndex + 1),
+        ],
+        runePool: remainingPool,
+      }),
+      chain: [...state.chain, { cardId, controller: playerId, targets }],
+      // R337.4 — the opponent gets the chance to respond.
+      priority: playerId === "p1" ? "p2" : "p1",
+    },
+    events: [
+      { type: "costPaid", playerId, cardId, cost: card.cost },
+      { type: "spellPlayed", playerId, cardId },
+    ],
+  };
+}
+
+/**
+ * R806 / R813 — a spell needs [Reaction] to be played while the chain is up
+ * (a Closed State), and [Action] or [Reaction] during a showdown. Otherwise it
+ * needs a Neutral Open State on its controller's own Main Phase.
+ */
+function canPlayAtThisTiming(
+  state: GameState,
+  playerId: PlayerId,
+  keywords: readonly string[],
+): boolean {
+  if (chainExists(state)) return keywords.includes("reaction");
+  if (state.showdown !== null) {
+    return keywords.includes("reaction") || keywords.includes("action");
+  }
+  return state.turn.player === playerId && state.turn.phase === "main";
+}
+
+/**
+ * R339/R340 — passing priority. Once both players pass in sequence the newest
+ * finalized item resolves; the chain is LIFO.
+ */
+export function passPriority(
+  state: GameState,
+  playerId: PlayerId,
+): ActionResult {
+  if (!chainExists(state)) return rejected("noShowdown");
+  if (state.priority !== playerId) return rejected("notYourPriority");
+
+  const opponent = playerId === "p1" ? "p2" : "p1";
+  const events: GameEvent[] = [{ type: "priorityPassed", playerId }];
+
+  // The first pass hands priority over; the second resolves the top item.
+  if (state.priority !== state.chain[state.chain.length - 1]?.controller) {
+    return {
+      ok: true,
+      state: { ...state, priority: opponent },
+      events,
+    };
+  }
+
+  const item = newestItem(state);
+  if (item === undefined) return rejected("noShowdown");
+
+  const card = state.cards[item.cardId];
+  let current: GameState = {
+    ...state,
+    chain: state.chain.slice(0, -1),
+  };
+
+  // R359.3.d — execute the spell, then it goes to its owner's trash.
+  if (card !== undefined) {
+    const outcome = execute(current, spellEffectOf(card), {
+      controller: item.controller,
+      sourceId: item.cardId,
+      targets: item.targets,
+    });
+    current = outcome.state;
+    events.push(...outcome.events);
+    current = withPlayer(current, item.controller, {
+      ...current.players[item.controller],
+      trash: [...current.players[item.controller].trash, item.cardId],
+    });
+    events.push({
+      type: "spellResolved",
+      playerId: item.controller,
+      cardId: item.cardId,
+    });
+  }
+
+  // R340.2/340.4 — an empty chain reopens the state; otherwise the controller
+  // of the new top item receives priority.
+  const stillUp = current.chain.length > 0;
+  current = {
+    ...current,
+    priority: stillUp
+      ? (current.chain[current.chain.length - 1]?.controller ?? null)
+      : null,
+  };
+
+  return thenCleanup({ ok: true, state: current, events });
+}
+
+/** A spell's rules text is its single ability's effect. */
+function spellEffectOf(card: { abilities: { effect: Effect }[] }): Effect {
+  return card.abilities[0]?.effect ?? { op: "seq", steps: [] };
+}
+
 export function endTurn(
   state: GameState,
   playerId: PlayerId,
@@ -313,8 +470,8 @@ export function endTurn(
   if (state.turn.player !== playerId) {
     return rejected("notYourTurn");
   }
-  // A showdown has to resolve before the turn can end.
-  if (state.showdown !== null) {
+  // A showdown or an unresolved chain has to settle before the turn can end.
+  if (state.showdown !== null || chainExists(state)) {
     return rejected("showdownInProgress");
   }
 
@@ -435,7 +592,7 @@ export function activateAbility(
     return rejected("notYourTurn");
   }
 
-  const context: EffectContext = { controller: playerId, sourceId };
+  const context: EffectContext = { controller: playerId, sourceId, targets: [] };
 
   let current = state;
   const events: GameEvent[] = [];
@@ -480,6 +637,15 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       );
     case "passFocus":
       return passFocus(state, action.playerId);
+    case "passPriority":
+      return passPriority(state, action.playerId);
+    case "playSpell":
+      return playSpell(
+        state,
+        action.playerId,
+        action.cardId,
+        action.targets,
+      );
     case "endTurn":
       return endTurn(state, action.playerId);
     case "activateAbility":

@@ -5,7 +5,7 @@ import type {
   Effect,
 } from "./abilities.js";
 import { FREE } from "./cost.js";
-import type { CardInstance, Domain } from "./state.js";
+import type { CardInstance, Cost, Domain, Keyword } from "./state.js";
 
 // Effects. Each of these builds data and does nothing else — addEnergy(1)
 // returns { op: "addEnergy", amount: 1 }, it does not add any energy.
@@ -38,6 +38,36 @@ export function activated(
   timing: AbilityTiming = "default",
 ): ActivatedAbility {
   return { kind: "activated", timing, costs, effect };
+}
+
+export function dealDamage(amount: number, targetIndex = 0): Effect {
+  return { op: "dealDamage", amount, targetIndex };
+}
+
+export function draw(count: number): Effect {
+  return { op: "draw", count };
+}
+
+export function counterSpell(targetIndex = 0): Effect {
+  return { op: "counterSpell", targetIndex };
+}
+
+/** A spell's rules text lives as a single ability holding its effect. */
+export function spell(
+  id: string,
+  name: string,
+  cost: Cost,
+  effect: Effect,
+  keywords: Keyword[] = [],
+): CardInstance {
+  return {
+    id,
+    name,
+    type: "spell",
+    cost,
+    keywords,
+    abilities: [activated([], effect, "default")],
+  };
 }
 
 /**

@@ -117,5 +117,7 @@ export function makeState(options: {
     battlefieldOrder: options.battlefields ?? [],
     showdown: null,
     winner: null,
+    chain: [],
+    priority: null,
   };
 }

@@ -49,7 +49,12 @@ export type GameEvent =
       defenderMight: number;
     }
   | { type: "unitKilled"; playerId: PlayerId; cardId: CardId }
-  | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId };
+  | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId }
+  | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }
+  | { type: "spellPlayed"; playerId: PlayerId; cardId: CardId }
+  | { type: "spellResolved"; playerId: PlayerId; cardId: CardId }
+  | { type: "spellCountered"; playerId: PlayerId; cardId: CardId }
+  | { type: "priorityPassed"; playerId: PlayerId };
 
 export interface Progress {
   state: GameState;

@@ -1,4 +1,5 @@
 import type { Ability } from "./abilities.js";
+import type { ChainItem } from "./chain.js";
 import type { ShowdownState } from "./showdown.js";
 import type { TurnState } from "./turn.js";
 
@@ -78,7 +79,16 @@ export interface RuneState {
 }
 
 /** Keywords the engine actually checks. Others exist; they get added as needed. */
-export type Keyword = "ganking" | "tank" | "backline";
+/**
+ * Keywords the engine checks. [Action] and [Reaction] are genuine keywords
+ * (R806, R813) rather than a separate timing field.
+ */
+export type Keyword =
+  | "ganking"
+  | "tank"
+  | "backline"
+  | "action"
+  | "reaction";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =
@@ -140,6 +150,10 @@ export interface GameState {
   battlefieldOrder: CardId[];
   showdown: ShowdownState | null;
   winner: PlayerId | null;
+  /** R327 — LIFO; last entry resolves first. Empty means an Open State. */
+  chain: ChainItem[];
+  /** Who may act while the chain is up. Null outside a chain. */
+  priority: PlayerId | null;
 }
 
 /** Every permanent at a location, in insertion order. */

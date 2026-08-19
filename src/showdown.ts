@@ -1,4 +1,4 @@
-import { isCombatAt, resolveCombat } from "./combat.js";
+import { isCombatAt, killLethalUnits, resolveCombat } from "./combat.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, score } from "./scoring.js";
 import { permanentsAt } from "./state.js";
@@ -154,6 +154,11 @@ export function runCleanup(state: GameState): Progress {
   if (current.winner !== null) {
     return { state: current, events };
   }
+
+  // R428.1.a.2 — lethal damage from any source resolves into deaths here.
+  const dead = killLethalUnits(current);
+  current = dead.state;
+  events.push(...dead.events);
 
   // R190.4.c — a controller with no units there loses control in the cleanup.
   for (const battlefieldId of current.battlefieldOrder) {

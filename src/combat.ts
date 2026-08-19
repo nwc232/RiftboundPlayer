@@ -87,7 +87,7 @@ export function assignDamage(
 }
 
 /** R428 — killed permanents go straight to the trash from the board. */
-function killUnits(state: GameState, cardIds: CardId[]): Progress {
+export function killUnits(state: GameState, cardIds: CardId[]): Progress {
   if (cardIds.length === 0) return { state, events: [] };
 
   const permanents = { ...state.permanents };
@@ -109,6 +109,21 @@ function killUnits(state: GameState, cardIds: CardId[]): Progress {
   }
 
   return { state: { ...state, permanents, players }, events };
+}
+
+/**
+ * R428.1.a.2 — a unit with lethal damage marked on it dies in the cleanup,
+ * whether the damage came from combat or from a spell.
+ */
+export function killLethalUnits(state: GameState): Progress {
+  const dying = Object.values(state.permanents)
+    .filter(
+      (permanent) =>
+        permanent.damage > 0 &&
+        permanent.damage >= mightOf(state, permanent.cardId),
+    )
+    .map((permanent) => permanent.cardId);
+  return killUnits(state, dying);
 }
 
 /** R466.1.a.1 — the combat cleanup heals every unit. */
@@ -176,15 +191,7 @@ export function resolveCombat(
   let current: GameState = { ...state, permanents };
 
   // Units with lethal damage die in the cleanup that follows.
-  const dying = Object.values(current.permanents)
-    .filter(
-      (permanent) =>
-        permanent.damage > 0 &&
-        permanent.damage >= mightOf(current, permanent.cardId),
-    )
-    .map((permanent) => permanent.cardId);
-
-  const killed = killUnits(current, dying);
+  const killed = killLethalUnits(current);
   current = killed.state;
   events.push(...killed.events);
 

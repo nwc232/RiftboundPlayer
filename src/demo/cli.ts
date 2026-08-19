@@ -10,11 +10,12 @@ const HELP = `
 commands
   state             show the board
   abilities         list abilities you can use right now
-  pass              pass focus during a showdown
+  pass              pass priority (chain) or focus (showdown)
   end               end your turn
   use <id> <n>      activate ability n of card <id>
   draw              draw a card
   play <id>         play a unit from hand
+  cast <id> [tgt]   play a spell onto the chain
   move <id> <dest>  standard move; dest is base or a battlefield id
   log               show everything that has happened
   reset             start over
@@ -24,8 +25,8 @@ commands
 p2 garrisons bf-south with a Tank and a Backline unit — attack it to see
 combat. first to 8 points wins.
 
-not built yet: triggered abilities, the chain, Assault/Shield might
-modifiers, and choosing your own damage assignment.
+not built yet: triggered abilities, Assault/Shield might modifiers, and
+choosing your own damage assignment.
 `;
 
 let state: GameState = makeDemoState();
@@ -69,8 +70,24 @@ function handle(line: string): boolean {
       return true;
     }
     case "pass": {
+      // While the chain is up players pass priority; otherwise it is focus.
+      if (state.chain.length > 0) {
+        run({ type: "passPriority", playerId: state.priority ?? state.turn.player });
+        return true;
+      }
       const focus = state.showdown?.focus ?? state.turn.player;
       run({ type: "passFocus", playerId: focus });
+      return true;
+    }
+    case "cast": {
+      const cardId = args[0];
+      if (cardId === undefined) {
+        console.log("  usage: cast <cardId> [targetId]\n");
+        return true;
+      }
+      const caster = state.players.p1.hand.includes(cardId) ? "p1" : "p2";
+      const targets = args[1] === undefined ? [] : [args[1]];
+      run({ type: "playSpell", playerId: caster, cardId, targets });
       return true;
     }
     case "end":

@@ -126,17 +126,35 @@ function renderBattlefields(state: GameState): string[] {
 
 export function renderState(state: GameState): string {
   const showdown = state.showdown;
+  const chainLine =
+    state.chain.length === 0
+      ? []
+      : [
+          bold("CHAIN") + dim("  (newest resolves first)"),
+          ...[...state.chain].reverse().map((item, i) => {
+            const name = state.cards[item.cardId]?.name ?? item.cardId;
+            const targets =
+              item.targets.length === 0
+                ? ""
+                : dim(` → ${item.targets.join(", ")}`);
+            return `  ${state.chain.length - i}. ${name} ${dim(`(${item.controller})`)}${targets}`;
+          }),
+          "",
+        ];
   const header = bold(
     state.winner !== null
       ? `game over — ${state.winner} wins`
       : showdown !== null
         ? `turn ${state.turn.number}  showdown at ${showdown.battlefieldId}  focus: ${showdown.focus}`
-        : `turn ${state.turn.number}  ${state.turn.player}  ${state.turn.phase} phase`,
+        : state.chain.length > 0
+          ? `turn ${state.turn.number}  chain up  priority: ${state.priority}`
+          : `turn ${state.turn.number}  ${state.turn.player}  ${state.turn.phase} phase`,
   );
   return [
     "",
     header,
     "",
+    ...chainLine,
     ...renderPlayer(state, "p1"),
     "",
     ...renderBattlefields(state),
@@ -194,6 +212,16 @@ export function renderEvent(event: GameEvent): string {
       return yellow(`${event.cardId} dies (${event.playerId})`);
     case "unitRecalled":
       return `${event.cardId} is recalled to ${event.playerId} base`;
+    case "damageDealt":
+      return `${event.cardId} takes ${event.amount} damage`;
+    case "spellPlayed":
+      return bold(`${event.playerId} plays ${event.cardId} — it goes on the chain`);
+    case "spellResolved":
+      return `${event.cardId} resolves`;
+    case "spellCountered":
+      return yellow(`${event.cardId} is countered`);
+    case "priorityPassed":
+      return dim(`  ${event.playerId} passes priority`);
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);

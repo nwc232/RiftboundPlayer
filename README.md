@@ -29,7 +29,8 @@ abilities         list abilities you can use right now
 use <id> <n>      activate ability n of card <id>
 play <id>         play a unit from hand
 move <id> <dest>  standard move; dest is "base" or a battlefield id
-pass              pass focus during a showdown
+cast <id> [tgt]   play a spell onto the chain
+pass              pass priority (chain) or focus (showdown)
 end               end your turn
 log               show everything that has happened
 ```
@@ -63,10 +64,26 @@ Everything except the Main Phase happens automatically.
 damage assigned Tank-first and Backline-last (R465.2.c.6), lethal before
 moving on, survivors healed, and a repelled attacker recalled home.
 
-Not built yet: triggered abilities, the chain, and the Assault/Shield
-Might modifiers (they are arithmetic-layer effects, R477.3). Damage
-assignment is computed rather than chosen — every constraint in R465.2.c
-is enforced, so the assignment is always legal, but you are not yet
-offered the choice between equally legal orderings. The chain stays
-absent deliberately: with no spells and no triggered abilities nothing
-can go on it, and R348 reduces a showdown to "both players pass".
+Spells go on the chain rather than resolving immediately (R359.3), which
+is what gives the opponent a window to respond:
+
+```
+use rune-1 0
+use rune-2 0
+draw
+cast incinerate grunt
+pass
+pass
+```
+
+The chain is LIFO — the newest item resolves first (R340.1) — so Wind
+Wall countering an Incinerate beneath it stops that Incinerate from ever
+executing. Timing is enforced from printed keywords: [Reaction] to act
+while the chain is up (R813), [Action] during a showdown (R806),
+otherwise your own Main Phase in an Open State.
+
+Not built yet: triggered abilities, and the Assault/Shield Might
+modifiers (they are arithmetic-layer effects, R477.3). Damage assignment
+is computed rather than chosen — every constraint in R465.2.c is
+enforced, so the assignment is always legal, but you are not yet offered
+the choice between equally legal orderings.

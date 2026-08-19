@@ -10,6 +10,10 @@ import type { CardId, Domain, GameState, PlayerId } from "./state.js";
 export type Effect =
   | { op: "addEnergy"; amount: number }
   | { op: "addPower"; domain: Domain | "selfDomain"; amount: number }
+  /** `targetIndex` picks from the choices made when the item was played. */
+  | { op: "dealDamage"; amount: number; targetIndex: number }
+  | { op: "draw"; count: number }
+  | { op: "counterSpell"; targetIndex: number }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
@@ -29,6 +33,8 @@ export type Ability = ActivatedAbility;
 export interface EffectContext {
   controller: PlayerId;
   sourceId: CardId;
+  /** Targets chosen while playing (R355.5). Empty for most abilities. */
+  targets: CardId[];
 }
 
 export interface EffectOutcome {
@@ -101,6 +107,95 @@ export function execute(
             playerId: context.controller,
             domain,
             amount: effect.amount,
+          },
+        ],
+      };
+    }
+
+    // R142.3 — damage is marked on the unit. Lethal damage kills it in the
+    // cleanup that follows (R428.1.a.2), not immediately.
+    case "dealDamage": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      const permanent = state.permanents[targetId];
+      if (permanent === undefined) return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            [targetId]: {
+              ...permanent,
+              damage: permanent.damage + effect.amount,
+            },
+          },
+        },
+        events: [
+          {
+            type: "damageDealt",
+            playerId: context.controller,
+            cardId: targetId,
+            amount: effect.amount,
+          },
+        ],
+      };
+    }
+
+    case "draw": {
+      let current = state;
+      const events: GameEvent[] = [];
+      for (let i = 0; i < effect.count; i += 1) {
+        const player = current.players[context.controller];
+        const [drawnId, ...rest] = player.mainDeck;
+        if (drawnId === undefined) break;
+        current = {
+          ...current,
+          players: {
+            ...current.players,
+            [context.controller]: {
+              ...player,
+              mainDeck: rest,
+              hand: [...player.hand, drawnId],
+            },
+          },
+        };
+        events.push({
+          type: "cardDrawn",
+          playerId: context.controller,
+          cardId: drawnId,
+        });
+      }
+      return { state: current, events };
+    }
+
+    // R359.3.d — a countered spell never executes; it goes to its owner's
+    // trash as if it had resolved. Cards like Abandon replace that destination.
+    case "counterSpell": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      const index = state.chain.findIndex((item) => item.cardId === targetId);
+      if (index === -1) return { state, events: [] };
+
+      const item = state.chain[index]!;
+      const owner = item.controller;
+      return {
+        state: {
+          ...state,
+          chain: state.chain.filter((_, i) => i !== index),
+          players: {
+            ...state.players,
+            [owner]: {
+              ...state.players[owner],
+              trash: [...state.players[owner].trash, targetId],
+            },
+          },
+        },
+        events: [
+          {
+            type: "spellCountered",
+            playerId: context.controller,
+            cardId: targetId,
           },
         ],
       };
