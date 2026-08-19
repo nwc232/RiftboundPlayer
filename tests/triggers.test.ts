@@ -193,6 +193,69 @@ describe("death-trigger location snapshot (R323.4)", () => {
     expect(sourceLocationOf(state, item)).toEqual(AT_BF);
   });
 
+  /**
+   * The Ruination ("Kill all units") is the case most likely to break a
+   * snapshot: everything dies at once, so every trigger has to have kept its
+   * own location rather than reading a board that is now empty.
+   */
+  it("keeps each unit's own location when several die at once", () => {
+    function dyingUnit(id: string): CardInstance {
+      return {
+        ...unit(id, { might: 1 }),
+        abilities: [
+          {
+            kind: "triggered",
+            trigger: { on: "permanentKilled", subject: "self" },
+            effect: draw(1),
+          },
+        ],
+      };
+    }
+
+    const state = run(
+      makeState({
+        p1: { mainDeck: ["a", "b", "c"], runePool: pool({ energy: 9 }) },
+        cards: [
+          dyingUnit("atA"),
+          dyingUnit("atB"),
+          dyingUnit("atHome"),
+          unit("a"),
+          unit("b"),
+          unit("c"),
+        ],
+        permanents: [
+          {
+            cardId: "atA",
+            controller: "p1",
+            location: { kind: "battlefield", id: "bf-a" },
+            damage: 5,
+          },
+          {
+            cardId: "atB",
+            controller: "p1",
+            location: { kind: "battlefield", id: "bf-b" },
+            damage: 5,
+          },
+          { cardId: "atHome", controller: "p1", damage: 5 },
+        ],
+        battlefields: ["bf-a", "bf-b"],
+      }),
+      [{ type: "drawCard", playerId: "p1" }],
+    );
+
+    expect(Object.keys(state.permanents)).toEqual([]);
+    expect(
+      state.chain.map((item) => [
+        chainItemCardId(item),
+        sourceLocationOf(state, item),
+      ]),
+    ).toEqual([
+      ["atA", { kind: "battlefield", id: "bf-a" }],
+      ["atB", { kind: "battlefield", id: "bf-b" }],
+      ["atHome", { kind: "base", player: "p1" }],
+    ]);
+  });
+
   it("keeps no snapshot for a living source — its location is looked up", () => {
     const state = run(
       makeState({
