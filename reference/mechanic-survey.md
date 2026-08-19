@@ -486,3 +486,26 @@ things I think most shape that design, in rough priority order:
 4. Whether Copy effects (§6, #1–2) are one mechanism or two — Shady
    Spectacles fits the rules' own Copy layer; Svellsongur arguably
    doesn't. Worth resolving before either gets built.
+
+---
+
+## Known engine deviations (running list)
+
+Recorded as they're found, so they don't get lost between slices.
+
+- **Death-trigger snapshot (R323.4).** The cleanup orders *3a: note each
+  dying unit's Deathknell trigger along with its current location and
+  attributes* before *3b: kill it*. The engine kills first and derives the
+  trigger from the `unitKilled` event, which carries the card id but not
+  the location it died at. A Deathknell referring to "here" would have
+  nothing to resolve against. No current card exercises it.
+- **Owner vs controller (R56).** A killed card goes to its *owner's*
+  trash. The engine uses controller, which only differs once
+  control-stealing effects exist.
+- **Assault / Shield (R477.3).** Combat uses printed Might; these are
+  arithmetic-layer modifiers and need the layer system.
+- **Damage assignment choice (R465.2.c).** Every constraint is enforced so
+  the assignment is always legal, but the player isn't offered the choice
+  between equally legal orderings.
+- **Targeted triggers (R355.5.b).** A trigger needing a chosen target must
+  take that choice at its own finalization; no choice mechanism exists yet.
