@@ -129,5 +129,6 @@ export function makeState(options: {
     tasks: [],
     modifiers: [],
     tokensCreated: 0,
+    delayed: [],
   };
 }

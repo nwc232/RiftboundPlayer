@@ -3,7 +3,7 @@ import { controllerOf } from "./layers.js";
 import type { ChainItem } from "./chain.js";
 import type { PendingDecision } from "./decisions.js";
 import type { ShowdownState } from "./showdown.js";
-import type { Modifier } from "./layers.js";
+import type { DelayedEffect, Modifier } from "./layers.js";
 import type { Task } from "./tasks.js";
 import type { TurnState } from "./turn.js";
 
@@ -107,7 +107,9 @@ export type Keyword =
   | "reaction"
   /** R807 / R814 — passive keywords carrying a value; see `Characteristics`. */
   | "assault"
-  | "shield";
+  | "shield"
+  /** R816 — "at the start of my controller's Beginning Phase, kill this." */
+  | "temporary";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =
@@ -201,6 +203,11 @@ export interface GameState {
   modifiers: Modifier[];
   /** Bumped for each token created, so minted ids stay deterministic. */
   tokensCreated: number;
+  /**
+   * R317.1.a — effects scheduled to fire at a later moment, as opposed to
+   * modifiers, which merely stop applying at one.
+   */
+  delayed: DelayedEffect[];
 }
 
 /** R56 / R183 — where a card goes when it leaves the board. */

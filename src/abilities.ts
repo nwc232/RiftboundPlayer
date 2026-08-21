@@ -8,10 +8,11 @@ import type {
   Location,
   PlayerId,
 } from "./state.js";
-import { mightOf } from "./layers.js";
+import { controllerOf, mightOf } from "./layers.js";
 import { tokenCard } from "./tokens.js";
 import type { TokenKind } from "./tokens.js";
 import type {
+  DelayedTiming,
   Duration,
   Modification,
   PassiveCondition,
@@ -67,6 +68,8 @@ export type Effect =
       to?: "base" | "sourceLocation";
       /** R477.1.b — becomes a copy of the chosen target as it enters. */
       copyOfTarget?: number;
+      /** R184.3 — the creating effect may grant abilities to the token. */
+      grants?: Keyword[];
     }
   /**
    * Possession — "Take control of it and recall it." Control is a trait-layer
@@ -80,6 +83,14 @@ export type Effect =
       recall?: true;
       targetIndex: number;
     }
+  /**
+   * R317.1.a — schedule an effect for a later moment. Distinct from a duration:
+   * a modifier stops applying, a delayed effect *fires*. Hostile Takeover's
+   * "lose control of that unit and recall it at end of turn" needs both.
+   */
+  | { op: "delay"; at: DelayedTiming; effect: Effect }
+  /** R454 — a recall sends a unit to its controller's base and is not a move. */
+  | { op: "recall"; targetIndex: number }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
@@ -463,23 +474,35 @@ export function execute(
             },
           },
           // R477.1.b — the copy is a trait-layer effect on the token, not a
-          // rewrite of it, so it lives as a modifier like any other.
-          modifiers:
-            copySourceId === undefined
-              ? current.modifiers
+          // rewrite of it, so it lives as a modifier like any other. R184.3's
+          // granted keywords ride along the same way.
+          modifiers: [
+            ...current.modifiers,
+            ...(copySourceId === undefined
+              ? []
               : [
-                  ...current.modifiers,
                   {
                     id: `copy-${tokenId}`,
                     targetId: tokenId,
                     modification: {
-                      layer: "trait",
-                      op: "copyOf",
+                      layer: "trait" as const,
+                      op: "copyOf" as const,
                       sourceId: copySourceId,
                     },
-                    duration: "permanent",
+                    duration: "permanent" as const,
                   },
-                ],
+                ]),
+            ...(effect.grants ?? []).map((keyword, n) => ({
+              id: `grant-${tokenId}-${n}`,
+              targetId: tokenId,
+              modification: {
+                layer: "ability" as const,
+                op: "grantKeyword" as const,
+                keyword,
+              },
+              duration: "permanent" as const,
+            })),
+          ],
         };
 
         events.push({
@@ -491,6 +514,55 @@ export function execute(
       }
 
       return { state: current, events };
+    }
+
+    case "delay":
+      return {
+        state: {
+          ...state,
+          delayed: [
+            ...state.delayed,
+            {
+              id: `delayed-${state.delayed.length}-${context.sourceId}`,
+              at: effect.at,
+              controller: context.controller,
+              sourceId: context.sourceId,
+              effect: effect.effect,
+              // R355.5 — the choices were made when this was scheduled.
+              targets: [...context.targets],
+            },
+          ],
+        },
+        events: [
+          {
+            type: "effectScheduled",
+            playerId: context.controller,
+            cardId: context.sourceId,
+            at: effect.at,
+          },
+        ],
+      };
+
+    case "recall": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      const permanent = state.permanents[targetId];
+      if (permanent === undefined) return { state, events: [] };
+
+      const to = controllerOf(state, targetId);
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            [targetId]: {
+              ...permanent,
+              location: { kind: "base", player: to },
+            },
+          },
+        },
+        events: [{ type: "unitRecalled", playerId: to, cardId: targetId }],
+      };
     }
 
     case "seq": {

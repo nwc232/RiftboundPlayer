@@ -88,12 +88,16 @@ export const SAMPLE_CARDS: CardInstance[] = [
     ["reaction"],
   ),
   // Mirror Image — "Choose a unit. Play a ready Reflection unit token to your
-  // base. It becomes a copy of that unit." (3 energy + 2 mind)
+  // base. It becomes a copy of that unit. Give it [Temporary]." (3e + 2 mind)
   spell(
     "mirror",
     "Mirror Image",
     { ...FREE, energy: 3, power: { mind: 2 } },
-    createToken("reflection", 1, { ready: true, copyOfTarget: 0 }),
+    createToken("reflection", 1, {
+      ready: true,
+      copyOfTarget: 0,
+      grants: ["temporary"],
+    }),
   ),
   // Honest Broker — "[Deathknell] Play a Gold gear token exhausted."
   {
@@ -246,5 +250,6 @@ function emptyBoard(): GameState {
     tasks: [],
     modifiers: [],
     tokensCreated: 0,
+    delayed: [],
   };
 }

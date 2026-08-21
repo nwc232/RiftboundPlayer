@@ -535,9 +535,16 @@ Recorded as they're found, so they don't get lost between slices.
 - **Tags.** R187 gives every token a tag (Recruit, Fae, Mech, Bird…) and
   R477.1.b.1.a makes tags copyable, but there is no tag system, so they
   live in the token's name only. Nothing reads tags yet.
-- **Temporary and Deflect (R816 / R809).** R187.2 and R187.7 print these on
-  the Sprite and Bird tokens. Neither keyword is modelled, so those tokens
-  are created without them.
+- **Temporary runs off the chain (R816.1).** The rules make Temporary a
+  *triggered* ability, which would put it on the chain and let a [Reaction]
+  answer it. The engine kills directly in the Beginning Step instead,
+  because R816.1.b's "before scoring" ordering is what decides whether a
+  Temporary unit Holds a battlefield for a point — and getting that wrong
+  changes who wins, while losing the response window rarely matters.
+  Doing both needs the turn's phases on the task queue so the chain can
+  resolve mid-phase.
+- **Deflect (R809).** R187.7 prints it on the Bird token; not modelled, so
+  Bird tokens are created without it.
 - **The Gold token's ability (R187.5).** Printed as "[Reaction][>] Kill
   this, [E]: [Add] [A]". The engine has no kill-self ability cost, so it is
   modelled as a recycle. Both remove it from the board and yield one Power,
@@ -548,11 +555,10 @@ Recorded as they're found, so they don't get lost between slices.
   a passive granting control would recur into itself. Every
   control-changing card in the pool works through a resolved effect, so
   nothing needs it yet.
-- **Delayed "at end of turn" clauses.** Hostile Takeover reads "Lose
-  control of that unit *and recall it* at end of turn". The control half
-  is handled — a `thisTurn` duration expires by itself — but the recall
-  half is a delayed triggered effect, which the trigger system has no
-  timing for.
+- **Other delayed timings.** Only `endOfTurn` (R317.1.a) exists. The pool
+  also has "the next time…" (7 cards) and "the first time… each turn"
+  (9 cards), which are delayed *replacement* effects and one-shot
+  conditional triggers respectively — different mechanisms again.
 - **Staged showdown/combat choice (R323.12/13).** When more than one
   showdown or combat is staged, the Turn Player *chooses* which battlefield
   opens. The engine takes the first in board order. Now a small fix rather

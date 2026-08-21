@@ -1,4 +1,4 @@
-import type { Duration } from "./layers.js";
+import type { DelayedTiming, Duration } from "./layers.js";
 import type { TokenKind } from "./tokens.js";
 import type {
   CardId,
@@ -97,6 +97,12 @@ export type GameEvent =
       duration: Duration;
     }
   | { type: "modifiersExpired"; duration: Duration }
+  | {
+      type: "effectScheduled";
+      playerId: PlayerId;
+      cardId: CardId;
+      at: DelayedTiming;
+    }
   | {
       type: "controlTaken";
       playerId: PlayerId;

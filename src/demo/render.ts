@@ -271,6 +271,8 @@ export function renderEvent(event: GameEvent): string {
       return `${event.cardId} gains [${event.keyword}] (${event.duration})`;
     case "modifiersExpired":
       return dim(`  ${event.duration} effects expire`);
+    case "effectScheduled":
+      return dim(`  ${event.cardId} schedules an effect for ${event.at}`);
     case "controlTaken":
       return `${event.playerId} takes control of ${event.cardId} (${event.duration})`;
     case "tokenCreated":

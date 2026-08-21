@@ -1,7 +1,10 @@
-import { healAllUnits } from "./combat.js";
-import { expireModifiers } from "./layers.js";
+import { execute } from "./abilities.js";
+import { healAllUnits, killUnits } from "./combat.js";
+import { expireModifiers, keywordsOf } from "./layers.js";
+import type { DelayedTiming } from "./layers.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, holdControlledBattlefields } from "./scoring.js";
+import { runCleanup } from "./showdown.js";
 import { permanentsControlledBy } from "./state.js";
 import type { GameState, PlayerId } from "./state.js";
 
@@ -65,6 +68,38 @@ function awaken(progress: Progress, player: PlayerId): Progress {
   return {
     state: { ...state, runes, permanents },
     events: [...progress.events, ...events],
+  };
+}
+
+/**
+ * R816 — Temporary is functionally "At the start of this permanent's
+ * controller's Beginning Phase, *before scoring*, kill this." Read through the
+ * layers, so a granted Temporary (Mirror Image) counts like a printed one.
+ * R816.2 makes multiple instances redundant, which falls out of killing once.
+ *
+ * The rules make this a triggered ability, which would put it on the chain.
+ * It is run directly here instead, because the "before scoring" ordering is
+ * what decides whether a Temporary unit gets to Hold a battlefield for a point
+ * — getting that wrong changes who wins. Doing both would need the turn's
+ * phases on the task queue so the chain can resolve mid-phase.
+ */
+function beginningStep(progress: Progress, player: PlayerId): Progress {
+  const { state } = progress;
+  const doomed = permanentsControlledBy(state, player)
+    .filter((permanent) => keywordsOf(state, permanent.cardId).includes("temporary"))
+    .map((permanent) => permanent.cardId);
+
+  if (doomed.length === 0) return progress;
+
+  const killed = killUnits(state, doomed);
+  // R319.6 — objects leaving the board makes a cleanup outstanding, and R334
+  // completes it before anything else. That matters here: R323.6 is where a
+  // player loses control of a battlefield they no longer occupy, and it has to
+  // happen before the Scoring Step or a dead Temporary still Holds for a point.
+  const cleaned = runCleanup(killed.state);
+  return {
+    state: cleaned.state,
+    events: [...progress.events, ...killed.events, ...cleaned.events],
   };
 }
 
@@ -132,6 +167,33 @@ function drawOne(progress: Progress, player: PlayerId): Progress {
   };
 }
 
+/**
+ * R317.1.a — run everything scheduled for this moment, then drop it. Each
+ * delayed effect fires once; its targets were frozen when it was scheduled.
+ */
+function fireDelayed(progress: Progress, at: DelayedTiming): Progress {
+  const due = progress.state.delayed.filter((entry) => entry.at === at);
+  if (due.length === 0) return progress;
+
+  let state: GameState = {
+    ...progress.state,
+    delayed: progress.state.delayed.filter((entry) => entry.at !== at),
+  };
+  const events: GameEvent[] = [];
+
+  for (const entry of due) {
+    const outcome = execute(state, entry.effect, {
+      controller: entry.controller,
+      sourceId: entry.sourceId,
+      targets: entry.targets,
+    });
+    state = outcome.state;
+    events.push(...outcome.events);
+  }
+
+  return { state, events: [...progress.events, ...events] };
+}
+
 /** R316.3 and R317.2.e — every player's pool empties, not just the turn player's. */
 function emptyAllPools(progress: Progress): Progress {
   const { state } = progress;
@@ -174,6 +236,8 @@ export function beginTurn(
   progress = enterPhase(progress, player, "awaken");
   progress = awaken(progress, player);
   progress = enterPhase(progress, player, "beginning");
+  // R315.2.a then R315.2.b — the Beginning Step runs before the Scoring Step.
+  progress = beginningStep(progress, player);
   progress = scoringStep(progress, player);
   progress = enterPhase(progress, player, "channel");
   progress = channelTwo(progress, player);
@@ -196,6 +260,10 @@ export function endTurn(state: GameState): Progress {
   let progress: Progress = { state, events: [] };
 
   progress = enterPhase(progress, player, "ending");
+
+  // R317.1.a — "At the end of the turn Game Effects take place." This is the
+  // Ending Step, and it runs before the Expiration Step below.
+  progress = fireDelayed(progress, "endOfTurn");
 
   // R317.2.b — "3c. Heal all Units."
   progress = { ...progress, state: healAllUnits(progress.state) };

@@ -6,6 +6,7 @@ import type {
   PassiveAbility,
 } from "./abilities.js";
 import type {
+  DelayedTiming,
   Duration,
   Modification,
   PassiveCondition,
@@ -114,6 +115,7 @@ export function createToken(
     ready?: true;
     to?: "base" | "sourceLocation";
     copyOfTarget?: number;
+    grants?: Keyword[];
   } = {},
 ): Effect {
   return {
@@ -125,6 +127,7 @@ export function createToken(
     ...(options.copyOfTarget !== undefined
       ? { copyOfTarget: options.copyOfTarget }
       : {}),
+    ...(options.grants !== undefined ? { grants: options.grants } : {}),
   };
 }
 
@@ -140,6 +143,16 @@ export function takeControl(
     targetIndex,
     ...(options.recall !== undefined ? { recall: options.recall } : {}),
   };
+}
+
+/** R317.1.a — "…at end of turn", scheduling an effect rather than a duration. */
+export function delay(at: DelayedTiming, effect: Effect): Effect {
+  return { op: "delay", at, effect };
+}
+
+/** R454 — send a unit to its controller's base. Not a move, so it contests nothing. */
+export function recall(targetIndex = 0): Effect {
+  return { op: "recall", targetIndex };
 }
 
 // Passive abilities (R477). These modify characteristics rather than resolving,

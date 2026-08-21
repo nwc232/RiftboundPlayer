@@ -1,4 +1,4 @@
-import type { Ability, PassiveAbility } from "./abilities.js";
+import type { Ability, Effect, PassiveAbility } from "./abilities.js";
 import { sameLocation } from "./state.js";
 import type {
   CardId,
@@ -88,6 +88,24 @@ export interface Modifier {
   targetId: CardId;
   modification: Modification;
   duration: Duration;
+}
+
+/**
+ * R317.1.a — "At the end of the turn Game Effects take place." A delayed effect
+ * is something a resolved effect scheduled for later, as opposed to a modifier,
+ * which merely stops applying. Hostile Takeover needs both halves: its control
+ * change is a modifier that expires, its recall is an action that fires.
+ */
+export type DelayedTiming = "endOfTurn";
+
+export interface DelayedEffect {
+  id: string;
+  at: DelayedTiming;
+  controller: PlayerId;
+  sourceId: CardId;
+  effect: Effect;
+  /** Frozen when scheduled — the choices were made back then (R355.5). */
+  targets: CardId[];
 }
 
 /** Who a passive ability modifies, relative to its source. */

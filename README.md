@@ -274,6 +274,36 @@ a recorded deviation since combat landed; tokens forced `owner` to become
 real (R183 defines a token's owner as whoever controlled the creating
 effect), and control-changing is what makes the distinction observable.
 
+Two different things get called "until end of turn", and they need
+different machinery. A **duration** is a modifier that stops applying:
+"+2 Might this turn" expires at R317.2.c and nothing runs. A **delayed
+effect** *fires*: Hostile Takeover's "Lose control of that unit and recall
+it at end of turn" needs both halves, and R317's ordering decides the
+result — R317.1's Ending Step runs the recall while you still control the
+unit, so it lands in *your* base, and only then does R317.2.c hand it
+back.
+
+[Temporary] (R816) is the same idea at the other end of the turn: "at the
+start of this permanent's controller's Beginning Phase, before scoring,
+kill this". The *before scoring* is load-bearing — a Temporary unit must
+not get to Hold a battlefield for a point. Writing that test surfaced a
+real bug: killing it is not enough, because R323.6 only drops control of
+an unoccupied battlefield during a cleanup, and R319.6 makes one
+outstanding the moment anything leaves the board. Without that cleanup the
+dead unit still scored.
+
+Mirror Image now runs end to end — copy a unit, take a Reflection token
+with its name and cost, and watch it disappear at your next Beginning
+Phase:
+
+```
+cast mirror grunt
+pass
+pass
+end
+end
+```
+
 Not built yet: a tag system — R187 gives every token a tag and
 R477.1.b.1.a makes tags copyable, but nothing reads them.
 
