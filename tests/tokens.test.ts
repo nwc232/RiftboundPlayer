@@ -5,9 +5,12 @@ import { killUnits } from "../src/combat.js";
 import {
   anthemMight,
   createToken,
+  draw,
   passive,
   takeControl,
 } from "../src/builders.js";
+import { collectTriggers } from "../src/triggers.js";
+import { chainItemCardId } from "../src/chain.js";
 import {
   characteristicsOf,
   controllerOf,
@@ -98,9 +101,11 @@ describe("creating tokens (R179–187)", () => {
 
     const after = killUnits(created, [tokenId]).state;
 
+    // "Ceases to exist" is about zones: off the board, and never in a trash
+    // for anything to recur it from.
     expect(after.permanents[tokenId]).toBeUndefined();
-    expect(after.cards[tokenId]).toBeUndefined();
     expect(after.players.p1.trash).toEqual([]);
+    expect(after.players.p2.trash).toEqual([]);
   });
 
   it("sends a killed card to its owner's trash, not its controller's (R56)", () => {
@@ -331,5 +336,87 @@ describe("taking control (R477.1.a)", () => {
       .state;
 
     expect(mightOf(stolen, "thrall")).toBe(4);
+  });
+});
+
+/**
+ * A copy takes the source's Rules Text (R477.1.b.1.a), so its triggers are the
+ * copy's triggers too — with one exception the Reflection prints itself.
+ */
+describe("triggers on a copy", () => {
+  /** A unit whose rules text carries a trigger that fires while it lives. */
+  const watcher: CardInstance = {
+    ...unit("watcher", { might: 2 }),
+    name: "Dawn Watcher",
+    abilities: [
+      {
+        kind: "triggered",
+        trigger: { on: "phaseBegan", phase: "beginning", subject: "controller" },
+        effect: draw(1),
+      },
+    ],
+  };
+
+  /** Cloud Drake — "When you play me, draw 1." */
+  const drake: CardInstance = {
+    ...unit("drake", { might: 5 }),
+    name: "Cloud Drake",
+    abilities: [
+      {
+        kind: "triggered",
+        trigger: { on: "unitPlayed", subject: "self" },
+        effect: draw(1),
+      },
+    ],
+  };
+
+  function reflectionOf(source: CardInstance): {
+    state: GameState;
+    tokenId: string;
+  } {
+    const start = board([source], [{ cardId: source.id, location: NORTH }]);
+    const state = execute(
+      start,
+      createToken("reflection", 1, { ready: true, copyOfTarget: 0 }),
+      CONTEXT([source.id]),
+    ).state;
+    const tokenId = Object.keys(state.permanents).find(
+      (id) => id !== source.id,
+    )!;
+    return { state, tokenId };
+  }
+
+  it("fires a trigger that came across in the copied rules text", () => {
+    const { state, tokenId } = reflectionOf(watcher);
+
+    const triggered = collectTriggers(state, [
+      { type: "phaseBegan", playerId: "p1", phase: "beginning" },
+    ]);
+
+    // Both the original and its copy watch for it.
+    expect(triggered.map((item) => chainItemCardId(item)).sort()).toEqual(
+      ["watcher", tokenId].sort(),
+    );
+  });
+
+  /**
+   * The Reflection's own text: "I don't get that card's play effects." The
+   * engine gets this from R383.4.a rather than a special case — a Play Effect
+   * triggers on the permanent being *played to the board*, and a created token
+   * emits `tokenCreated`, not `unitPlayed`.
+   */
+  it("does not fire a copied play effect", () => {
+    const { state } = reflectionOf(drake);
+    const made = execute(
+      board([drake], [{ cardId: "drake", location: NORTH }]),
+      createToken("reflection", 1, { ready: true, copyOfTarget: 0 }),
+      CONTEXT(["drake"]),
+    );
+
+    expect(
+      made.events.some((event) => event.type === "unitPlayed"),
+    ).toBe(false);
+    expect(collectTriggers(made.state, made.events)).toEqual([]);
+    expect(state.players.p1.hand).toEqual([]);
   });
 });

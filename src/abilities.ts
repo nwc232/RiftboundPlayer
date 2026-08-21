@@ -8,6 +8,7 @@ import type {
   Location,
   PlayerId,
 } from "./state.js";
+import { killUnits } from "./combat.js";
 import { controllerOf, mightOf } from "./layers.js";
 import { tokenCard } from "./tokens.js";
 import type { TokenKind } from "./tokens.js";
@@ -91,6 +92,8 @@ export type Effect =
   | { op: "delay"; at: DelayedTiming; effect: Effect }
   /** R454 — a recall sends a unit to its controller's base and is not a move. */
   | { op: "recall"; targetIndex: number }
+  /** R816 — what [Temporary] does. Kills the ability's own source. */
+  | { op: "killSelf" }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
@@ -563,6 +566,13 @@ export function execute(
         },
         events: [{ type: "unitRecalled", playerId: to, cardId: targetId }],
       };
+    }
+
+    case "killSelf": {
+      if (state.permanents[context.sourceId] === undefined) {
+        return { state, events: [] };
+      }
+      return killUnits(state, [context.sourceId]);
     }
 
     case "seq": {

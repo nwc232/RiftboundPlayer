@@ -304,6 +304,14 @@ end
 end
 ```
 
+[Temporary] is a *triggered* ability (R816.1), so it goes on the chain and
+can be answered — and R335 is what makes that safe: the game proceeds "to
+the next substep, step, phase, or turn" only once there are no outstanding
+tasks *and no pending chain items*. The turn's phases are queue entries,
+so the Scoring Step simply waits until the Temporary trigger has resolved.
+That is the ordering R816.1.b demands, without giving up the response
+window.
+
 Not built yet: a tag system — R187 gives every token a tag and
 R477.1.b.1.a makes tags copyable, but nothing reads them.
 

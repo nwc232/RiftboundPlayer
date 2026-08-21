@@ -432,6 +432,28 @@ export function mightOf(state: GameState, cardId: CardId): number {
   return characteristicsOf(state, cardId).might;
 }
 
+/**
+ * R816.1.b — Temporary is "functionally short for" this triggered ability, so
+ * the keyword is expanded into one rather than special-cased at every reader.
+ * R816.2 makes multiple instances redundant, which one expansion gives us.
+ */
+const TEMPORARY: Ability = {
+  kind: "triggered",
+  trigger: { on: "phaseBegan", phase: "beginning", subject: "controller" },
+  effect: { op: "killSelf" },
+};
+
+/**
+ * A permanent's rules text as it currently stands: copied text rather than
+ * printed where a copy applies, plus the abilities that keywords stand for.
+ */
+export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
+  const now = characteristicsOf(state, cardId);
+  return now.keywords.includes("temporary")
+    ? [...now.abilities, TEMPORARY]
+    : now.abilities;
+}
+
 /** A unit's keywords right now, printed plus granted (R477.2). */
 export function keywordsOf(state: GameState, cardId: CardId): Keyword[] {
   return characteristicsOf(state, cardId).keywords;

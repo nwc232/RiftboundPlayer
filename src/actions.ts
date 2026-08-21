@@ -17,13 +17,14 @@ import {
   newestItem,
   sourceLocationOf,
 } from "./chain.js";
-import { controllerOf } from "./layers.js";
+import { abilitiesOf, controllerOf } from "./layers.js";
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
 import {
   applyCombatAssignment,
   beginTurn,
   enqueue,
+  enqueueNext,
   runTasks,
 } from "./tasks.js";
 import { passFocus as runPassFocus } from "./showdown.js";
@@ -125,7 +126,7 @@ function thenCleanup(result: ActionResult): ActionResult {
   if (!result.ok) return result;
 
   const worked = runTasks(
-    enqueue(result.state, { kind: "cleanup" }),
+    enqueueNext(result.state, { kind: "cleanup" }),
     result.events,
   );
   return afterTasks(worked.state, [...result.events, ...worked.events]);
@@ -155,7 +156,7 @@ function nextDecision(state: GameState): PendingDecision | null {
   const item = state.chain[chainIndex];
   if (item === undefined || item.kind !== "trigger") return null;
 
-  const ability = state.cards[item.sourceId]?.abilities[item.abilityIndex];
+  const ability = abilitiesOf(state, item.sourceId)[item.abilityIndex];
   if (ability === undefined || ability.kind !== "triggered") return null;
 
   // R383.3.a is decided before targets are chosen — declining removes the
@@ -635,7 +636,9 @@ export function passPriority(
   };
 
   if (card !== undefined) {
-    const ability = card.abilities[
+    // Read through the layers: copied rules text and keyword-shorthand
+    // abilities ([Temporary]) are as real as printed ones.
+    const ability = abilitiesOf(current, sourceId)[
       item.kind === "trigger" ? item.abilityIndex : 0
     ];
     // A passive never resolves — it is read live by the layer pipeline — so it
@@ -813,7 +816,7 @@ export function activateAbility(
     return rejected("cardNotFound");
   }
 
-  const ability = card.abilities[abilityIndex];
+  const ability = abilitiesOf(state, sourceId)[abilityIndex];
   // Only activated abilities can be activated; triggered ones fire on their own.
   if (ability === undefined || ability.kind !== "activated") {
     return rejected("abilityNotFound");

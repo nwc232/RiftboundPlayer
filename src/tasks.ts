@@ -231,6 +231,16 @@ export function enqueue(state: GameState, ...tasks: Task[]): GameState {
 }
 
 /**
+ * R319.6/R334 — work incited by something that just happened is outstanding
+ * *now*, and completes before any continuation already sitting in the queue.
+ * A cleanup queued behind a pending turn step would let, say, the Scoring Step
+ * run before a dead unit's controller had lost the battlefield it vacated.
+ */
+export function enqueueNext(state: GameState, ...tasks: Task[]): GameState {
+  return { ...state, tasks: [...tasks, ...state.tasks] };
+}
+
+/**
  * Works the queue until it drains or a task needs an answer. R320.1 — while
  * tasks remain, no priority is awarded and nothing on the chain resolves.
  */

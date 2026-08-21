@@ -1,9 +1,10 @@
 import type { Effect } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
 import type { TargetFilter } from "./decisions.js";
-import { controllerOf } from "./layers.js";
+import { abilitiesOf, controllerOf } from "./layers.js";
 import type { GameEvent } from "./events.js";
 import type { ScoreMethod } from "./scoring.js";
+import type { Phase } from "./turn.js";
 import type { CardId, GameState, Location, PlayerId } from "./state.js";
 
 /**
@@ -18,7 +19,9 @@ import type { CardId, GameState, Location, PlayerId } from "./state.js";
 export type TriggerCondition =
   | { on: "unitPlayed"; subject: "self" }
   | { on: "permanentKilled"; subject: "self" }
-  | { on: "battlefieldScored"; subject: "here"; method?: ScoreMethod };
+  | { on: "battlefieldScored"; subject: "here"; method?: ScoreMethod }
+  /** R816.1.c — "the controller of the permanent's Beginning Phase starting". */
+  | { on: "phaseBegan"; phase: Phase; subject: "controller" };
 
 export interface TriggeredAbility {
   kind: "triggered";
@@ -38,6 +41,7 @@ function matches(
   condition: TriggerCondition,
   event: GameEvent,
   sourceId: CardId,
+  controller: PlayerId,
 ): boolean {
   switch (condition.on) {
     case "unitPlayed":
@@ -49,6 +53,12 @@ function matches(
         event.type === "battlefieldScored" &&
         event.battlefieldId === sourceId &&
         (condition.method === undefined || condition.method === event.method)
+      );
+    case "phaseBegan":
+      return (
+        event.type === "phaseBegan" &&
+        event.phase === condition.phase &&
+        event.playerId === controller
       );
     default: {
       const unhandled: never = condition;
@@ -120,13 +130,12 @@ export function collectTriggers(
     state,
     events,
   )) {
-    const card = state.cards[sourceId];
-    if (card === undefined) continue;
+    if (state.cards[sourceId] === undefined) continue;
 
-    card.abilities.forEach((ability, abilityIndex) => {
+    abilitiesOf(state, sourceId).forEach((ability, abilityIndex) => {
       if (ability.kind !== "triggered") return;
       const fired = events.some((event) =>
-        matches(ability.trigger, event, sourceId),
+        matches(ability.trigger, event, sourceId, controller),
       );
       if (!fired) return;
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { applyAction } from "../src/actions.js";
 import { execute } from "../src/abilities.js";
 import type { EffectContext } from "../src/abilities.js";
 import {
@@ -41,6 +42,21 @@ const CONTEXT = (targets: string[] = []): EffectContext => ({
   sourceId: "source",
   targets,
 });
+
+/** Both players pass, resolving whatever is on the chain and letting the
+ * remaining turn steps continue (R335). */
+function resolveChain(state: GameState): GameState {
+  let current = state;
+  while (current.chain.length > 0) {
+    for (const playerId of ["p1", "p2"] as const) {
+      if (current.priority !== playerId) continue;
+      const result = applyAction(current, { type: "passPriority", playerId });
+      if (!result.ok) throw new Error(`rejected: ${result.reason}`);
+      current = result.state;
+    }
+  }
+  return current;
+}
 
 /**
  * R317.1.a — "At the end of the turn Game Effects take place." A delayed effect
@@ -113,12 +129,19 @@ describe("Temporary (R816)", () => {
     name: "Sprite",
   };
 
-  it("dies at the start of its controller's Beginning Phase", () => {
+  it("triggers at the start of its controller's Beginning Phase", () => {
     const state = board([sprite], [{ cardId: "sprite", location: NORTH }]);
 
-    const next = beginTurn(state, "p1", 3).state;
+    const opened = beginTurn(state, "p1", 3).state;
 
-    expect(next.permanents.sprite).toBeUndefined();
+    // R816.1 makes it a *triggered* ability, so it goes on the chain and the
+    // turn stops there (R335) rather than the unit vanishing silently.
+    expect(opened.chain).toHaveLength(1);
+    expect(opened.permanents.sprite).toBeDefined();
+    expect(opened.turn.phase).toBe("beginning");
+
+    const after = resolveChain(opened);
+    expect(after.permanents.sprite).toBeUndefined();
   });
 
   it("survives the opponent's Beginning Phase — it is its controller's", () => {
@@ -141,10 +164,12 @@ describe("Temporary (R816)", () => {
       },
     };
 
-    const next = beginTurn(state, "p1", 3).state;
+    const next = resolveChain(beginTurn(state, "p1", 3).state);
 
     expect(next.permanents.sprite).toBeUndefined();
     expect(next.players.p1.points).toBe(0);
+    // The turn carried on afterwards rather than stalling on the chain.
+    expect(next.turn.phase).toBe("main");
   });
 
   it("counts a granted Temporary the same as a printed one", () => {
@@ -166,11 +191,11 @@ describe("Temporary (R816)", () => {
       { ...CONTEXT([tokenId]) },
     ).state;
 
-    const next = beginTurn(marked, "p1", 3).state;
+    const next = resolveChain(beginTurn(marked, "p1", 3).state);
 
     expect(next.permanents[tokenId]).toBeUndefined();
-    // R186.1 — and being a token, it ceases to exist rather than hitting a trash.
-    expect(next.cards[tokenId]).toBeUndefined();
+    // R186.1 — and being a token, it never reaches a trash.
+    expect(next.players.p1.trash).toEqual([]);
     expect(next.permanents.original).toBeDefined();
   });
 });

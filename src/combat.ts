@@ -229,8 +229,11 @@ export function killUnits(state: GameState, cardIds: CardId[]): Progress {
 
     if (state.cards[cardId]?.isToken === true) {
       // R186.1 — a token put into any non-board zone besides the chain ceases
-      // to exist immediately. It never reaches a trash to be recurred from.
-      delete cards[cardId];
+      // to exist immediately, so it never reaches a trash to be recurred from.
+      // Its definition stays in `state.cards`, which is a registry rather than
+      // a zone: R808.1.d.2 queues a death trigger *before* the card moves, and
+      // a copied Deathknell has to be readable to resolve at all.
+      void cards;
     } else {
       players[owner] = {
         ...players[owner],
