@@ -68,6 +68,18 @@ export type Effect =
       /** R477.1.b — becomes a copy of the chosen target as it enters. */
       copyOfTarget?: number;
     }
+  /**
+   * Possession — "Take control of it and recall it." Control is a trait-layer
+   * effect (R477.1.a), so a durational one (Hostile Takeover's "lose control
+   * at end of turn") just expires rather than needing an undo.
+   */
+  | {
+      op: "takeControl";
+      duration: Duration;
+      /** R454 — recall is not a move; it sends the unit to its base. */
+      recall?: true;
+      targetIndex: number;
+    }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
@@ -353,6 +365,66 @@ export function execute(
             duration: effect.duration,
           },
         ],
+      };
+    }
+
+    case "takeControl": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      const permanent = state.permanents[targetId];
+      if (permanent === undefined) return { state, events: [] };
+
+      const events: GameEvent[] = [
+        {
+          type: "controlTaken",
+          playerId: context.controller,
+          cardId: targetId,
+          duration: effect.duration,
+        },
+      ];
+
+      // R454 — a recall sends it to the *new* controller's base, and is not a
+      // move, so it does not contest anything on arrival.
+      const permanents =
+        effect.recall === true
+          ? {
+              ...state.permanents,
+              [targetId]: {
+                ...permanent,
+                location: {
+                  kind: "base" as const,
+                  player: context.controller,
+                },
+              },
+            }
+          : state.permanents;
+      if (effect.recall === true) {
+        events.push({
+          type: "unitRecalled",
+          playerId: context.controller,
+          cardId: targetId,
+        });
+      }
+
+      return {
+        state: {
+          ...state,
+          permanents,
+          modifiers: [
+            ...state.modifiers,
+            {
+              id: `control-${state.modifiers.length}-${targetId}`,
+              targetId,
+              modification: {
+                layer: "trait",
+                op: "setController",
+                player: context.controller,
+              },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events,
       };
     }
 

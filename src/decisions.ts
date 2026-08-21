@@ -1,3 +1,4 @@
+import { controllerOf } from "./layers.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
 /**
@@ -50,15 +51,9 @@ export function legalTargets(
     .filter((permanent) => {
       if (state.cards[permanent.cardId]?.type !== filter.type) return false;
 
-      if (filter.controller === "enemy" && permanent.controller === controller) {
-        return false;
-      }
-      if (
-        filter.controller === "friendly" &&
-        permanent.controller !== controller
-      ) {
-        return false;
-      }
+      const its = controllerOf(state, permanent.cardId);
+      if (filter.controller === "enemy" && its === controller) return false;
+      if (filter.controller === "friendly" && its !== controller) return false;
       if (
         filter.location === "battlefield" &&
         permanent.location.kind !== "battlefield"

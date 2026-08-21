@@ -2,7 +2,7 @@ import { totals } from "../cost.js";
 import { VICTORY_SCORE } from "../scoring.js";
 import type { GameEvent } from "../events.js";
 import { chainItemCardId } from "../chain.js";
-import { characteristicsOf } from "../layers.js";
+import { characteristicsOf, controllerOf } from "../layers.js";
 import { permanentsAt } from "../state.js";
 import type { Cost, GameState, Location, PlayerId } from "../state.js";
 
@@ -120,7 +120,10 @@ function renderBattlefields(state: GameState): string[] {
       occupants.length === 0
         ? dim("(empty)")
         : occupants
-            .map((p) => `${cardLabel(state, p.cardId)} ${dim(`(${p.controller})`)}`)
+            .map(
+              (p) =>
+                `${cardLabel(state, p.cardId)} ${dim(`(${controllerOf(state, p.cardId)})`)}`,
+            )
             .join(", ");
     const status = battlefield.contestedBy !== null
       ? yellow(` contested by ${battlefield.contestedBy}`)
@@ -268,6 +271,8 @@ export function renderEvent(event: GameEvent): string {
       return `${event.cardId} gains [${event.keyword}] (${event.duration})`;
     case "modifiersExpired":
       return dim(`  ${event.duration} effects expire`);
+    case "controlTaken":
+      return `${event.playerId} takes control of ${event.cardId} (${event.duration})`;
     case "tokenCreated":
       return `${event.playerId} creates a ${event.token} token [${event.cardId}]`;
     default: {

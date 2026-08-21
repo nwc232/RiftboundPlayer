@@ -128,6 +128,20 @@ export function createToken(
   };
 }
 
+/** Possession — "Take control of it and recall it." */
+export function takeControl(
+  duration: Duration,
+  options: { recall?: true } = {},
+  targetIndex = 0,
+): Effect {
+  return {
+    op: "takeControl",
+    duration,
+    targetIndex,
+    ...(options.recall !== undefined ? { recall: options.recall } : {}),
+  };
+}
+
 // Passive abilities (R477). These modify characteristics rather than resolving,
 // so they never touch the chain — the layer pipeline reads them live.
 

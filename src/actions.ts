@@ -17,6 +17,7 @@ import {
   newestItem,
   sourceLocationOf,
 } from "./chain.js";
+import { controllerOf } from "./layers.js";
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
 import { collectTriggers } from "./triggers.js";
@@ -467,7 +468,7 @@ export function standardMove(
   if (card.type !== "unit") {
     return rejected("notAPermanent");
   }
-  if (permanent.controller !== playerId) {
+  if (controllerOf(state, permanent.cardId) !== playerId) {
     return rejected("sourceNotControlled");
   }
   // R144.2 — exhausting the unit is the cost, so it must be ready.
@@ -803,7 +804,8 @@ function controlsSource(
   const player = state.players[playerId];
   return (
     player.runes.includes(sourceId) ||
-    state.permanents[sourceId]?.controller === playerId
+    (state.permanents[sourceId] !== undefined &&
+      controllerOf(state, sourceId) === playerId)
   );
 }
 

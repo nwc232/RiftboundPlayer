@@ -98,6 +98,12 @@ export type GameEvent =
     }
   | { type: "modifiersExpired"; duration: Duration }
   | {
+      type: "controlTaken";
+      playerId: PlayerId;
+      cardId: CardId;
+      duration: Duration;
+    }
+  | {
       type: "tokenCreated";
       playerId: PlayerId;
       cardId: CardId;

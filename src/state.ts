@@ -1,4 +1,5 @@
 import type { Ability } from "./abilities.js";
+import { controllerOf } from "./layers.js";
 import type { ChainItem } from "./chain.js";
 import type { PendingDecision } from "./decisions.js";
 import type { ShowdownState } from "./showdown.js";
@@ -222,6 +223,6 @@ export function permanentsControlledBy(
   playerId: PlayerId,
 ): PermanentState[] {
   return Object.values(state.permanents).filter(
-    (permanent) => permanent.controller === playerId,
+    (permanent) => controllerOf(state, permanent.cardId) === playerId,
   );
 }

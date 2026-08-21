@@ -1,5 +1,5 @@
 import type { GameEvent, Progress } from "./events.js";
-import { expireModifiers, keywordsOf, mightOf } from "./layers.js";
+import { controllerOf, expireModifiers, keywordsOf, mightOf } from "./layers.js";
 import { score } from "./scoring.js";
 import { ownerOf, permanentsAt } from "./state.js";
 import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
@@ -134,7 +134,8 @@ export function assignDesignations(
     if (here && state.cards[cardId]?.type === "unit") {
       permanents[cardId] = {
         ...permanent,
-        designation: permanent.controller === attacker ? "attacker" : "defender",
+        designation:
+          controllerOf(state, cardId) === attacker ? "attacker" : "defender",
       };
     } else {
       const { designation: _cleared, ...rest } = permanent;
@@ -168,8 +169,12 @@ export function combatSides(
 } {
   const defender: PlayerId = attacker === "p1" ? "p2" : "p1";
   const present = unitsAt(state, battlefieldId);
-  const attackers = present.filter((unit) => unit.controller === attacker);
-  const defenders = present.filter((unit) => unit.controller === defender);
+  const attackers = present.filter(
+    (unit) => controllerOf(state, unit.cardId) === attacker,
+  );
+  const defenders = present.filter(
+    (unit) => controllerOf(state, unit.cardId) === defender,
+  );
   const sum = (units: PermanentState[]) =>
     units.reduce((total, unit) => total + mightOf(state, unit.cardId), 0);
 
@@ -298,10 +303,10 @@ export function resolveCombatAftermath(
   current = healAllUnits(current);
 
   const survivingAttackers = unitsAt(current, battlefieldId).filter(
-    (unit) => unit.controller === attacker,
+    (unit) => controllerOf(current, unit.cardId) === attacker,
   );
   const survivingDefenders = unitsAt(current, battlefieldId).filter(
-    (unit) => unit.controller === defender,
+    (unit) => controllerOf(current, unit.cardId) === defender,
   );
 
   // R466.1.a.2 — a repelled attack goes home. Recall is not a move (R456).

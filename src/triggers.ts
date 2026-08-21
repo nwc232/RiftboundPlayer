@@ -1,6 +1,7 @@
 import type { Effect } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
 import type { TargetFilter } from "./decisions.js";
+import { controllerOf } from "./layers.js";
 import type { GameEvent } from "./events.js";
 import type { ScoreMethod } from "./scoring.js";
 import type { CardId, GameState, Location, PlayerId } from "./state.js";
@@ -74,7 +75,7 @@ function triggerSources(state: GameState, events: GameEvent[]): TriggerSource[] 
   const sources: TriggerSource[] = Object.values(state.permanents).map(
     (permanent) => ({
       sourceId: permanent.cardId,
-      controller: permanent.controller,
+      controller: controllerOf(state, permanent.cardId),
     }),
   );
 

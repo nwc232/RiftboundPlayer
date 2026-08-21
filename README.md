@@ -262,9 +262,20 @@ R477.1.b.1.b's copy-of-a-copy works too: copying a Reflection that is
 already a copy of something reads its *current* traits, not its printed
 ones, and a copy cycle terminates rather than recurring forever.
 
-Not built yet: controller-changing (R477.1.a), and a tag system — R187
-gives every token a tag and R477.1.b.1.a makes tags copyable, but nothing
-reads them.
+Controller is a trait too (R477.1.a), so taking control is a layer effect
+rather than a rewrite of the permanent — which is what lets Hostile
+Takeover's "lose control of that unit at end of turn" simply *expire*
+instead of needing an undo. Possession's permanent steal and that
+durational one are the same effect with different lifetimes.
+
+Because control moves but ownership does not, a stolen unit that dies
+goes to its **owner's** trash (R56), not its thief's. That rule had been
+a recorded deviation since combat landed; tokens forced `owner` to become
+real (R183 defines a token's owner as whoever controlled the creating
+effect), and control-changing is what makes the distinction observable.
+
+Not built yet: a tag system — R187 gives every token a tag and
+R477.1.b.1.a makes tags copyable, but nothing reads them.
 
 Known deviations from the rules are tracked at the end of
 `reference/mechanic-survey.md`.

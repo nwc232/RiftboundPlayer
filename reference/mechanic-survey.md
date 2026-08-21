@@ -542,10 +542,17 @@ Recorded as they're found, so they don't get lost between slices.
   this, [E]: [Add] [A]". The engine has no kill-self ability cost, so it is
   modelled as a recycle. Both remove it from the board and yield one Power,
   but a card that cares about *killing* would see the difference.
-- **Controller-changing (R477.1.a).** The trait layer is in place and
-  applied, but only Might assignment and copy live in it. Controller is a
-  trait-layer effect; `owner` is now tracked on permanents (R56/R183), so
-  the trash destination is already correct once control can move.
+- **Control from a passive.** `controllerOf` reads stored trait-layer
+  effects only, never passives. It has to: the layer pipeline asks who
+  controls a source in order to decide whether its anthem is friendly, so
+  a passive granting control would recur into itself. Every
+  control-changing card in the pool works through a resolved effect, so
+  nothing needs it yet.
+- **Delayed "at end of turn" clauses.** Hostile Takeover reads "Lose
+  control of that unit *and recall it* at end of turn". The control half
+  is handled — a `thisTurn` duration expires by itself — but the recall
+  half is a delayed triggered effect, which the trigger system has no
+  timing for.
 - **Staged showdown/combat choice (R323.12/13).** When more than one
   showdown or combat is staged, the Turn Player *chooses* which battlefield
   opens. The engine takes the first in board order. Now a small fix rather

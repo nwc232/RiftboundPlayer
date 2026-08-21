@@ -5,6 +5,7 @@ import {
   killLethalUnits,
 } from "./combat.js";
 import type { GameEvent, Progress } from "./events.js";
+import { controllerOf } from "./layers.js";
 import { checkForWinner, score } from "./scoring.js";
 import { permanentsAt } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
@@ -36,10 +37,8 @@ function unitsAtByController(
     id: battlefieldId,
   })) {
     if (state.cards[permanent.cardId]?.type !== "unit") continue;
-    counts.set(
-      permanent.controller,
-      (counts.get(permanent.controller) ?? 0) + 1,
-    );
+    const controller = controllerOf(state, permanent.cardId);
+    counts.set(controller, (counts.get(controller) ?? 0) + 1);
   }
   return counts;
 }

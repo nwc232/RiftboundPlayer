@@ -8,6 +8,7 @@ import type {
   GameState,
   Keyword,
   PermanentState,
+  PlayerId,
 } from "./state.js";
 
 /**
@@ -51,6 +52,12 @@ export type Modification =
    * unit stays at its own printed 0. See the survey's note on this.
    */
   | { layer: "trait"; op: "copyOf"; sourceId: CardId }
+  /**
+   * R477.1.a — Controller is a trait, so taking control is a layer effect
+   * rather than a rewrite of the permanent. That is what lets Hostile
+   * Takeover's "lose control of that unit at end of turn" simply expire.
+   */
+  | { layer: "trait"; op: "setController"; player: PlayerId }
   /** R477.2 — granting a keyword. Assault/Shield carry a value (R807.1.b). */
   | { layer: "ability"; op: "grantKeyword"; keyword: Keyword; value?: number }
   /** R477.3 — the mathematics of raising and lowering Might. */
@@ -149,7 +156,12 @@ function inScope(
 
     case "otherFriendlyUnits": {
       if (source.cardId === subject.cardId) return false;
-      if (source.controller !== subject.controller) return false;
+      if (
+        controllerOf(state, source.cardId) !==
+        controllerOf(state, subject.cardId)
+      ) {
+        return false;
+      }
       if (state.cards[subject.cardId]?.type !== "unit") return false;
       // "here" restricts the anthem to the source's own location.
       if (ability.scope.here === true) {
@@ -221,6 +233,28 @@ function runArithmetic(base: number, steps: ArithmeticStep[]): number {
     if (step.op === "addMight") value += step.amount;
   }
   return value;
+}
+
+/**
+ * Who currently controls a permanent (R477.1.a). Deliberately not the full
+ * pipeline: control is read while *computing* characteristics — the layer
+ * pipeline asks who controls a source to decide whether its anthem is friendly
+ * — so this reads only stored trait-layer effects and cannot recur.
+ *
+ * A consequence is that a *passive* granting control is not supported; every
+ * control-changing card in the pool works through a resolved effect instead.
+ */
+export function controllerOf(state: GameState, cardId: CardId): PlayerId {
+  const permanent = state.permanents[cardId];
+  let controller: PlayerId | undefined = permanent?.controller;
+
+  for (const modifier of state.modifiers) {
+    if (modifier.targetId !== cardId) continue;
+    if (modifier.modification.op !== "setController") continue;
+    controller = modifier.modification.player;
+  }
+
+  return controller ?? "p1";
 }
 
 /** R317.2.c / R466.7.c — drop every modifier whose lifetime has ended. */

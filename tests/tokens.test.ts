@@ -2,9 +2,20 @@ import { describe, expect, it } from "vitest";
 import { execute } from "../src/abilities.js";
 import type { EffectContext } from "../src/abilities.js";
 import { killUnits } from "../src/combat.js";
-import { anthemMight, createToken, draw, passive } from "../src/builders.js";
-import { characteristicsOf, keywordsOf, mightOf } from "../src/layers.js";
+import {
+  anthemMight,
+  createToken,
+  passive,
+  takeControl,
+} from "../src/builders.js";
+import {
+  characteristicsOf,
+  controllerOf,
+  keywordsOf,
+  mightOf,
+} from "../src/layers.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
+import { endTurn } from "../src/turn.js";
 import { makeState, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -237,5 +248,88 @@ describe("copy effects (R477.1.b)", () => {
 
     expect(() => characteristicsOf(cyclic, "a")).not.toThrow();
     expect(keywordsOf(cyclic, "a")).toBeDefined();
+  });
+});
+
+/**
+ * R477.1.a — Controller is a trait, so taking control is a layer effect rather
+ * than a rewrite. Possession takes control permanently; Hostile Takeover's
+ * "lose control of that unit at end of turn" is the same effect with a
+ * duration, and simply expires.
+ */
+describe("taking control (R477.1.a)", () => {
+  function enemyAtBattlefield(): GameState {
+    return board([unit("thrall", { might: 3 })], [
+      { cardId: "thrall", controller: "p2", location: NORTH },
+    ]);
+  }
+
+  it("moves control without touching the stored permanent", () => {
+    const after = execute(
+      enemyAtBattlefield(),
+      takeControl("permanent"),
+      CONTEXT(["thrall"]),
+    ).state;
+
+    expect(controllerOf(after, "thrall")).toBe("p1");
+    // The permanent itself is untouched; the change lives in the layer.
+    expect(after.permanents.thrall?.controller).toBe("p2");
+  });
+
+  it("recalls to the new controller's base, not the old one (R454)", () => {
+    const after = execute(
+      enemyAtBattlefield(),
+      takeControl("permanent", { recall: true }),
+      CONTEXT(["thrall"]),
+    ).state;
+
+    expect(after.permanents.thrall?.location).toEqual({
+      kind: "base",
+      player: "p1",
+    });
+  });
+
+  it("gives control back when a durational steal expires", () => {
+    const stolen = execute(
+      enemyAtBattlefield(),
+      takeControl("thisTurn"),
+      CONTEXT(["thrall"]),
+    ).state;
+    expect(controllerOf(stolen, "thrall")).toBe("p1");
+
+    const next = endTurn(stolen).state;
+
+    expect(controllerOf(next, "thrall")).toBe("p2");
+  });
+
+  /** R56 — the trash is the *owner's*, which a control change does not move. */
+  it("returns a stolen unit to its owner's trash when it dies", () => {
+    const stolen = execute(
+      enemyAtBattlefield(),
+      takeControl("permanent"),
+      CONTEXT(["thrall"]),
+    ).state;
+
+    const after = killUnits(stolen, ["thrall"]).state;
+
+    expect(after.players.p2.trash).toEqual(["thrall"]);
+    expect(after.players.p1.trash).toEqual([]);
+  });
+
+  it("makes a stolen unit friendly for an anthem", () => {
+    const commander: CardInstance = {
+      ...unit("commander", { might: 4 }),
+      abilities: [anthemMight(1)],
+    };
+    const start = board([commander, unit("thrall", { might: 3 })], [
+      { cardId: "commander", controller: "p1", location: NORTH },
+      { cardId: "thrall", controller: "p2", location: NORTH },
+    ]);
+    expect(mightOf(start, "thrall")).toBe(3);
+
+    const stolen = execute(start, takeControl("permanent"), CONTEXT(["thrall"]))
+      .state;
+
+    expect(mightOf(stolen, "thrall")).toBe(4);
   });
 });
