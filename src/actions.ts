@@ -156,8 +156,7 @@ function nextDecision(state: GameState): PendingDecision | null {
   const item = state.chain[chainIndex];
   if (item === undefined || item.kind !== "trigger") return null;
 
-  const ability = abilitiesOf(state, item.sourceId)[item.abilityIndex];
-  if (ability === undefined || ability.kind !== "triggered") return null;
+  const { ability } = item;
 
   // R383.3.a is decided before targets are chosen — declining removes the
   // item, so there is no point choosing targets for it first.
@@ -636,11 +635,13 @@ export function passPriority(
   };
 
   if (card !== undefined) {
-    // Read through the layers: copied rules text and keyword-shorthand
-    // abilities ([Temporary]) are as real as printed ones.
-    const ability = abilitiesOf(current, sourceId)[
-      item.kind === "trigger" ? item.abilityIndex : 0
-    ];
+    // A trigger carries its own ability; a spell's rules text is its first.
+    // Both are read through the layers rather than off the printed card, so
+    // copied rules text and keyword shorthand are as real as printed text.
+    const ability =
+      item.kind === "trigger"
+        ? item.ability
+        : abilitiesOf(current, sourceId)[0];
     // A passive never resolves — it is read live by the layer pipeline — so it
     // contributes nothing here even if one is somehow reached.
     const effect =

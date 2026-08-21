@@ -532,17 +532,13 @@ Recorded as they're found, so they don't get lost between slices.
   far weaker than they should be, so this is the most likely place the
   engine is wrong through following the text too literally. Nothing else
   depends on the choice — it is one branch in the trait layer.
-- **A copy's *death* trigger does not fire.** Copied rules text now
-  triggers normally while the copy is on the board, but a copy modifier is
-  keyed to a permanent, so once the permanent is gone its abilities read as
-  printed again — and a Reflection's printed text is blank. R808.1.d.3 says
-  to note the dying permanent's details before it moves, which is the same
-  snapshot that already carries location and Might; abilities would need to
-  join them. Play effects are a separate matter and are correct: the
-  Reflection's own text excludes them, and the engine gets that from
-  R383.4.a rather than a special case, because a created token emits
-  `tokenCreated`, not `unitPlayed`. If tokens are ever played properly
-  (R185.2.a allows it), that exclusion becomes something to enforce.
+- **Playing a token (R185.2.a).** Tokens can be played, and the engine only
+  ever creates them. That is why a Reflection correctly misses the copied
+  card's play effects — a created token emits `tokenCreated`, not
+  `unitPlayed`, and R383.4.a defines a Play Effect as triggering on *that
+  permanent being played to the board*. Once tokens can genuinely be
+  played, the Reflection's "I don't get that card's play effects" becomes
+  something to enforce rather than something that falls out.
 - **Tags.** R187 gives every token a tag (Recruit, Fae, Mech, Bird…) and
   R477.1.b.1.a makes tags copyable, but there is no tag system, so they
   live in the token's name only. Nothing reads tags yet.

@@ -386,6 +386,34 @@ describe("triggers on a copy", () => {
     return { state, tokenId };
   }
 
+  /** Honest Broker — "[Deathknell] Play a Gold gear token exhausted." */
+  const broker: CardInstance = {
+    ...unit("broker", { might: 2 }),
+    name: "Honest Broker",
+    abilities: [
+      {
+        kind: "triggered",
+        trigger: { on: "permanentKilled", subject: "self" },
+        effect: createToken("gold"),
+      },
+    ],
+  };
+
+  /**
+   * R808.1.d.3 — the dying permanent's details are noted *before* it moves. A
+   * copy effect is keyed to the permanent, so without that note the copy's
+   * rules text would read as printed again, and a Reflection prints nothing.
+   */
+  it("fires a copied Deathknell, whose source is gone by then", () => {
+    const { state, tokenId } = reflectionOf(broker);
+
+    const killed = killUnits(state, [tokenId]);
+    const triggered = collectTriggers(killed.state, killed.events);
+
+    expect(killed.state.permanents[tokenId]).toBeUndefined();
+    expect(triggered.map((item) => chainItemCardId(item))).toEqual([tokenId]);
+  });
+
   it("fires a trigger that came across in the copied rules text", () => {
     const { state, tokenId } = reflectionOf(watcher);
 

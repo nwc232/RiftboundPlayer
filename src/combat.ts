@@ -1,5 +1,11 @@
 import type { GameEvent, Progress } from "./events.js";
-import { controllerOf, expireModifiers, keywordsOf, mightOf } from "./layers.js";
+import {
+  abilitiesOf,
+  controllerOf,
+  expireModifiers,
+  keywordsOf,
+  mightOf,
+} from "./layers.js";
 import { score } from "./scoring.js";
 import { ownerOf, permanentsAt } from "./state.js";
 import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
@@ -250,6 +256,7 @@ export function killUnits(state: GameState, cardIds: CardId[]): Progress {
       cardId,
       location: permanent.location,
       might: mightOf(state, cardId),
+      abilities: abilitiesOf(state, cardId),
     });
   }
 

@@ -178,12 +178,17 @@ describe("death-trigger location snapshot (R323.4)", () => {
     });
     if (!result.ok) throw new Error(`rejected: ${result.reason}`);
 
-    expect(result.events.find((event) => event.type === "unitKilled")).toEqual({
+    expect(
+      result.events.find((event) => event.type === "unitKilled"),
+    ).toMatchObject({
       type: "unitKilled",
       playerId: "p1",
       cardId: "scrapheap",
       location: AT_BF,
       might: 1,
+      // R808.1.d.3 — its rules text is noted too, so a copy's Deathknell can
+      // still be read after the copy effect stops applying.
+      abilities: scrapheap.abilities,
     });
   });
 

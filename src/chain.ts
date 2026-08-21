@@ -1,4 +1,5 @@
 import { mightOf } from "./layers.js";
+import type { TriggeredAbility } from "./triggers.js";
 import type { CardId, GameState, Location, PlayerId } from "./state.js";
 
 /**
@@ -20,7 +21,14 @@ export type ChainItem =
   | {
       kind: "trigger";
       sourceId: CardId;
-      abilityIndex: number;
+      /**
+       * The ability itself, not an index into its source's rules text. Abilities
+       * are data, so carrying one costs nothing — and R808.1.d.3's "note the
+       * details before the card moves" then comes for free: a trigger whose
+       * source has died, or whose copied rules text has since gone, still holds
+       * exactly the ability that triggered.
+       */
+      ability: TriggeredAbility;
       controller: PlayerId;
       targets: CardId[];
       /** R383.3.a — set once the controller has answered the "you may". */

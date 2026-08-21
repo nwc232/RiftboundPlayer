@@ -1,4 +1,4 @@
-import type { Effect } from "./abilities.js";
+import type { Ability, Effect } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
 import type { TargetFilter } from "./decisions.js";
 import { abilitiesOf, controllerOf } from "./layers.js";
@@ -73,6 +73,8 @@ interface TriggerSource {
   /** Only for a source that has already left the board — see R323.4. */
   location?: Location;
   might?: number;
+  /** Noted before the kill, so a copy's rules text is still readable. */
+  abilities?: Ability[];
 }
 
 /**
@@ -105,6 +107,7 @@ function triggerSources(state: GameState, events: GameEvent[]): TriggerSource[] 
         controller: event.playerId,
         location: event.location,
         might: event.might,
+        abilities: event.abilities,
       });
     }
   }
@@ -126,13 +129,16 @@ export function collectTriggers(
 ): ChainItem[] {
   const found: { controller: PlayerId; item: ChainItem }[] = [];
 
-  for (const { sourceId, controller, location, might } of triggerSources(
-    state,
-    events,
-  )) {
-    if (state.cards[sourceId] === undefined) continue;
-
-    abilitiesOf(state, sourceId).forEach((ability, abilityIndex) => {
+  for (const {
+    sourceId,
+    controller,
+    location,
+    might,
+    abilities,
+  } of triggerSources(state, events)) {
+    // A killed source uses the rules text noted before it left the board;
+    // anything still there is read live through the layers.
+    (abilities ?? abilitiesOf(state, sourceId)).forEach((ability) => {
       if (ability.kind !== "triggered") return;
       const fired = events.some((event) =>
         matches(ability.trigger, event, sourceId, controller),
@@ -144,7 +150,7 @@ export function collectTriggers(
         item: {
           kind: "trigger",
           sourceId,
-          abilityIndex,
+          ability,
           controller,
           targets: [],
           ...(location !== undefined ? { sourceLocation: location } : {}),

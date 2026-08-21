@@ -258,6 +258,18 @@ most likely place this engine is wrong by following the text too closely —
 it is flagged at the end of `reference/mechanic-survey.md` rather than
 quietly "corrected" to what the card looks like it should do.
 
+A copy carries its source's Rules Text, so its triggers are the copy's
+triggers — including a Deathknell, which has to survive the copy itself
+dying. R808.1.d.3 is why that works: the dying permanent's details are
+*noted before it moves*, and a chain item carries the ability it triggered
+on rather than an index to look up later. Abilities are data, so carrying
+one costs nothing, and nothing can go stale underneath it.
+
+Play effects are the exception the Reflection prints on itself, and the
+engine gets it from R383.4.a rather than a special case: a Play Effect
+triggers on the permanent being *played to the board*, and a created token
+was never played.
+
 R477.1.b.1.b's copy-of-a-copy works too: copying a Reflection that is
 already a copy of something reads its *current* traits, not its printed
 ones, and a copy cycle terminates rather than recurring forever.

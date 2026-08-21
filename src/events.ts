@@ -1,3 +1,4 @@
+import type { Ability } from "./abilities.js";
 import type { DelayedTiming, Duration } from "./layers.js";
 import type { TokenKind } from "./tokens.js";
 import type {
@@ -69,6 +70,12 @@ export type GameEvent =
        * though its printed Might says otherwise.
        */
       might: number;
+      /**
+       * Its rules text as it stood, which R808.1.d.3 also says to note. A copy
+       * effect is keyed to the permanent, so once that is gone the card reads
+       * as printed again — and a Reflection's printed text is blank.
+       */
+      abilities: Ability[];
     }
   | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId }
   | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }
