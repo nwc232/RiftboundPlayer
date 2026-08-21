@@ -1,5 +1,5 @@
 import type { GameEvent, Progress } from "./events.js";
-import { keywordsOf, mightOf } from "./layers.js";
+import { expireModifiers, keywordsOf, mightOf } from "./layers.js";
 import { score } from "./scoring.js";
 import { permanentsAt } from "./state.js";
 import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
@@ -255,7 +255,7 @@ export function killLethalUnits(state: GameState): Progress {
 }
 
 /** R466.1.a.1 — the combat cleanup heals every unit. */
-function healAllUnits(state: GameState): GameState {
+export function healAllUnits(state: GameState): GameState {
   const permanents = { ...state.permanents };
   for (const [cardId, permanent] of Object.entries(permanents)) {
     if (permanent.damage > 0) {
@@ -356,6 +356,11 @@ export function resolveCombatAftermath(
     }
   }
 
-  // R466.7 — combat ends; R466.7.a removes every designation.
-  return { state: clearDesignations(current), events };
+  // R466.7 — combat ends. R466.7.a removes every designation and R466.7.c
+  // expires "this combat" effects, both simultaneously.
+  const ended = expireModifiers(clearDesignations(current), "thisCombat");
+  if (ended.modifiers.length !== current.modifiers.length) {
+    events.push({ type: "modifiersExpired", duration: "thisCombat" });
+  }
+  return { state: ended, events };
 }

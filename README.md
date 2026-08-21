@@ -203,10 +203,26 @@ The Grunt is then assigned 3 damage, not 2 — lethal is measured against
 its *current* Might, so the whole chain of layers feeds back into
 R465.2.c's assignment rules.
 
-Not built yet: durational effects from spells ("+2 Might this turn" has
-no place to live — modifiers currently last exactly as long as the
-permanent granting them), layer clamping (R477.3.b), dependency ordering
-within a layer (R478/479), and copy effects (R477.1.b).
+Effects with a lifetime of their own — "+2 Might this turn" — are stored
+rather than read off a permanent, and expire at the two points the rules
+define: R317.2.c for "this turn", R466.7.c for "this combat".
+
+Their amount is fixed once, when applied, and never re-derived. R432.1.a
+is why: a 3-Might unit with [Shield 2] defending has current Might 5, so
+Last Stand ("double a friendly unit's Might this turn") gives it **+5**.
+When combat ends the Shield stops applying but the +5 does not, leaving 8
+rather than 6. R477.3.b calls this snapshotting, and it is also what makes
+Ahri, Inquisitive's "-2 Might this turn, to a minimum of 1" generate -1
+against a 2-Might unit — and stay -1 even if that unit is later buffed.
+
+Ordering inside the arithmetic layer follows R477.3.e (increases before
+decreases) and R479's dependency: a fixed "+2" applies before an
+"increased to 5", because the latter's result changes depending on
+whether the former landed first.
+
+Not built yet: copy effects (R477.1.b), which are blocked on runtime token
+creation — every copy card in the pool works through a Reflection token —
+and controller-changing (R477.1.a).
 
 Known deviations from the rules are tracked at the end of
 `reference/mechanic-survey.md`.

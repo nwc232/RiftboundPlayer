@@ -6,6 +6,7 @@ import type {
   PassiveAbility,
 } from "./abilities.js";
 import type {
+  Duration,
   Modification,
   PassiveCondition,
   PassiveScope,
@@ -56,6 +57,48 @@ export function draw(count: number): Effect {
 
 export function counterSpell(targetIndex = 0): Effect {
   return { op: "counterSpell", targetIndex };
+}
+
+/**
+ * R432.1 — "give a unit +N Might this turn". `min`/`max` are R477.3.b's
+ * limitation, applied and remembered once: Ahri, Inquisitive's "-2 Might this
+ * turn, to a minimum of 1" is `modifyMight(-2, "thisTurn", { min: 1 })`.
+ */
+export function modifyMight(
+  amount: number,
+  duration: Duration,
+  limits: { min?: number; max?: number } = {},
+  targetIndex = 0,
+): Effect {
+  return {
+    op: "modifyMight",
+    amount,
+    duration,
+    targetIndex,
+    ...(limits.min !== undefined ? { min: limits.min } : {}),
+    ...(limits.max !== undefined ? { max: limits.max } : {}),
+  };
+}
+
+/** Last Stand — "Double a friendly unit's Might this turn." (R432.1.a) */
+export function doubleMight(duration: Duration, targetIndex = 0): Effect {
+  return { op: "modifyMight", double: true, duration, targetIndex };
+}
+
+/** Fortified Position — "It gains [Shield 2] this combat." */
+export function grantKeywordFor(
+  keyword: Keyword,
+  duration: Duration,
+  value?: number,
+  targetIndex = 0,
+): Effect {
+  return {
+    op: "grantKeywordFor",
+    keyword,
+    duration,
+    targetIndex,
+    ...(value !== undefined ? { value } : {}),
+  };
 }
 
 // Passive abilities (R477). These modify characteristics rather than resolving,

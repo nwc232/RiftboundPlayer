@@ -2,6 +2,7 @@ import type { Ability } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
 import type { PendingDecision } from "./decisions.js";
 import type { ShowdownState } from "./showdown.js";
+import type { Modifier } from "./layers.js";
 import type { Task } from "./tasks.js";
 import type { TurnState } from "./turn.js";
 
@@ -180,6 +181,11 @@ export interface GameState {
    * chain item resolves. Empty whenever the game is waiting on a player.
    */
   tasks: Task[];
+  /**
+   * Continuous effects with a lifetime of their own, rather than ones read live
+   * off a permanent. Amounts here are already snapshotted (R477.3.b).
+   */
+  modifiers: Modifier[];
 }
 
 /** Every permanent at a location, in insertion order. */

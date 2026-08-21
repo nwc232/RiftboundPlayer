@@ -32,7 +32,30 @@ export type Modification =
   /** R477.2 — granting a keyword. Assault/Shield carry a value (R807.1.b). */
   | { layer: "ability"; op: "grantKeyword"; keyword: Keyword; value?: number }
   /** R477.3 — the mathematics of raising and lowering Might. */
-  | { layer: "arithmetic"; op: "addMight"; amount: number };
+  | { layer: "arithmetic"; op: "addMight"; amount: number }
+  /**
+   * R477.3.b's third example — "Might increased to 5" from a *passive* does not
+   * snapshot, so it is recomputed against whatever the running value is. That
+   * is what makes it depend on other effects in its own layer (R479).
+   */
+  | { layer: "arithmetic"; op: "increaseMightTo"; target: number };
+
+/** R317.2.c and R466.7.c — the two expiry points the rules define. */
+export type Duration = "thisTurn" | "thisCombat";
+
+/**
+ * A continuous effect with a lifetime of its own, rather than one read live off
+ * a permanent. R432.1.a is why the amount is stored rather than re-derived: a
+ * unit with base 3 and Shield 2 hit by "double my Might this turn" gets a fixed
+ * +5, and still has it after combat ends and the Shield stops applying — 8, not
+ * 6. R477.3.b calls fixing the value this way "snapshotting".
+ */
+export interface Modifier {
+  id: string;
+  targetId: CardId;
+  modification: Modification;
+  duration: Duration;
+}
 
 /** Who a passive ability modifies, relative to its source. */
 export type PassiveScope =
@@ -131,15 +154,51 @@ function holds(
   }
 }
 
+type ArithmeticStep = Extract<Modification, { layer: "arithmetic" }>;
+
 /**
- * R477.3.e — increases are applied before decreases. With no min/max clamping
- * modelled yet the sum is the same either way, but the order is the rule and
- * clamping (R477.3.b's "snapshotting") will depend on it.
+ * R477.3.e — increases are applied before decreases.
+ *
+ * Within the increases, fixed amounts go before `increaseMightTo`, which is
+ * R478/479's dependency made concrete: "increased to 5" alongside a "+2" yields
+ * a different number depending on which lands first, and R479 says the effect
+ * whose evaluation is altered by the sequence is the one that depends — so it
+ * applies last. General dependency detection (R478.1.a/b, effects that alter
+ * whether another effect exists or how many objects it reaches) is not
+ * modelled; nothing in the vocabulary can do that yet.
  */
-function arithmeticTotal(amounts: number[]): number {
-  const increases = amounts.filter((amount) => amount > 0);
-  const decreases = amounts.filter((amount) => amount < 0);
-  return [...increases, ...decreases].reduce((sum, amount) => sum + amount, 0);
+function runArithmetic(base: number, steps: ArithmeticStep[]): number {
+  const fixedIncreases = steps.filter(
+    (step) => step.op === "addMight" && step.amount > 0,
+  );
+  const dependent = steps.filter((step) => step.op === "increaseMightTo");
+  const decreases = steps.filter(
+    (step) => step.op === "addMight" && step.amount < 0,
+  );
+
+  let value = base;
+  for (const step of fixedIncreases) {
+    if (step.op === "addMight") value += step.amount;
+  }
+  for (const step of dependent) {
+    if (step.op === "increaseMightTo") value = Math.max(value, step.target);
+  }
+  for (const step of decreases) {
+    if (step.op === "addMight") value += step.amount;
+  }
+  return value;
+}
+
+/** R317.2.c / R466.7.c — drop every modifier whose lifetime has ended. */
+export function expireModifiers(
+  state: GameState,
+  duration: Duration,
+): GameState {
+  const modifiers = state.modifiers.filter(
+    (modifier) => modifier.duration !== duration,
+  );
+  if (modifiers.length === state.modifiers.length) return state;
+  return { ...state, modifiers };
 }
 
 /**
@@ -165,14 +224,25 @@ export function characteristicsOf(
     };
   }
 
-  const pending = passivesFor(state, subject);
+  const pending = [
+    ...passivesFor(state, subject),
+    // Stored modifiers carry an already-snapshotted amount (R477.3.b), so they
+    // have no condition to re-evaluate — only a lifetime.
+    ...state.modifiers
+      .filter((modifier) => modifier.targetId === cardId)
+      .map((modifier) => ({
+        modification: modifier.modification,
+        condition: undefined,
+        applied: false,
+      })),
+  ];
 
   let baseMight = printedMight;
   let keywords = [...printedKeywords];
   // Printed Assault/Shield seed the totals that granted copies add to (R807.2).
   let assault = printedKeywords.includes("assault") ? (card.assault ?? 1) : 0;
   let shield = printedKeywords.includes("shield") ? (card.shield ?? 1) : 0;
-  const arithmetic: number[] = [];
+  const arithmetic: ArithmeticStep[] = [];
 
   const designationBonus = (): number => {
     if (subject.designation === "attacker") return assault;
@@ -180,7 +250,7 @@ export function characteristicsOf(
     return 0;
   };
   const currentMight = (): number =>
-    baseMight + arithmeticTotal(arithmetic) + designationBonus();
+    runArithmetic(baseMight + designationBonus(), arithmetic);
 
   // R476 — recur over the layers until a full pass changes nothing. The bound
   // is a safety net: each effect applies at most once (R476.1), so the loop
@@ -206,7 +276,8 @@ export function characteristicsOf(
             break;
           }
           case "addMight":
-            arithmetic.push(entry.modification.amount);
+          case "increaseMightTo":
+            arithmetic.push(entry.modification);
             break;
         }
 

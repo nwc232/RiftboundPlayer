@@ -517,21 +517,25 @@ Recorded as they're found, so they don't get lost between slices.
 - **Owner vs controller (R56).** A killed card goes to its *owner's*
   trash. The engine uses controller, which only differs once
   control-stealing effects exist.
-- **Durational effects.** The layer pipeline only reads passives from
-  permanents on the board, so a modifier's lifetime is its source's. A
-  spell saying "+2 Might this turn" has nowhere to live yet — that needs a
-  stored modifier list with a duration, and is the obvious next slice.
-- **Layer clamping / snapshotting (R477.3.b).** "−4 Might to a minimum of
-  1" limits at application time and remembers the limited value. No effect
-  has a limit yet, so nothing snapshots.
-- **Dependency ordering (R478/479).** Two effects in the same layer are
-  applied in discovery order. The rules order them by dependency — R479's
-  example has "Might increased to 5" depend on a "+2 Might" applied
-  alongside it. Needs two conflicting effects on one object to matter.
-- **Copy and controller effects (R477.1.a/b).** The trait layer exists and
-  is applied, but only Might assignment is implemented in it. Copy effects
-  were one of the two hardest things this survey found; controller-changing
-  is what makes owner-vs-controller (R56) start to matter.
+- **General dependency detection (R478.1.a/b).** Ordering within the
+  arithmetic layer follows R479's example — fixed amounts before
+  `increaseMightTo`, which is the case the rules work through. Effects that
+  alter *whether another effect exists* or *how many objects it reaches*
+  are not detected; nothing in the vocabulary can do that yet.
+- **Excess-of-duration effects.** Only "this turn" (R317.2.c) and "this
+  combat" (R466.7.c) exist. R477.3.b's third example mentions an effect
+  with an *unlimited* duration that still snapshots; there is no such
+  duration yet.
+- **Copy effects (R477.1.b) — blocked on tokens.** Every copy card in the
+  pool (Mirror Image, Deceiver, Keeper of Masks) works by playing a
+  *Reflection* unit token that then becomes a copy, and the engine cannot
+  create cards at runtime. Copy also means copying Rules Text
+  (R477.1.b.1.a), i.e. abilities, and R477.1.b.1.b's copy-of-a-copy reads
+  the *current* copied traits rather than the printed ones.
+- **Controller-changing (R477.1.a).** The trait layer is in place and
+  applied, but only Might assignment is implemented in it. Controller is a
+  trait-layer effect, and it is what makes owner-vs-controller (R56)
+  start to matter.
 - **Staged showdown/combat choice (R323.12/13).** When more than one
   showdown or combat is staged, the Turn Player *chooses* which battlefield
   opens. The engine takes the first in board order. Now a small fix rather

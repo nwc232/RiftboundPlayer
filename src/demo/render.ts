@@ -251,6 +251,14 @@ export function renderEvent(event: GameEvent): string {
       return `${event.playerId} targets ${event.targets.join(", ")}`;
     case "abilityDeclined":
       return dim(`  ${event.playerId} declines ${event.cardId}'s trigger`);
+    case "mightModified": {
+      const sign = event.amount >= 0 ? "+" : "";
+      return `${event.cardId} gets ${sign}${event.amount} Might (${event.duration})`;
+    }
+    case "keywordGranted":
+      return `${event.cardId} gains [${event.keyword}] (${event.duration})`;
+    case "modifiersExpired":
+      return dim(`  ${event.duration} effects expire`);
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);

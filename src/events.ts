@@ -1,8 +1,10 @@
+import type { Duration } from "./layers.js";
 import type {
   CardId,
   Cost,
   Domain,
   GameState,
+  Keyword,
   Location,
   PlayerId,
 } from "./state.js";
@@ -77,7 +79,23 @@ export type GameEvent =
   | { type: "triggerResolved"; playerId: PlayerId; cardId: CardId }
   | { type: "decisionRequired"; playerId: PlayerId; kind: string }
   | { type: "targetsChosen"; playerId: PlayerId; targets: CardId[] }
-  | { type: "abilityDeclined"; playerId: PlayerId; cardId: CardId };
+  | { type: "abilityDeclined"; playerId: PlayerId; cardId: CardId }
+  /** The amount here is the snapshotted one (R477.3.b), not what was asked for. */
+  | {
+      type: "mightModified";
+      playerId: PlayerId;
+      cardId: CardId;
+      amount: number;
+      duration: Duration;
+    }
+  | {
+      type: "keywordGranted";
+      playerId: PlayerId;
+      cardId: CardId;
+      keyword: Keyword;
+      duration: Duration;
+    }
+  | { type: "modifiersExpired"; duration: Duration };
 
 export interface Progress {
   state: GameState;

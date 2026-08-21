@@ -1,7 +1,16 @@
 import { addEnergy as creditEnergy, addPower as creditPower } from "./cost.js";
 import type { GameEvent } from "./events.js";
-import type { CardId, Domain, GameState, Location, PlayerId } from "./state.js";
 import type {
+  CardId,
+  Domain,
+  GameState,
+  Keyword,
+  Location,
+  PlayerId,
+} from "./state.js";
+import { mightOf } from "./layers.js";
+import type {
+  Duration,
   Modification,
   PassiveCondition,
   PassiveScope,
@@ -20,6 +29,28 @@ export type Effect =
   | { op: "dealDamage"; amount: number; targetIndex: number }
   | { op: "draw"; count: number }
   | { op: "counterSpell"; targetIndex: number }
+  /**
+   * R432.1 — modulate a target's Might for a duration. `min`/`max` are
+   * R477.3.b's limitation: applied once, at this moment, and remembered at the
+   * limited level. `double` computes the amount from current Might instead.
+   */
+  | {
+      op: "modifyMight";
+      amount?: number;
+      double?: true;
+      duration: Duration;
+      min?: number;
+      max?: number;
+      targetIndex: number;
+    }
+  /** Fortified Position — "It gains [Shield 2] this combat." */
+  | {
+      op: "grantKeywordFor";
+      keyword: Keyword;
+      value?: number;
+      duration: Duration;
+      targetIndex: number;
+    }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
@@ -221,6 +252,88 @@ export function execute(
             type: "spellCountered",
             playerId: context.controller,
             cardId: targetId,
+          },
+        ],
+      };
+    }
+
+    /**
+     * R477.3.b — the limitation applies *now* and the effect is remembered at
+     * that limited level. "-4 Might to a min of 1" on a 2-Might unit generates
+     * -1, and stays -1 even if the unit is buffed afterwards.
+     */
+    case "modifyMight": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      if (state.permanents[targetId] === undefined) return { state, events: [] };
+
+      const current = mightOf(state, targetId);
+      // R432.1.a — doubling reads current Might, so Shield counts toward it.
+      const requested = effect.double === true ? current : (effect.amount ?? 0);
+      // R477.3.c — a player cannot increase an attribute by a negative amount.
+      const raw = effect.double === true ? Math.max(0, requested) : requested;
+
+      let limited = current + raw;
+      if (effect.min !== undefined) limited = Math.max(effect.min, limited);
+      if (effect.max !== undefined) limited = Math.min(effect.max, limited);
+      const amount = limited - current;
+
+      if (amount === 0) return { state, events: [] };
+      return {
+        state: {
+          ...state,
+          modifiers: [
+            ...state.modifiers,
+            {
+              id: `mod-${state.modifiers.length}-${targetId}`,
+              targetId,
+              modification: { layer: "arithmetic", op: "addMight", amount },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [
+          {
+            type: "mightModified",
+            playerId: context.controller,
+            cardId: targetId,
+            amount,
+            duration: effect.duration,
+          },
+        ],
+      };
+    }
+
+    case "grantKeywordFor": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      if (state.permanents[targetId] === undefined) return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          modifiers: [
+            ...state.modifiers,
+            {
+              id: `mod-${state.modifiers.length}-${targetId}`,
+              targetId,
+              modification: {
+                layer: "ability",
+                op: "grantKeyword",
+                keyword: effect.keyword,
+                ...(effect.value !== undefined ? { value: effect.value } : {}),
+              },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [
+          {
+            type: "keywordGranted",
+            playerId: context.controller,
+            cardId: targetId,
+            keyword: effect.keyword,
+            duration: effect.duration,
           },
         ],
       };

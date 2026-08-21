@@ -221,5 +221,6 @@ function emptyBoard(): GameState {
     priorityPasses: 0,
     pending: null,
     tasks: [],
+    modifiers: [],
   };
 }

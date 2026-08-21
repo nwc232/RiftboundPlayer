@@ -127,5 +127,6 @@ export function makeState(options: {
     priorityPasses: 0,
     pending: null,
     tasks: [],
+    modifiers: [],
   };
 }

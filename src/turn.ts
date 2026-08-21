@@ -1,3 +1,5 @@
+import { healAllUnits } from "./combat.js";
+import { expireModifiers } from "./layers.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, holdControlledBattlefields } from "./scoring.js";
 import { permanentsControlledBy } from "./state.js";
@@ -186,14 +188,30 @@ export function beginTurn(
 /**
  * Runs the Ending Phase and hands the turn to the next player.
  *
- * Not modelled yet: healing all units and expiring "this turn" effects
- * (R317.2.b–c), both of which need damage and durations to exist first.
+ * The Expiration Step's inserted cleanup steps run in R317.2's order: heal all
+ * units (3c), expire "this turn" effects (3d), then empty pools (3e).
  */
 export function endTurn(state: GameState): Progress {
   const player = state.turn.player;
   let progress: Progress = { state, events: [] };
 
   progress = enterPhase(progress, player, "ending");
+
+  // R317.2.b — "3c. Heal all Units."
+  progress = { ...progress, state: healAllUnits(progress.state) };
+
+  // R317.2.c — "3d. All 'this turn' effects expire simultaneously."
+  const expired = expireModifiers(progress.state, "thisTurn");
+  if (expired !== progress.state) {
+    progress = {
+      state: expired,
+      events: [
+        ...progress.events,
+        { type: "modifiersExpired", duration: "thisTurn" },
+      ],
+    };
+  }
+
   progress = emptyAllPools(progress);
 
   const next = opponentOf(player);
