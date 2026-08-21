@@ -493,13 +493,11 @@ things I think most shape that design, in rough priority order:
 
 Recorded as they're found, so they don't get lost between slices.
 
-- **Death-trigger attributes (R323.4).** Location is now noted before the
-  kill and carried to the trigger, so "here" resolves (Kog'Maw, Caustic).
-  *Attributes* deliberately are not: printed values live on the card, which
-  is never removed from `state.cards`, so they survive the death anyway —
-  Unsung Hero's "if I was [Mighty]" reads correctly today. Only once
-  modifiers attach to the permanent does the noted value diverge from the
-  printed one, so the field gets widened with the layer system.
+- **Death-trigger attributes (R323.4) — closed.** Location *and* Might are
+  now noted before the kill and carried to the trigger, so Kog'Maw's "here"
+  and Unsung Hero's "if I was [Mighty]" both resolve against what was true
+  on the board. Granted *keywords* are still not noted; no card reads them
+  at death yet.
 - **Trigger queued after the trash move (R808.1.d.2).** The rule adds the
   trigger to the chain *before* the card moves to the trash; the engine
   kills first and derives the trigger from the resulting event. Nothing
@@ -519,8 +517,21 @@ Recorded as they're found, so they don't get lost between slices.
 - **Owner vs controller (R56).** A killed card goes to its *owner's*
   trash. The engine uses controller, which only differs once
   control-stealing effects exist.
-- **Assault / Shield (R477.3).** Combat uses printed Might; these are
-  arithmetic-layer modifiers and need the layer system.
+- **Durational effects.** The layer pipeline only reads passives from
+  permanents on the board, so a modifier's lifetime is its source's. A
+  spell saying "+2 Might this turn" has nowhere to live yet — that needs a
+  stored modifier list with a duration, and is the obvious next slice.
+- **Layer clamping / snapshotting (R477.3.b).** "−4 Might to a minimum of
+  1" limits at application time and remembers the limited value. No effect
+  has a limit yet, so nothing snapshots.
+- **Dependency ordering (R478/479).** Two effects in the same layer are
+  applied in discovery order. The rules order them by dependency — R479's
+  example has "Might increased to 5" depend on a "+2 Might" applied
+  alongside it. Needs two conflicting effects on one object to matter.
+- **Copy and controller effects (R477.1.a/b).** The trait layer exists and
+  is applied, but only Might assignment is implemented in it. Copy effects
+  were one of the two hardest things this survey found; controller-changing
+  is what makes owner-vs-controller (R56) start to matter.
 - **Staged showdown/combat choice (R323.12/13).** When more than one
   showdown or combat is staged, the Turn Player *chooses* which battlefield
   opens. The engine takes the first in board order. Now a small fix rather

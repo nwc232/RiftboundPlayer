@@ -61,6 +61,7 @@ interface TriggerSource {
   controller: PlayerId;
   /** Only for a source that has already left the board — see R323.4. */
   location?: Location;
+  might?: number;
 }
 
 /**
@@ -92,6 +93,7 @@ function triggerSources(state: GameState, events: GameEvent[]): TriggerSource[] 
         sourceId: event.cardId,
         controller: event.playerId,
         location: event.location,
+        might: event.might,
       });
     }
   }
@@ -113,7 +115,7 @@ export function collectTriggers(
 ): ChainItem[] {
   const found: { controller: PlayerId; item: ChainItem }[] = [];
 
-  for (const { sourceId, controller, location } of triggerSources(
+  for (const { sourceId, controller, location, might } of triggerSources(
     state,
     events,
   )) {
@@ -136,6 +138,7 @@ export function collectTriggers(
           controller,
           targets: [],
           ...(location !== undefined ? { sourceLocation: location } : {}),
+          ...(might !== undefined ? { sourceMight: might } : {}),
         },
       });
     });

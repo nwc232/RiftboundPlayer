@@ -167,8 +167,46 @@ taken at finalization — declining removes it from the chain and it counts
 as never having triggered (R383.3.a.2). A "you may" later in the text is a
 different thing, decided on resolution.
 
-Not built yet: the Assault/Shield Might modifiers (arithmetic-layer
-effects, R477.3), which need the layer system.
+Continuous effects run through the layer system (R473–479). Nothing
+modified is ever stored: R476 describes the layers as something you
+*re-evaluate*, so `mightOf` recomputes from the live board every time it
+is called, and removing a source removes its effect with no bookkeeping.
+
+The three layers apply in R477's order — Trait-Altering, then
+Ability-Altering, then Arithmetic — and R476.2 requires recurring over
+them until nothing changes. That loop is what makes Fiora, Victorious
+work (R476.3): a buff raises her Might in the arithmetic layer, which
+makes her Mighty (R708, Might 5+), which grants Shield back in the
+ability layer, whose own +1 lands in the arithmetic layer again. A single
+pass would stop at 5 and miss the keyword entirely.
+
+Assault and Shield key off the Attacker/Defender designation (R323.2),
+not off "a combat is happening", so the demo shows both:
+
+```
+end
+end
+use rune-1 0
+use rune-2 0
+use conduit 0
+play skulker
+end
+end
+move skulker bf-south
+pass
+pass
+```
+
+Skulker attacks for 4 rather than its printed 3 ([Assault]), and the
+garrison defends for 7 rather than 6 because Sentry Grunt has [Shield].
+The Grunt is then assigned 3 damage, not 2 — lethal is measured against
+its *current* Might, so the whole chain of layers feeds back into
+R465.2.c's assignment rules.
+
+Not built yet: durational effects from spells ("+2 Might this turn" has
+no place to live — modifiers currently last exactly as long as the
+permanent granting them), layer clamping (R477.3.b), dependency ordering
+within a layer (R478/479), and copy effects (R477.1.b).
 
 Known deviations from the rules are tracked at the end of
 `reference/mechanic-survey.md`.

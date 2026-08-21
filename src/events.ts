@@ -59,6 +59,13 @@ export type GameEvent =
       playerId: PlayerId;
       cardId: CardId;
       location: Location;
+      /**
+       * Might as it stood on the board, which R323.4 also says to note. Once
+       * layer effects exist this diverges from the printed value the card keeps
+       * in `state.cards` — a buffed unit was Mighty (R708) when it died even
+       * though its printed Might says otherwise.
+       */
+      might: number;
     }
   | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId }
   | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }

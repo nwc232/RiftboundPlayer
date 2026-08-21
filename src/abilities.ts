@@ -1,6 +1,11 @@
 import { addEnergy as creditEnergy, addPower as creditPower } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import type { CardId, Domain, GameState, Location, PlayerId } from "./state.js";
+import type {
+  Modification,
+  PassiveCondition,
+  PassiveScope,
+} from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
 
 /**
@@ -29,7 +34,19 @@ export interface ActivatedAbility {
   effect: Effect;
 }
 
-export type Ability = ActivatedAbility | TriggeredAbility;
+/**
+ * R477 — a continuous effect that modifies characteristics rather than doing
+ * anything when it resolves. Passives never go on the chain; they are read
+ * live by the layer pipeline, so removing the source removes the effect.
+ */
+export interface PassiveAbility {
+  kind: "passive";
+  scope: PassiveScope;
+  condition?: PassiveCondition;
+  modification: Modification;
+}
+
+export type Ability = ActivatedAbility | TriggeredAbility | PassiveAbility;
 
 export interface EffectContext {
   controller: PlayerId;

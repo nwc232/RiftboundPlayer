@@ -1,4 +1,9 @@
-import { combatSides, isCombatAt, killLethalUnits } from "./combat.js";
+import {
+  assignDesignations,
+  combatSides,
+  isCombatAt,
+  killLethalUnits,
+} from "./combat.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, score } from "./scoring.js";
 import { permanentsAt } from "./state.js";
@@ -64,14 +69,21 @@ function closeShowdown(state: GameState): Progress {
   // Queued rather than run inline: R465.2.c makes damage assignment a player
   // decision, and a task can suspend for one where a function call cannot.
   if (isCombatAt(cleared, showdown.battlefieldId)) {
-    const { attackerMight } = combatSides(
+    // R323.2 before R465.2.a: the sides are summed *after* designations exist,
+    // so Assault and Shield are already in the Might they contribute.
+    const designated = assignDesignations(
       cleared,
+      showdown.battlefieldId,
+      showdown.attacker,
+    );
+    const { attackerMight } = combatSides(
+      designated,
       showdown.battlefieldId,
       showdown.attacker,
     );
     return {
       state: {
-        ...cleared,
+        ...designated,
         tasks: [
           ...cleared.tasks,
           {

@@ -72,6 +72,12 @@ export interface CardInstance {
   keywords: Keyword[];
   /** Units only. Absent elsewhere; treated as 0. */
   might?: number;
+  /**
+   * R807.1.b / R814.1.b — the X in "Assault [X]" / "Shield [X]". Only read when
+   * the matching keyword is present; a bare [Assault] is worth 1.
+   */
+  assault?: number;
+  shield?: number;
 }
 
 export interface RuneState {
@@ -90,7 +96,10 @@ export type Keyword =
   | "tank"
   | "backline"
   | "action"
-  | "reaction";
+  | "reaction"
+  /** R807 / R814 — passive keywords carrying a value; see `Characteristics`. */
+  | "assault"
+  | "shield";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =
@@ -123,6 +132,12 @@ export interface PermanentState {
   location: Location;
   /** R142 — marked damage, cleared by healing. Lethal at or above Might. */
   damage: number;
+  /**
+   * R323.2 — Attacker/Defender, assigned while a combat is in progress at this
+   * unit's battlefield and removed when combat ends (R466.7.a). Assault and
+   * Shield key off this rather than off "is a combat happening".
+   */
+  designation?: "attacker" | "defender";
 }
 
 export interface PlayerState {

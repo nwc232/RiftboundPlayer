@@ -1,3 +1,4 @@
+import { mightOf } from "./layers.js";
 import type { CardId, GameState, Location, PlayerId } from "./state.js";
 
 /**
@@ -30,6 +31,8 @@ export type ChainItem =
        * directly instead, so effects get one uniform answer for "here".
        */
       sourceLocation?: Location;
+      /** R323.4 — Might as it stood at death, which printed Might won't give. */
+      sourceMight?: number;
     };
 
 /** What a chain item is identified by on the board — its card either way. */
@@ -49,6 +52,21 @@ export function sourceLocationOf(
   const live = state.permanents[chainItemCardId(item)]?.location;
   if (live !== undefined) return live;
   return item.kind === "trigger" ? item.sourceLocation : undefined;
+}
+
+/**
+ * A chain item's source's Might: current if it is still on the board, else the
+ * value noted when it died (R323.4). R711 would give printed Might for a card
+ * sitting in the trash, which is a different question from what this one was
+ * when its own death trigger fired.
+ */
+export function sourceMightOf(
+  state: GameState,
+  item: ChainItem,
+): number | undefined {
+  const cardId = chainItemCardId(item);
+  if (state.permanents[cardId] !== undefined) return mightOf(state, cardId);
+  return item.kind === "trigger" ? item.sourceMight : undefined;
 }
 
 export function chainExists(state: GameState): boolean {

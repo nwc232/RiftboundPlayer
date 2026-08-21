@@ -73,6 +73,8 @@ interface PermanentSpec {
   exhausted?: boolean;
   damage?: number;
   location?: Location;
+  /** R323.2 — set directly in tests that need Assault or Shield to apply. */
+  designation?: "attacker" | "defender";
 }
 
 export function makeState(options: {
@@ -96,6 +98,9 @@ export function makeState(options: {
       exhausted: spec.exhausted ?? false,
       location: spec.location ?? { kind: "base", player: controller },
       damage: spec.damage ?? 0,
+      ...(spec.designation !== undefined
+        ? { designation: spec.designation }
+        : {}),
     };
   }
 

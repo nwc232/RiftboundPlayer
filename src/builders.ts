@@ -3,7 +3,13 @@ import type {
   AbilityTiming,
   ActivatedAbility,
   Effect,
+  PassiveAbility,
 } from "./abilities.js";
+import type {
+  Modification,
+  PassiveCondition,
+  PassiveScope,
+} from "./layers.js";
 import { FREE } from "./cost.js";
 import type { CardInstance, Cost, Domain, Keyword } from "./state.js";
 
@@ -50,6 +56,45 @@ export function draw(count: number): Effect {
 
 export function counterSpell(targetIndex = 0): Effect {
   return { op: "counterSpell", targetIndex };
+}
+
+// Passive abilities (R477). These modify characteristics rather than resolving,
+// so they never touch the chain — the layer pipeline reads them live.
+
+export function passive(
+  scope: PassiveScope,
+  modification: Modification,
+  condition?: PassiveCondition,
+): PassiveAbility {
+  return {
+    kind: "passive",
+    scope,
+    modification,
+    ...(condition !== undefined ? { condition } : {}),
+  };
+}
+
+/** Garen, Commander — "Other friendly units have +1 Might here." */
+export function anthemMight(amount: number, here = true): PassiveAbility {
+  return passive({ target: "otherFriendlyUnits", here }, {
+    layer: "arithmetic",
+    op: "addMight",
+    amount,
+  });
+}
+
+/** Captain Farron — "Other friendly units here have [Assault]." */
+export function anthemKeyword(
+  keyword: Keyword,
+  here = true,
+  value?: number,
+): PassiveAbility {
+  return passive({ target: "otherFriendlyUnits", here }, {
+    layer: "ability",
+    op: "grantKeyword",
+    keyword,
+    ...(value !== undefined ? { value } : {}),
+  });
 }
 
 /** A spell's rules text lives as a single ability holding its effect. */

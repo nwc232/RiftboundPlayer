@@ -653,7 +653,12 @@ export function passPriority(
     const ability = card.abilities[
       item.kind === "trigger" ? item.abilityIndex : 0
     ];
-    const effect = ability?.effect ?? { op: "seq" as const, steps: [] };
+    // A passive never resolves — it is read live by the layer pipeline — so it
+    // contributes nothing here even if one is somehow reached.
+    const effect =
+      ability !== undefined && ability.kind !== "passive"
+        ? ability.effect
+        : { op: "seq" as const, steps: [] };
 
     const sourceLocation = sourceLocationOf(current, item);
 

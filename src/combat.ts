@@ -1,16 +1,10 @@
 import type { GameEvent, Progress } from "./events.js";
+import { keywordsOf, mightOf } from "./layers.js";
 import { score } from "./scoring.js";
 import { permanentsAt } from "./state.js";
 import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
 
-/**
- * Printed Might. Assault (+X while attacking) and Shield (+X while defending)
- * are not applied yet — those are arithmetic-layer modifiers (R477.3) and need
- * the layer system, so combat currently fights on printed values only.
- */
-export function mightOf(state: GameState, cardId: CardId): number {
-  return state.cards[cardId]?.might ?? 0;
-}
+export { mightOf };
 
 /** R142.4.b — lethal is a non-zero amount at or above the unit's Might. */
 export function lethalRemaining(
@@ -43,9 +37,13 @@ export interface Assignment {
   amount: number;
 }
 
-/** R465.2.c.6 — Tank must be assigned damage first, Backline last. */
+/**
+ * R465.2.c.6 — Tank must be assigned damage first, Backline last. Read through
+ * the layers, so a Tank granted by another card counts the same as a printed
+ * one (R815.3 makes having Tank a characteristic).
+ */
 function bandOf(state: GameState, permanent: PermanentState): number {
-  const keywords = state.cards[permanent.cardId]?.keywords ?? [];
+  const keywords = keywordsOf(state, permanent.cardId);
   if (keywords.includes("tank")) return 0;
   if (keywords.includes("backline")) return 2;
   return 1;
@@ -116,6 +114,47 @@ export function assignDamage(
   return new Map(assigned.map((entry) => [entry.cardId, entry.amount]));
 }
 
+/**
+ * R323.2 — units at the battlefield a combat is happening at take their
+ * controller's designation; units anywhere else lose theirs (R323.2.c). Assault
+ * and Shield key off this, not off "a combat is happening somewhere".
+ */
+export function assignDesignations(
+  state: GameState,
+  battlefieldId: CardId,
+  attacker: PlayerId,
+): GameState {
+  const permanents: Record<CardId, PermanentState> = {};
+
+  for (const [cardId, permanent] of Object.entries(state.permanents)) {
+    const here =
+      permanent.location.kind === "battlefield" &&
+      permanent.location.id === battlefieldId;
+
+    if (here && state.cards[cardId]?.type === "unit") {
+      permanents[cardId] = {
+        ...permanent,
+        designation: permanent.controller === attacker ? "attacker" : "defender",
+      };
+    } else {
+      const { designation: _cleared, ...rest } = permanent;
+      permanents[cardId] = rest;
+    }
+  }
+
+  return { ...state, permanents };
+}
+
+/** R466.7.a — combat ends, and every designation goes with it. */
+export function clearDesignations(state: GameState): GameState {
+  const permanents: Record<CardId, PermanentState> = {};
+  for (const [cardId, permanent] of Object.entries(state.permanents)) {
+    const { designation: _cleared, ...rest } = permanent;
+    permanents[cardId] = rest;
+  }
+  return { ...state, permanents };
+}
+
 /** R465.2.a/b — each side's summed Might, read before any damage is dealt. */
 export function combatSides(
   state: GameState,
@@ -184,15 +223,16 @@ export function killUnits(state: GameState, cardIds: CardId[]): Progress {
       ...players[owner],
       trash: [...players[owner].trash, cardId],
     };
-    // R323.4/R808.1.d.3 — note the location before the card leaves the board.
-    // Attributes are deliberately not noted: printed values live on the card,
-    // which is never removed from `state.cards`, so they survive the death.
-    // Modified values don't exist until continuous effects do.
+    // R323.4/R808.1.d.3 — note location and attributes before the card leaves
+    // the board. Read from `state`, which this loop never mutates, so units
+    // dying together all see the same pre-death board: R323.4's step 3a runs
+    // before any of 3b's kills.
     events.push({
       type: "unitKilled",
       playerId: owner,
       cardId,
       location: permanent.location,
+      might: mightOf(state, cardId),
     });
   }
 
@@ -239,7 +279,8 @@ export function resolveCombatAftermath(
   const events: GameEvent[] = [];
   let current: GameState = state;
 
-  // Units with lethal damage die in the cleanup that follows.
+  // Units with lethal damage die in the cleanup that follows. Designations are
+  // still in place here, so a Shielded defender's Might counts for survival.
   const killed = killLethalUnits(current);
   current = killed.state;
   events.push(...killed.events);
@@ -315,5 +356,6 @@ export function resolveCombatAftermath(
     }
   }
 
-  return { state: current, events };
+  // R466.7 — combat ends; R466.7.a removes every designation.
+  return { state: clearDesignations(current), events };
 }

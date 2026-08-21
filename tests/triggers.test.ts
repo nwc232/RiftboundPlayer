@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
-import { chainItemCardId, sourceLocationOf } from "../src/chain.js";
-import { draw } from "../src/builders.js";
+import {
+  chainItemCardId,
+  sourceLocationOf,
+  sourceMightOf,
+} from "../src/chain.js";
+import { anthemMight, draw } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
@@ -179,6 +183,7 @@ describe("death-trigger location snapshot (R323.4)", () => {
       playerId: "p1",
       cardId: "scrapheap",
       location: AT_BF,
+      might: 1,
     });
   });
 
@@ -254,6 +259,45 @@ describe("death-trigger location snapshot (R323.4)", () => {
       ["atB", { kind: "battlefield", id: "bf-b" }],
       ["atHome", { kind: "base", player: "p1" }],
     ]);
+  });
+
+  /**
+   * R323.4 says to note attributes, not just location. Now that layer effects
+   * exist this is observable: the card left in `state.cards` still reads its
+   * printed Might, so only the noted value knows what it actually was.
+   */
+  it("notes the modified Might, not the printed one", () => {
+    const commander: CardInstance = {
+      ...unit("commander", { might: 4 }),
+      abilities: [anthemMight(1)],
+    };
+    // A unit, not the gear above — Garen's anthem only reaches friendly units.
+    const doomed: CardInstance = {
+      ...unit("doomed", { might: 1 }),
+      abilities: [
+        {
+          kind: "triggered",
+          trigger: { on: "permanentKilled", subject: "self" },
+          effect: draw(1),
+        },
+      ],
+    };
+    const state = run(
+      makeState({
+        p1: { mainDeck: ["a"], runePool: pool({ energy: 9 }) },
+        cards: [doomed, commander, unit("a")],
+        permanents: [
+          { cardId: "doomed", controller: "p1", location: AT_BF, damage: 5 },
+          { cardId: "commander", controller: "p1", location: AT_BF },
+        ],
+        battlefields: ["bf"],
+      }),
+      [{ type: "drawCard", playerId: "p1" }],
+    );
+
+    // Printed 1, buffed to 2 by the commander standing alongside it.
+    expect(state.cards.doomed?.might).toBe(1);
+    expect(sourceMightOf(state, state.chain[0]!)).toBe(2);
   });
 
   it("keeps no snapshot for a living source — its location is looked up", () => {

@@ -43,7 +43,8 @@ function vanillaUnit(
 }
 
 export const SAMPLE_CARDS: CardInstance[] = [
-  vanillaUnit("skulker", "Shipyard Skulker", 3, 3, "chaos"),
+  // [Assault] — +1 Might while it holds the Attacker designation (R807).
+  vanillaUnit("skulker", "Shipyard Skulker", 3, 3, "chaos", ["assault"]),
   vanillaUnit("sergeant", "Vanguard Sergeant", 4, 4, "order"),
   // Not printed with Ganking — given it here so the keyword is exercisable.
   vanillaUnit("phantom", "Playful Phantom", 5, 5, "calm", ["ganking"]),
@@ -96,7 +97,8 @@ export const SAMPLE_CARDS: CardInstance[] = [
   // p2's garrison, so combat is reachable in the demo. The two identical
   // Watchmen sit in the same assignment band as each other, which is what makes
   // damage assignment a real choice rather than a forced order (R465.2.c.7).
-  vanillaUnit("grunt", "Sentry Grunt", 2, 2, "order", ["tank"]),
+  // [Shield] — +1 Might while it holds the Defender designation (R814).
+  vanillaUnit("grunt", "Sentry Grunt", 2, 2, "order", ["tank", "shield"]),
   vanillaUnit("watch-a", "Watchman", 1, 1, "order"),
   vanillaUnit("watch-b", "Watchman", 1, 1, "order"),
   vanillaUnit("archer", "Backline Archer", 2, 2, "order", ["backline"]),
