@@ -20,10 +20,14 @@ import {
 import { controllerOf } from "./layers.js";
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
-import { collectTriggers } from "./triggers.js";
-import { applyCombatAssignment, enqueue, runTasks } from "./tasks.js";
+import {
+  applyCombatAssignment,
+  beginTurn,
+  enqueue,
+  runTasks,
+} from "./tasks.js";
 import { passFocus as runPassFocus } from "./showdown.js";
-import { beginTurn, endTurn as runEndTurn } from "./turn.js";
+
 
 export type Action =
   | { type: "drawCard"; playerId: PlayerId }
@@ -108,44 +112,22 @@ function rejected(reason: RejectionReason): ActionResult {
  * abilities are then evaluated against everything that just happened, because
  * R383.2.c checks a trigger's condition after the inciting event is processed.
  */
+/**
+ * Triggers are collected inside the task driver now, between steps, because
+ * R335 makes a pending chain item block the next step. All that is left here is
+ * to surface any choice the newest chain item still owes.
+ */
 function afterTasks(current: GameState, events: GameEvent[]): ActionResult {
-  // R334.2 — pending chain items are only processed once every task is done.
-  if (current.tasks.length > 0) {
-    return { ok: true, state: current, events };
-  }
-
-  const triggered = collectTriggers(current, events);
-  if (triggered.length === 0) {
-    return { ok: true, state: current, events };
-  }
-
-  const state: GameState = {
-    ...current,
-    chain: [...current.chain, ...triggered],
-    // R383.3.c — triggers go on the chain in any state; as with a spell, the
-    // controller of the newest item then receives priority.
-    priority: triggered[triggered.length - 1]?.controller ?? current.priority,
-    priorityPasses: 0,
-  };
-
-  return awaitDecisions({
-    ok: true,
-    state,
-    events: [
-      ...events,
-      ...triggered.map((item) => ({
-        type: "abilityTriggered" as const,
-        playerId: item.controller,
-        cardId: chainItemCardId(item),
-      })),
-    ],
-  });
+  return awaitDecisions({ ok: true, state: current, events });
 }
 
 function thenCleanup(result: ActionResult): ActionResult {
   if (!result.ok) return result;
 
-  const worked = runTasks(enqueue(result.state, { kind: "cleanup" }));
+  const worked = runTasks(
+    enqueue(result.state, { kind: "cleanup" }),
+    result.events,
+  );
   return afterTasks(worked.state, [...result.events, ...worked.events]);
 }
 
@@ -155,7 +137,9 @@ function resumeTasks(
   cardId: CardId,
   playerId: PlayerId,
 ): ActionResult {
-  const worked = runTasks(applyCombatAssignment(state, cardId));
+  const worked = runTasks(applyCombatAssignment(state, cardId), [
+    { type: "targetsChosen", playerId, targets: [cardId] },
+  ]);
   return afterTasks(worked.state, [
     { type: "targetsChosen", playerId, targets: [cardId] },
     ...worked.events,
@@ -719,8 +703,17 @@ export function endTurn(
     return rejected("showdownInProgress");
   }
 
-  const progress = runEndTurn(state);
-  return { ok: true, state: progress.state, events: progress.events };
+  // R317 — ending the turn queues its first step and lets the driver walk the
+  // rest, pausing at any step that raises a trigger (R335) or needs a decision.
+  const worked = runTasks(
+    enqueue(state, {
+      kind: "turnStep",
+      player: playerId,
+      step: "ending",
+      number: state.turn.number,
+    }),
+  );
+  return { ok: true, state: worked.state, events: worked.events };
 }
 
 /**

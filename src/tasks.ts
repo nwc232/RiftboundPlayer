@@ -9,6 +9,10 @@ import type { Assignment } from "./combat.js";
 import type { PendingDecision } from "./decisions.js";
 import type { GameEvent, Progress } from "./events.js";
 import { runCleanup } from "./showdown.js";
+import { collectTriggers } from "./triggers.js";
+import { chainItemCardId } from "./chain.js";
+import { runTurnStep, openTurn } from "./turn.js";
+import type { TurnStep } from "./turn.js";
 import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
 
 /**
@@ -42,7 +46,9 @@ export type Task =
       assigned: Assignment[];
     }
   /** R466 — the Resolution Step, once all combat damage has been dealt. */
-  | { kind: "combatResolution"; battlefieldId: CardId; attacker: PlayerId };
+  | { kind: "combatResolution"; battlefieldId: CardId; attacker: PlayerId }
+  /** R314–317 — one step of the turn. See `TurnStep`. */
+  | { kind: "turnStep"; player: PlayerId; step: TurnStep; number: number };
 
 interface TaskOutcome {
   state: GameState;
@@ -154,6 +160,17 @@ function runTask(state: GameState, task: Task): TaskOutcome {
       };
     }
 
+    case "turnStep": {
+      const outcome = runTurnStep(state, task.player, task.step, task.number);
+      return {
+        state: outcome.state,
+        events: outcome.events,
+        ...(outcome.next !== null
+          ? { push: [{ kind: "turnStep" as const, ...outcome.next }] }
+          : {}),
+      };
+    }
+
     case "combatResolution": {
       const resolved = resolveCombatAftermath(
         state,
@@ -217,16 +234,28 @@ export function enqueue(state: GameState, ...tasks: Task[]): GameState {
  * Works the queue until it drains or a task needs an answer. R320.1 — while
  * tasks remain, no priority is awarded and nothing on the chain resolves.
  */
-export function runTasks(state: GameState): Progress {
+export function runTasks(
+  state: GameState,
+  seedEvents: GameEvent[] = [],
+): Progress {
   let current = state;
   const events: GameEvent[] = [];
+  // Events not yet checked for triggers. R383.2.c evaluates a condition once
+  // its inciting event has been processed, so each event is scanned once.
+  let unscanned: GameEvent[] = [...seedEvents];
 
   while (current.pending === null) {
+    // R335 — the game only proceeds to the next step once there are no
+    // outstanding tasks *and no pending chain items*. A trigger raised by one
+    // step therefore blocks the next until it has resolved.
+    if (current.chain.length > 0) break;
+
     const [head, ...rest] = current.tasks;
     if (head === undefined) break;
 
     const outcome = runTask(current, head);
     events.push(...outcome.events);
+    unscanned.push(...outcome.events);
 
     if (outcome.suspend !== undefined) {
       current = {
@@ -238,7 +267,79 @@ export function runTasks(state: GameState): Progress {
     }
 
     current = { ...outcome.state, tasks: [...(outcome.push ?? []), ...rest] };
+
+    const triggered = collectTriggers(current, unscanned);
+    unscanned = [];
+    if (triggered.length === 0) continue;
+
+    current = {
+      ...current,
+      chain: [...current.chain, ...triggered],
+      // R383.3.c — the controller of the newest item receives priority.
+      priority: triggered[triggered.length - 1]?.controller ?? current.priority,
+      priorityPasses: 0,
+    };
+    events.push(
+      ...triggered.map((item) => ({
+        type: "abilityTriggered" as const,
+        playerId: item.controller,
+        cardId: chainItemCardId(item),
+      })),
+    );
+  }
+
+  // Anything still unscanned had no task after it to trigger against.
+  if (unscanned.length > 0 && current.chain.length === 0) {
+    const triggered = collectTriggers(current, unscanned);
+    if (triggered.length > 0) {
+      current = {
+        ...current,
+        chain: [...current.chain, ...triggered],
+        priority:
+          triggered[triggered.length - 1]?.controller ?? current.priority,
+        priorityPasses: 0,
+      };
+      events.push(
+        ...triggered.map((item) => ({
+          type: "abilityTriggered" as const,
+          playerId: item.controller,
+          cardId: chainItemCardId(item),
+        })),
+      );
+    }
   }
 
   return { state: current, events };
+}
+
+/**
+ * Run the Ending Phase through to the next player's Main Phase. Stops early at
+ * any step that raises a trigger (R335) or needs a decision.
+ */
+export function endTurn(state: GameState): Progress {
+  return runTasks(
+    enqueue(state, {
+      kind: "turnStep",
+      player: state.turn.player,
+      step: "ending",
+      number: state.turn.number,
+    }),
+  );
+}
+
+/**
+ * Start a turn and run it up to the Main Phase, where the player takes over.
+ * Stops early if a step raises a trigger (R335) or needs a decision.
+ */
+export function beginTurn(
+  state: GameState,
+  player: PlayerId,
+  number: number,
+): Progress {
+  const opened = openTurn(state, player, number);
+  const worked = runTasks(
+    enqueue(opened.state, { kind: "turnStep", player, step: "awaken", number }),
+    opened.events,
+  );
+  return { state: worked.state, events: [...opened.events, ...worked.events] };
 }

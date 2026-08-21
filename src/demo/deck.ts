@@ -12,7 +12,7 @@ import {
 } from "../builders.js";
 import { FREE } from "../cost.js";
 import type { CardInstance, Domain, GameState, Keyword } from "../state.js";
-import { beginTurn } from "../turn.js";
+import { beginTurn } from "../tasks.js";
 
 /**
  * A small hand-authored sample using real Riftbound cards. Costs and domains

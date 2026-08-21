@@ -3,7 +3,7 @@ import { activateAbility, endTurn, playUnitFromHand } from "../src/actions.js";
 import { totals } from "../src/cost.js";
 import type { ActivatedAbility } from "../src/abilities.js";
 import type { GameState } from "../src/state.js";
-import { beginTurn } from "../src/turn.js";
+import { beginTurn } from "../src/tasks.js";
 import { cost, makeState, pool, runeCard, unit } from "./fixtures.js";
 
 function board(): GameState {

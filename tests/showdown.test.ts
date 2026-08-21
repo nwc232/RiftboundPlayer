@@ -5,7 +5,7 @@ import type { GameEvent } from "../src/events.js";
 import { VICTORY_SCORE } from "../src/scoring.js";
 import { runCleanup } from "../src/showdown.js";
 import type { GameState, Location } from "../src/state.js";
-import { beginTurn } from "../src/turn.js";
+import { beginTurn } from "../src/tasks.js";
 import { makeState, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };

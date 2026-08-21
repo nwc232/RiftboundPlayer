@@ -27,11 +27,16 @@ export function opponentOf(playerId: PlayerId): PlayerId {
   return playerId === "p1" ? "p2" : "p1";
 }
 
+/**
+ * A phase begins once, even though several steps belong to it — R315.2's
+ * Beginning Phase holds both the Beginning Step and the Scoring Step.
+ */
 function enterPhase(
   progress: Progress,
   player: PlayerId,
   phase: Phase,
 ): Progress {
+  if (progress.state.turn.phase === phase) return progress;
   return {
     state: { ...progress.state, turn: { ...progress.state.turn, phase } },
     events: [...progress.events, { type: "phaseBegan", playerId: player, phase }],
@@ -211,20 +216,61 @@ function emptyAllPools(progress: Progress): Progress {
 }
 
 /**
- * Runs Awaken through Draw, leaving the turn in its Main Phase.
- *
- * Not modelled yet: Burn Out (R431) when the deck runs dry during the Draw Phase.
+ * R314-317 in order. Each is one entry on the outstanding-task queue rather
+ * than a line in a single function, because R335 only lets the game "proceed
+ * to the next substep, step, phase, or turn" once there are no outstanding
+ * tasks *and no pending chain items*. A trigger raised during one step
+ * therefore has to resolve before the next step runs.
  */
-export function beginTurn(
+export type TurnStep =
+  | "awaken"
+  | "beginning"
+  | "scoring"
+  | "channel"
+  | "draw"
+  | "main"
+  | "ending"
+  | "expiration"
+  | "handover";
+
+/** Which phase each step belongs to, for the phase marker on the state. */
+const STEP_PHASE: Record<TurnStep, Phase> = {
+  awaken: "awaken",
+  beginning: "beginning",
+  scoring: "beginning",
+  channel: "channel",
+  draw: "draw",
+  main: "main",
+  ending: "ending",
+  expiration: "ending",
+  handover: "ending",
+};
+
+export interface NextStep {
+  player: PlayerId;
+  step: TurnStep;
+  number: number;
+}
+
+export interface TurnStepOutcome {
+  state: GameState;
+  events: GameEvent[];
+  /** The step to run next, or null when the game waits for the player. */
+  next: NextStep | null;
+}
+
+/** R470 is per turn, so both players' scoring records reset as it starts. */
+export function openTurn(
   state: GameState,
   player: PlayerId,
   number: number,
 ): Progress {
-  // R470 is per turn, so both players' scoring records reset as the turn starts.
-  let progress: Progress = {
+  return {
     state: {
       ...state,
-      turn: { player, phase: "awaken", number },
+      // The phase is left alone; the Awaken step sets it, so its phaseBegan
+      // event still fires.
+      turn: { ...state.turn, player, number },
       players: {
         p1: { ...state.players.p1, scoredThisTurn: [] },
         p2: { ...state.players.p2, scoredThisTurn: [] },
@@ -232,56 +278,73 @@ export function beginTurn(
     },
     events: [{ type: "turnBegan", playerId: player, turn: number }],
   };
-
-  progress = enterPhase(progress, player, "awaken");
-  progress = awaken(progress, player);
-  progress = enterPhase(progress, player, "beginning");
-  // R315.2.a then R315.2.b — the Beginning Step runs before the Scoring Step.
-  progress = beginningStep(progress, player);
-  progress = scoringStep(progress, player);
-  progress = enterPhase(progress, player, "channel");
-  progress = channelTwo(progress, player);
-  progress = enterPhase(progress, player, "draw");
-  progress = drawOne(progress, player);
-  progress = enterPhase(progress, player, "main");
-  progress = emptyAllPools(progress);
-
-  return progress;
 }
 
-/**
- * Runs the Ending Phase and hands the turn to the next player.
- *
- * The Expiration Step's inserted cleanup steps run in R317.2's order: heal all
- * units (3c), expire "this turn" effects (3d), then empty pools (3e).
- */
-export function endTurn(state: GameState): Progress {
-  const player = state.turn.player;
+export function runTurnStep(
+  state: GameState,
+  player: PlayerId,
+  step: TurnStep,
+  number: number,
+): TurnStepOutcome {
   let progress: Progress = { state, events: [] };
+  progress = enterPhase(progress, player, STEP_PHASE[step]);
 
-  progress = enterPhase(progress, player, "ending");
+  const at = (next: TurnStep): NextStep => ({ player, step: next, number });
 
-  // R317.1.a — "At the end of the turn Game Effects take place." This is the
-  // Ending Step, and it runs before the Expiration Step below.
-  progress = fireDelayed(progress, "endOfTurn");
+  switch (step) {
+    case "awaken":
+      return { ...awaken(progress, player), next: at("beginning") };
 
-  // R317.2.b — "3c. Heal all Units."
-  progress = { ...progress, state: healAllUnits(progress.state) };
+    case "beginning":
+      return { ...beginningStep(progress, player), next: at("scoring") };
 
-  // R317.2.c — "3d. All 'this turn' effects expire simultaneously."
-  const expired = expireModifiers(progress.state, "thisTurn");
-  if (expired !== progress.state) {
-    progress = {
-      state: expired,
-      events: [
-        ...progress.events,
-        { type: "modifiersExpired", duration: "thisTurn" },
-      ],
-    };
+    case "scoring":
+      return { ...scoringStep(progress, player), next: at("channel") };
+
+    case "channel":
+      return { ...channelTwo(progress, player), next: at("draw") };
+
+    case "draw":
+      return { ...drawOne(progress, player), next: at("main") };
+
+    // R316 — the Main Phase is where the turn player acts, so the queue stops.
+    case "main":
+      return { ...emptyAllPools(progress), next: null };
+
+    // R317.1 — the Ending Step, which runs before the Expiration Step.
+    case "ending":
+      return { ...fireDelayed(progress, "endOfTurn"), next: at("expiration") };
+
+    case "expiration": {
+      // R317.2.b, then R317.2.c, then R317.2.e, in that order.
+      progress = { ...progress, state: healAllUnits(progress.state) };
+      const expired = expireModifiers(progress.state, "thisTurn");
+      if (expired !== progress.state) {
+        progress = {
+          state: expired,
+          events: [
+            ...progress.events,
+            { type: "modifiersExpired", duration: "thisTurn" },
+          ],
+        };
+      }
+      return { ...emptyAllPools(progress), next: at("handover") };
+    }
+
+    // R317.3 — the next player with their turn queued becomes the Turn Player.
+    case "handover": {
+      const next = opponentOf(player);
+      const opened = openTurn(progress.state, next, number + 1);
+      return {
+        state: opened.state,
+        events: [...progress.events, ...opened.events],
+        next: { player: next, step: "awaken", number: number + 1 },
+      };
+    }
+
+    default: {
+      const unhandled: never = step;
+      return { state: progress.state, events: progress.events, next: null };
+    }
   }
-
-  progress = emptyAllPools(progress);
-
-  const next = opponentOf(player);
-  return beginTurn(progress.state, next, state.turn.number + 1);
 }

@@ -10,7 +10,7 @@ import {
 } from "../src/builders.js";
 import { keywordsOf, mightOf } from "../src/layers.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
-import { endTurn } from "../src/turn.js";
+import { endTurn } from "../src/tasks.js";
 import { makeState, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
