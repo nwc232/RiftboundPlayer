@@ -1,7 +1,7 @@
 import type { GameEvent, Progress } from "./events.js";
 import { expireModifiers, keywordsOf, mightOf } from "./layers.js";
 import { score } from "./scoring.js";
-import { permanentsAt } from "./state.js";
+import { ownerOf, permanentsAt } from "./state.js";
 import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
 
 export { mightOf };
@@ -212,17 +212,26 @@ export function killUnits(state: GameState, cardIds: CardId[]): Progress {
   const players = { ...state.players };
   const events: GameEvent[] = [];
 
+  const cards = { ...state.cards };
+
   for (const cardId of cardIds) {
     const permanent = permanents[cardId];
     if (permanent === undefined) continue;
     delete permanents[cardId];
-    // Owner isn't tracked separately from controller yet; R56 sends a card to
-    // its owner's trash, which matters once control-stealing effects exist.
-    const owner = permanent.controller;
-    players[owner] = {
-      ...players[owner],
-      trash: [...players[owner].trash, cardId],
-    };
+
+    // R56 — a killed card goes to its *owner's* trash, not its controller's.
+    const owner = ownerOf(permanent);
+
+    if (state.cards[cardId]?.isToken === true) {
+      // R186.1 — a token put into any non-board zone besides the chain ceases
+      // to exist immediately. It never reaches a trash to be recurred from.
+      delete cards[cardId];
+    } else {
+      players[owner] = {
+        ...players[owner],
+        trash: [...players[owner].trash, cardId],
+      };
+    }
     // R323.4/R808.1.d.3 — note location and attributes before the card leaves
     // the board. Read from `state`, which this loop never mutates, so units
     // dying together all see the same pre-death board: R323.4's step 3a runs
@@ -236,7 +245,7 @@ export function killUnits(state: GameState, cardIds: CardId[]): Progress {
     });
   }
 
-  return { state: { ...state, permanents, players }, events };
+  return { state: { ...state, permanents, players, cards }, events };
 }
 
 /**

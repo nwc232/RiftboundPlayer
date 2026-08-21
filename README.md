@@ -220,9 +220,51 @@ decreases) and R479's dependency: a fixed "+2" applies before an
 "increased to 5", because the latter's result changes depending on
 whether the former landed first.
 
-Not built yet: copy effects (R477.1.b), which are blocked on runtime token
-creation — every copy card in the pool works through a Reflection token —
-and controller-changing (R477.1.a).
+Tokens (R179–187) are created at runtime rather than dealt from a deck.
+R187 names each standard token's characteristics outright, so that table
+is a transcription. Two rules make them more than "a card with no cost":
+R186.1 means a killed token *ceases to exist* rather than going to a
+trash, so nothing can recur it; and R185.3.a.1 treats its cost as 0 until
+a copy effect appends a real one (R185.3.a.2).
+
+Copy effects (R477.1.b) are a trait-layer modifier on the token, not a
+rewrite of it, so they unwind like anything else. Mirror Image
+demonstrates it:
+
+```
+end
+end
+end
+end
+end
+end
+end
+end
+use rune-1 0
+use rune-2 0
+use rune-3 0
+use rune-7 1
+use rune-8 1
+cast mirror grunt
+pass
+pass
+```
+
+The board then reads `Sentry Grunt (as Reflection) 0M`. The name, cost and
+rules text came across; **Might did not**, because R477.1.b.1.a's list of
+copyable traits is *Name, Super Type, Type, Tags, Cost, Domain, Rules
+Text* and Might is not on it. That is the literal reading, and it is the
+most likely place this engine is wrong by following the text too closely —
+it is flagged at the end of `reference/mechanic-survey.md` rather than
+quietly "corrected" to what the card looks like it should do.
+
+R477.1.b.1.b's copy-of-a-copy works too: copying a Reflection that is
+already a copy of something reads its *current* traits, not its printed
+ones, and a copy cycle terminates rather than recurring forever.
+
+Not built yet: controller-changing (R477.1.a), and a tag system — R187
+gives every token a tag and R477.1.b.1.a makes tags copyable, but nothing
+reads them.
 
 Known deviations from the rules are tracked at the end of
 `reference/mechanic-survey.md`.

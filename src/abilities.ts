@@ -9,6 +9,8 @@ import type {
   PlayerId,
 } from "./state.js";
 import { mightOf } from "./layers.js";
+import { tokenCard } from "./tokens.js";
+import type { TokenKind } from "./tokens.js";
 import type {
   Duration,
   Modification,
@@ -50,6 +52,21 @@ export type Effect =
       value?: number;
       duration: Duration;
       targetIndex: number;
+    }
+  /**
+   * R180/R184 — create a token on the board. R184.1 lets the creating effect
+   * override the default entering state, and R184.2 restrict its location.
+   */
+  | {
+      op: "createToken";
+      token: TokenKind;
+      count: number;
+      /** R184.1 — units default to entering exhausted (R185.2.d). */
+      ready?: true;
+      /** Where it enters; defaults to the controller's base. */
+      to?: "base" | "sourceLocation";
+      /** R477.1.b — becomes a copy of the chosen target as it enters. */
+      copyOfTarget?: number;
     }
   | { op: "seq"; steps: Effect[] };
 
@@ -337,6 +354,71 @@ export function execute(
           },
         ],
       };
+    }
+
+    case "createToken": {
+      let current = state;
+      const events: GameEvent[] = [];
+      const copySourceId =
+        effect.copyOfTarget === undefined
+          ? undefined
+          : context.targets[effect.copyOfTarget];
+
+      for (let i = 0; i < effect.count; i += 1) {
+        const index = current.tokensCreated;
+        const tokenId = `token-${effect.token}-${index}`;
+        const card = tokenCard(effect.token, tokenId);
+
+        const location: Location =
+          effect.to === "sourceLocation" && context.sourceLocation !== undefined
+            ? context.sourceLocation
+            : { kind: "base", player: context.controller };
+
+        current = {
+          ...current,
+          tokensCreated: index + 1,
+          cards: { ...current.cards, [tokenId]: card },
+          permanents: {
+            ...current.permanents,
+            [tokenId]: {
+              cardId: tokenId,
+              // R182/R183 — both come from whoever controlled this effect.
+              controller: context.controller,
+              owner: context.controller,
+              exhausted: effect.ready !== true,
+              location,
+              damage: 0,
+            },
+          },
+          // R477.1.b — the copy is a trait-layer effect on the token, not a
+          // rewrite of it, so it lives as a modifier like any other.
+          modifiers:
+            copySourceId === undefined
+              ? current.modifiers
+              : [
+                  ...current.modifiers,
+                  {
+                    id: `copy-${tokenId}`,
+                    targetId: tokenId,
+                    modification: {
+                      layer: "trait",
+                      op: "copyOf",
+                      sourceId: copySourceId,
+                    },
+                    duration: "permanent",
+                  },
+                ],
+        };
+
+        events.push({
+          type: "tokenCreated",
+          playerId: context.controller,
+          cardId: tokenId,
+          token: effect.token,
+        });
+      }
+
+      return { state: current, events };
     }
 
     case "seq": {

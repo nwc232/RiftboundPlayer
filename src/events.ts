@@ -1,4 +1,5 @@
 import type { Duration } from "./layers.js";
+import type { TokenKind } from "./tokens.js";
 import type {
   CardId,
   Cost,
@@ -95,7 +96,13 @@ export type GameEvent =
       keyword: Keyword;
       duration: Duration;
     }
-  | { type: "modifiersExpired"; duration: Duration };
+  | { type: "modifiersExpired"; duration: Duration }
+  | {
+      type: "tokenCreated";
+      playerId: PlayerId;
+      cardId: CardId;
+      token: TokenKind;
+    };
 
 export interface Progress {
   state: GameState;

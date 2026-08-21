@@ -12,6 +12,7 @@ import type {
   PassiveScope,
 } from "./layers.js";
 import { FREE } from "./cost.js";
+import type { TokenKind } from "./tokens.js";
 import type { CardInstance, Cost, Domain, Keyword } from "./state.js";
 
 // Effects. Each of these builds data and does nothing else — addEnergy(1)
@@ -98,6 +99,32 @@ export function grantKeywordFor(
     duration,
     targetIndex,
     ...(value !== undefined ? { value } : {}),
+  };
+}
+
+/**
+ * R180/R184 — "Play two 3 [M] Mech unit tokens to your base" (Ferrous
+ * Forerunner) is `createToken("mech", 2)`. Units enter exhausted by default
+ * (R185.2.d); `ready` is R184.1's override.
+ */
+export function createToken(
+  token: TokenKind,
+  count = 1,
+  options: {
+    ready?: true;
+    to?: "base" | "sourceLocation";
+    copyOfTarget?: number;
+  } = {},
+): Effect {
+  return {
+    op: "createToken",
+    token,
+    count,
+    ...(options.ready !== undefined ? { ready: options.ready } : {}),
+    ...(options.to !== undefined ? { to: options.to } : {}),
+    ...(options.copyOfTarget !== undefined
+      ? { copyOfTarget: options.copyOfTarget }
+      : {}),
   };
 }
 

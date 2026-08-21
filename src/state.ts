@@ -79,6 +79,12 @@ export interface CardInstance {
    */
   assault?: number;
   shield?: number;
+  /**
+   * R185.1 — "token" is an intrinsic category: a token can never stop being
+   * one, and a card can never become one. R186.1 is what it buys us — a token
+   * leaving the board ceases to exist rather than going to a trash.
+   */
+  isToken?: true;
 }
 
 export interface RuneState {
@@ -129,6 +135,12 @@ export interface BattlefieldState {
 export interface PermanentState {
   cardId: CardId;
   controller: PlayerId;
+  /**
+   * R56 — a killed card goes to its *owner's* trash, which is not always its
+   * controller. R183 defines a token's owner as whoever controlled the effect
+   * that created it. Absent means owner and controller are the same.
+   */
+  owner?: PlayerId;
   exhausted: boolean;
   location: Location;
   /** R142 — marked damage, cleared by healing. Lethal at or above Might. */
@@ -186,6 +198,13 @@ export interface GameState {
    * off a permanent. Amounts here are already snapshotted (R477.3.b).
    */
   modifiers: Modifier[];
+  /** Bumped for each token created, so minted ids stay deterministic. */
+  tokensCreated: number;
+}
+
+/** R56 / R183 — where a card goes when it leaves the board. */
+export function ownerOf(permanent: PermanentState): PlayerId {
+  return permanent.owner ?? permanent.controller;
 }
 
 /** Every permanent at a location, in insertion order. */

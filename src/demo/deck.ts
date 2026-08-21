@@ -6,6 +6,7 @@ import {
   addPower,
   basicRune,
   counterSpell,
+  createToken,
   exhaustSelf,
   spell,
 } from "../builders.js";
@@ -86,6 +87,25 @@ export const SAMPLE_CARDS: CardInstance[] = [
     counterSpell(),
     ["reaction"],
   ),
+  // Mirror Image — "Choose a unit. Play a ready Reflection unit token to your
+  // base. It becomes a copy of that unit." (3 energy + 2 mind)
+  spell(
+    "mirror",
+    "Mirror Image",
+    { ...FREE, energy: 3, power: { mind: 2 } },
+    createToken("reflection", 1, { ready: true, copyOfTarget: 0 }),
+  ),
+  // Honest Broker — "[Deathknell] Play a Gold gear token exhausted."
+  {
+    ...vanillaUnit("broker", "Honest Broker", 2, 2, "order"),
+    abilities: [
+      {
+        kind: "triggered",
+        trigger: { on: "permanentKilled", subject: "self" },
+        effect: createToken("gold"),
+      },
+    ],
+  },
   {
     id: "conduit",
     name: "Energy Conduit",
@@ -124,6 +144,9 @@ const RUNES: CardInstance[] = [
   basicRune("rune-4", "order"),
   basicRune("rune-5", "chaos"),
   basicRune("rune-6", "calm"),
+  // Mind runes, so Mirror Image's 2 Mind Power is actually payable.
+  basicRune("rune-7", "mind"),
+  basicRune("rune-8", "mind"),
 ];
 
 /** p1 starts mid-turn: beginTurn runs Awaken through Draw and leaves us in Main. */
@@ -142,7 +165,7 @@ function emptyBoard(): GameState {
     players: {
       p1: {
         id: "p1",
-        mainDeck: ["rex", "skulker", "incinerate", "drake", "sergeant", "phantom"],
+        mainDeck: ["rex", "skulker", "mirror", "broker", "incinerate", "drake", "sergeant", "phantom"],
         hand: [],
         trash: [],
         runeDeck: RUNES.map((rune) => rune.id),
@@ -222,5 +245,6 @@ function emptyBoard(): GameState {
     pending: null,
     tasks: [],
     modifiers: [],
+    tokensCreated: 0,
   };
 }

@@ -2,6 +2,7 @@ import { totals } from "../cost.js";
 import { VICTORY_SCORE } from "../scoring.js";
 import type { GameEvent } from "../events.js";
 import { chainItemCardId } from "../chain.js";
+import { characteristicsOf } from "../layers.js";
 import { permanentsAt } from "../state.js";
 import type { Cost, GameState, Location, PlayerId } from "../state.js";
 
@@ -41,14 +42,22 @@ function formatPool(state: GameState, playerId: PlayerId): string {
 function cardLabel(state: GameState, cardId: string): string {
   const card = state.cards[cardId];
   if (card === undefined) return cardId;
-  if (card.type !== "unit") return `${card.name} ${dim(`[${cardId}]`)}`;
 
+  // Read through the layers, so a copied name and a modified Might both show.
+  // Off the board this returns printed values anyway (R711).
+  const now = characteristicsOf(state, cardId);
+  const name =
+    now.name === card.name ? card.name : `${now.name} ${dim(`(as ${card.name})`)}`;
+
+  if (now.type !== "unit") return `${name} ${dim(`[${cardId}]`)}`;
+
+  const printed = card.might ?? 0;
   const damage = state.permanents[cardId]?.damage ?? 0;
-  const might =
-    damage > 0
-      ? yellow(`${card.might ?? 0}M -${damage}`)
-      : dim(`${card.might ?? 0}M`);
-  return `${card.name} ${might} ${dim(`[${cardId}]`)}`;
+  const base =
+    now.might === printed ? `${now.might}M` : `${now.might}M (${printed})`;
+  const might = damage > 0 ? yellow(`${base} -${damage}`) : dim(base);
+
+  return `${name} ${might} ${dim(`[${cardId}]`)}`;
 }
 
 function renderPlayer(state: GameState, playerId: PlayerId): string[] {
@@ -259,6 +268,8 @@ export function renderEvent(event: GameEvent): string {
       return `${event.cardId} gains [${event.keyword}] (${event.duration})`;
     case "modifiersExpired":
       return dim(`  ${event.duration} effects expire`);
+    case "tokenCreated":
+      return `${event.playerId} creates a ${event.token} token [${event.cardId}]`;
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);

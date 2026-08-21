@@ -128,5 +128,6 @@ export function makeState(options: {
     pending: null,
     tasks: [],
     modifiers: [],
+    tokensCreated: 0,
   };
 }

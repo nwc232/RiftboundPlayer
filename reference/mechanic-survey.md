@@ -522,20 +522,30 @@ Recorded as they're found, so they don't get lost between slices.
   `increaseMightTo`, which is the case the rules work through. Effects that
   alter *whether another effect exists* or *how many objects it reaches*
   are not detected; nothing in the vocabulary can do that yet.
-- **Excess-of-duration effects.** Only "this turn" (R317.2.c) and "this
-  combat" (R466.7.c) exist. R477.3.b's third example mentions an effect
-  with an *unlimited* duration that still snapshots; there is no such
-  duration yet.
-- **Copy effects (R477.1.b) — blocked on tokens.** Every copy card in the
-  pool (Mirror Image, Deceiver, Keeper of Masks) works by playing a
-  *Reflection* unit token that then becomes a copy, and the engine cannot
-  create cards at runtime. Copy also means copying Rules Text
-  (R477.1.b.1.a), i.e. abilities, and R477.1.b.1.b's copy-of-a-copy reads
-  the *current* copied traits rather than the printed ones.
+- **Copy does not carry Might — worth a second opinion.** R477.1.b.1.a
+  lists the copyable traits as *Name, Super Type, Type, Tags, Cost, Domain,
+  Rules Text*. Might is not among them, and R477.1.a.1 treats Might
+  assignment as a separate trait-layer matter. Read literally, a 0 [M]
+  Reflection token copying a 2 [M] Sentry Grunt stays at 0 Might, and the
+  engine does exactly that. But it makes Mirror Image and Keeper of Masks
+  ("play two Reflection unit tokens here. They become copies of me") look
+  far weaker than they should be, so this is the most likely place the
+  engine is wrong through following the text too literally. Nothing else
+  depends on the choice — it is one branch in the trait layer.
+- **Tags.** R187 gives every token a tag (Recruit, Fae, Mech, Bird…) and
+  R477.1.b.1.a makes tags copyable, but there is no tag system, so they
+  live in the token's name only. Nothing reads tags yet.
+- **Temporary and Deflect (R816 / R809).** R187.2 and R187.7 print these on
+  the Sprite and Bird tokens. Neither keyword is modelled, so those tokens
+  are created without them.
+- **The Gold token's ability (R187.5).** Printed as "[Reaction][>] Kill
+  this, [E]: [Add] [A]". The engine has no kill-self ability cost, so it is
+  modelled as a recycle. Both remove it from the board and yield one Power,
+  but a card that cares about *killing* would see the difference.
 - **Controller-changing (R477.1.a).** The trait layer is in place and
-  applied, but only Might assignment is implemented in it. Controller is a
-  trait-layer effect, and it is what makes owner-vs-controller (R56)
-  start to matter.
+  applied, but only Might assignment and copy live in it. Controller is a
+  trait-layer effect; `owner` is now tracked on permanents (R56/R183), so
+  the trash destination is already correct once control can move.
 - **Staged showdown/combat choice (R323.12/13).** When more than one
   showdown or combat is staged, the Turn Player *chooses* which battlefield
   opens. The engine takes the first in board order. Now a small fix rather

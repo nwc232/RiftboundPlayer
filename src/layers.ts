@@ -1,6 +1,14 @@
-import type { PassiveAbility } from "./abilities.js";
-import { permanentsAt, sameLocation } from "./state.js";
-import type { CardId, GameState, Keyword, PermanentState } from "./state.js";
+import type { Ability, PassiveAbility } from "./abilities.js";
+import { sameLocation } from "./state.js";
+import type {
+  CardId,
+  CardType,
+  Cost,
+  Domain,
+  GameState,
+  Keyword,
+  PermanentState,
+} from "./state.js";
 
 /**
  * R473–479. Layers are how game effects alter the characteristics of objects.
@@ -20,6 +28,13 @@ export interface Characteristics {
   assault: number;
   /** R814.2 — likewise for Shield. */
   shield: number;
+  /** R477.1.b.1.a's copyable traits, which a copy effect replaces wholesale. */
+  name: string;
+  type: CardType;
+  cost: Cost;
+  domain: Domain | undefined;
+  /** "Rules Text" in R477.1.b.1.a's list. */
+  abilities: Ability[];
 }
 
 /** R477's layers, in the order they are applied. */
@@ -29,6 +44,13 @@ export type Layer = (typeof LAYER_ORDER)[number];
 export type Modification =
   /** R477.1.a.1 — "a unit's Might becomes 4" is assignment, not arithmetic. */
   | { layer: "trait"; op: "setMight"; amount: number }
+  /**
+   * R477.1.b — becoming a copy. Only R477.1.b.1.a's copyable traits move
+   * across: Name, Super Type, Type, Tags, Cost, Domain, Rules Text. Might is
+   * conspicuously *not* on that list, so a Reflection token copying a 5-Might
+   * unit stays at its own printed 0. See the survey's note on this.
+   */
+  | { layer: "trait"; op: "copyOf"; sourceId: CardId }
   /** R477.2 — granting a keyword. Assault/Shield carry a value (R807.1.b). */
   | { layer: "ability"; op: "grantKeyword"; keyword: Keyword; value?: number }
   /** R477.3 — the mathematics of raising and lowering Might. */
@@ -40,8 +62,12 @@ export type Modification =
    */
   | { layer: "arithmetic"; op: "increaseMightTo"; target: number };
 
-/** R317.2.c and R466.7.c — the two expiry points the rules define. */
-export type Duration = "thisTurn" | "thisCombat";
+/**
+ * R317.2.c and R466.7.c are the two expiry points the rules define.
+ * `permanent` is R477.3.b's "unlimited duration" — it still snapshots, it just
+ * never expires; a copy effect is the usual case.
+ */
+export type Duration = "thisTurn" | "thisCombat" | "permanent";
 
 /**
  * A continuous effect with a lifetime of its own, rather than one read live off
@@ -82,6 +108,7 @@ interface PendingModification {
 function passivesFor(
   state: GameState,
   subject: PermanentState,
+  seen: ReadonlySet<CardId>,
 ): PendingModification[] {
   const found: PendingModification[] = [];
 
@@ -89,7 +116,14 @@ function passivesFor(
     const card = state.cards[source.cardId];
     if (card === undefined) continue;
 
-    for (const ability of card.abilities) {
+    // A source that has become a copy of something grants the *copied* rules
+    // text, so its abilities have to be read through the layers too.
+    const abilities =
+      source.cardId === subject.cardId
+        ? card.abilities
+        : characteristicsOf(state, source.cardId, seen).abilities;
+
+    for (const ability of abilities) {
       if (ability.kind !== "passive") continue;
       if (!inScope(state, ability, source, subject)) continue;
       found.push({
@@ -209,23 +243,34 @@ export function expireModifiers(
 export function characteristicsOf(
   state: GameState,
   cardId: CardId,
+  seen: ReadonlySet<CardId> = new Set(),
 ): Characteristics {
   const card = state.cards[cardId];
   const printedMight = card?.might ?? 0;
   const printedKeywords = card?.keywords ?? [];
 
+  const printed = (): Characteristics => ({
+    might: printedMight,
+    keywords: [...printedKeywords],
+    assault: 0,
+    shield: 0,
+    name: card?.name ?? cardId,
+    type: card?.type ?? "unit",
+    cost: card?.cost ?? { energy: 0, power: {}, anyPower: 0 },
+    domain: card?.domain,
+    abilities: card?.abilities ?? [],
+  });
+
   const subject = state.permanents[cardId];
-  if (card === undefined || subject === undefined) {
-    return {
-      might: printedMight,
-      keywords: [...printedKeywords],
-      assault: 0,
-      shield: 0,
-    };
+  // R711 — anything off the board is read on printed values alone. The `seen`
+  // guard stops a copy cycle (A copies B, B copies A) recurring forever.
+  if (card === undefined || subject === undefined || seen.has(cardId)) {
+    return printed();
   }
+  const nested = new Set([...seen, cardId]);
 
   const pending = [
-    ...passivesFor(state, subject),
+    ...passivesFor(state, subject, nested),
     // Stored modifiers carry an already-snapshotted amount (R477.3.b), so they
     // have no condition to re-evaluate — only a lifetime.
     ...state.modifiers
@@ -239,6 +284,13 @@ export function characteristicsOf(
 
   let baseMight = printedMight;
   let keywords = [...printedKeywords];
+  let copyable = {
+    name: card.name,
+    type: card.type,
+    cost: card.cost,
+    domain: card.domain,
+    abilities: card.abilities,
+  };
   // Printed Assault/Shield seed the totals that granted copies add to (R807.2).
   let assault = printedKeywords.includes("assault") ? (card.assault ?? 1) : 0;
   let shield = printedKeywords.includes("shield") ? (card.shield ?? 1) : 0;
@@ -268,6 +320,37 @@ export function characteristicsOf(
           case "setMight":
             baseMight = entry.modification.amount;
             break;
+
+          /**
+           * R477.1.b.1.b — a copy takes the source's *current* copyable traits,
+           * not its printed ones, so copying a Reflection that is already a
+           * copy of Honest Broker yields a third Honest Broker.
+           */
+          case "copyOf": {
+            const source = characteristicsOf(
+              state,
+              entry.modification.sourceId,
+              nested,
+            );
+            copyable = {
+              name: source.name,
+              type: source.type,
+              cost: source.cost,
+              domain: source.domain,
+              abilities: source.abilities,
+            };
+            // Rules text came across, so any passives in it now apply too.
+            for (const ability of source.abilities) {
+              if (ability.kind !== "passive") continue;
+              if (ability.scope.target !== "self") continue;
+              pending.push({
+                modification: ability.modification,
+                condition: ability.condition,
+                applied: false,
+              });
+            }
+            break;
+          }
           case "grantKeyword": {
             const { keyword, value } = entry.modification;
             if (!keywords.includes(keyword)) keywords = [...keywords, keyword];
@@ -289,7 +372,7 @@ export function characteristicsOf(
     if (!changed) break;
   }
 
-  return { might: currentMight(), keywords, assault, shield };
+  return { might: currentMight(), keywords, assault, shield, ...copyable };
 }
 
 /** A unit's Might right now, after every layer effect (R710). */
