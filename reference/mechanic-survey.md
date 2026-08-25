@@ -522,16 +522,15 @@ Recorded as they're found, so they don't get lost between slices.
   `increaseMightTo`, which is the case the rules work through. Effects that
   alter *whether another effect exists* or *how many objects it reaches*
   are not detected; nothing in the vocabulary can do that yet.
-- **Copy does not carry Might — worth a second opinion.** R477.1.b.1.a
-  lists the copyable traits as *Name, Super Type, Type, Tags, Cost, Domain,
-  Rules Text*. Might is not among them, and R477.1.a.1 treats Might
-  assignment as a separate trait-layer matter. Read literally, a 0 [M]
-  Reflection token copying a 2 [M] Sentry Grunt stays at 0 Might, and the
-  engine does exactly that. But it makes Mirror Image and Keeper of Masks
-  ("play two Reflection unit tokens here. They become copies of me") look
-  far weaker than they should be, so this is the most likely place the
-  engine is wrong through following the text too literally. Nothing else
-  depends on the choice — it is one branch in the trait layer.
+- **Copy and Might — resolved against a ruling, not the text.**
+  R477.1.b.1.a's written list of copyable traits omits Might, which read
+  literally would leave a Reflection at its printed 0. That is wrong.
+  RiftJudge's ruling on LeBlanc's Reflection is explicit: *"the Reflection
+  copies only the unit's copyable traits (printed Might and Rules Text)"* —
+  and equally explicit that gear, buffs and Might bonuses do **not** come
+  across, because a copy "enters as a clean copy". The engine copies
+  printed-or-copied Might and leaves modifiers behind. Worth remembering as
+  a case where the Core Rules text alone gave the wrong answer.
 - **Playing a token (R185.2.a).** Tokens can be played, and the engine only
   ever creates them. That is why a Reflection correctly misses the copied
   card's play effects — a created token emits `tokenCreated`, not
@@ -566,11 +565,6 @@ Recorded as they're found, so they don't get lost between slices.
   also has "the next time…" (7 cards) and "the first time… each turn"
   (9 cards), which are delayed *replacement* effects and one-shot
   conditional triggers respectively — different mechanisms again.
-- **Staged showdown/combat choice (R323.12/13).** When more than one
-  showdown or combat is staged, the Turn Player *chooses* which battlefield
-  opens. The engine takes the first in board order. Now a small fix rather
-  than a new mechanism: the task queue can suspend for the choice the same
-  way combat damage assignment does.
 - **Excess damage placement (R465.2.c.4).** Once every unit has lethal
   assigned, leftover damage piles onto the last unit assigned rather than
   being offered as a choice. Unobservable until something triggers on

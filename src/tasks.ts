@@ -8,7 +8,7 @@ import {
 import type { Assignment } from "./combat.js";
 import type { PendingDecision } from "./decisions.js";
 import type { GameEvent, Progress } from "./events.js";
-import { runCleanup } from "./showdown.js";
+import { openShowdown, runCleanup, stagedBattlefields } from "./showdown.js";
 import { collectTriggers } from "./triggers.js";
 import { chainItemCardId } from "./chain.js";
 import { runTurnStep, openTurn } from "./turn.js";
@@ -48,7 +48,9 @@ export type Task =
   /** R466 — the Resolution Step, once all combat damage has been dealt. */
   | { kind: "combatResolution"; battlefieldId: CardId; attacker: PlayerId }
   /** R314–317 — one step of the turn. See `TurnStep`. */
-  | { kind: "turnStep"; player: PlayerId; step: TurnStep; number: number };
+  | { kind: "turnStep"; player: PlayerId; step: TurnStep; number: number }
+  /** R323.12 — open a showdown at one of the staged battlefields. */
+  | { kind: "openStagedShowdown" };
 
 interface TaskOutcome {
   state: GameState;
@@ -75,7 +77,36 @@ function runTask(state: GameState, task: Task): TaskOutcome {
   switch (task.kind) {
     case "cleanup": {
       const cleaned = runCleanup(state);
-      return { state: cleaned.state, events: cleaned.events };
+      // R323.8 stages a showdown at each contested battlefield; R323.12 opens
+      // one of them, and that is a separate step because it may need an answer.
+      const push =
+        stagedBattlefields(cleaned.state).length > 0
+          ? [{ kind: "openStagedShowdown" as const }]
+          : [];
+      return { state: cleaned.state, events: cleaned.events, push };
+    }
+
+    case "openStagedShowdown": {
+      const staged = stagedBattlefields(state);
+      const only = staged[0];
+      if (only === undefined) return { state, events: [] };
+
+      // Asking with one option would be noise; R323.12's choice only exists
+      // when more than one battlefield is staged.
+      if (staged.length === 1) return openShowdown(state, only);
+
+      return {
+        state,
+        events: [],
+        suspend: {
+          task: { kind: "openStagedShowdown" },
+          decision: {
+            // R323.12 — "the Turn Player chooses one of those Battlefields".
+            player: state.turn.player,
+            prompt: { kind: "chooseStagedBattlefield", legal: staged },
+          },
+        },
+      };
     }
 
     case "combatDamage": {
@@ -224,6 +255,22 @@ export function applyCombatAssignment(
       ...rest,
     ],
   };
+}
+
+/** Answers R323.12's choice and drops the task that was waiting on it. */
+export function applyStagedShowdown(
+  state: GameState,
+  battlefieldId: CardId,
+): Progress {
+  const [head, ...rest] = state.tasks;
+  if (head === undefined || head.kind !== "openStagedShowdown") {
+    return { state, events: [] };
+  }
+  const opened = openShowdown(
+    { ...state, pending: null, tasks: rest },
+    battlefieldId,
+  );
+  return opened;
 }
 
 export function enqueue(state: GameState, ...tasks: Task[]): GameState {

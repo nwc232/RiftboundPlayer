@@ -138,6 +138,34 @@ function closeShowdown(state: GameState): Progress {
   return { state: scored.state, events: [...events, ...scored.events] };
 }
 
+/** R323.8 — every contested battlefield has a showdown staged at it. */
+export function stagedBattlefields(state: GameState): CardId[] {
+  if (state.showdown !== null) return [];
+  return state.battlefieldOrder.filter(
+    (id) => state.battlefields[id]?.contestedBy != null,
+  );
+}
+
+/** R344.2/R323.12 — open a showdown at one of the staged battlefields. */
+export function openShowdown(state: GameState, battlefieldId: CardId): Progress {
+  const contestedBy = state.battlefields[battlefieldId]?.contestedBy;
+  if (contestedBy == null) return { state, events: [] };
+
+  return {
+    state: {
+      ...state,
+      showdown: {
+        battlefieldId,
+        attacker: contestedBy,
+        // R345 — the player who applied Contested gains Focus.
+        focus: contestedBy,
+        consecutivePasses: 0,
+      },
+    },
+    events: [{ type: "showdownOpened", battlefieldId, attacker: contestedBy }],
+  };
+}
+
 /** R347 — the player with Focus passes. Two passes in sequence close it. */
 export function passFocus(state: GameState, playerId: PlayerId): Progress {
   const showdown = state.showdown;
@@ -207,32 +235,6 @@ export function runCleanup(state: GameState): Progress {
         playerId: battlefield.controller,
         battlefieldId,
       });
-    }
-  }
-
-  // R344.2 — a contested battlefield opens a showdown in the next cleanup.
-  if (current.showdown === null) {
-    for (const battlefieldId of current.battlefieldOrder) {
-      const battlefield = current.battlefields[battlefieldId];
-      const contestedBy = battlefield?.contestedBy;
-      if (contestedBy == null) continue;
-
-      current = {
-        ...current,
-        showdown: {
-          battlefieldId,
-          attacker: contestedBy,
-          // R345 — the player who applied Contested gains Focus.
-          focus: contestedBy,
-          consecutivePasses: 0,
-        },
-      };
-      events.push({
-        type: "showdownOpened",
-        battlefieldId,
-        attacker: contestedBy,
-      });
-      break;
     }
   }
 

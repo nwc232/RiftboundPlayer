@@ -22,6 +22,7 @@ import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
 import {
   applyCombatAssignment,
+  applyStagedShowdown,
   beginTurn,
   enqueue,
   enqueueNext,
@@ -220,6 +221,19 @@ export function decide(
   if (pending.player !== playerId) return rejected("notYourDecision");
 
   const { prompt } = pending;
+
+  // R323.12 — the Turn Player picks which staged battlefield opens.
+  if (prompt.kind === "chooseStagedBattlefield") {
+    const chosen = choice.targets ?? [];
+    const battlefieldId = chosen[0];
+    if (chosen.length !== 1) return rejected("wrongTargetCount");
+    if (battlefieldId === undefined || !prompt.legal.includes(battlefieldId)) {
+      return rejected("invalidTarget");
+    }
+    const opened = applyStagedShowdown(state, battlefieldId);
+    const worked = runTasks(opened.state, opened.events);
+    return afterTasks(worked.state, [...opened.events, ...worked.events]);
+  }
 
   // A task-raised decision belongs to the queue, not to a chain item: answer
   // it, then let the queue carry on from where it suspended.

@@ -6,6 +6,7 @@ import {
   anthemMight,
   createToken,
   draw,
+  modifyMight,
   passive,
   takeControl,
 } from "../src/builders.js";
@@ -166,22 +167,50 @@ describe("copy effects (R477.1.b)", () => {
     const after = copied();
     const tokenId = Object.keys(after.permanents).find((id) => id !== "keeper")!;
 
-    // The Reflection's own printed Might is 0; the copied "+2 to self" applies.
-    expect(mightOf(after, tokenId)).toBe(2);
+    // Printed Might 1 comes across, then the copied "+2 to self" applies.
+    expect(mightOf(after, tokenId)).toBe(3);
   });
 
   /**
-   * The surprising one, and it is what the rules say: R477.1.b.1.a's list of
-   * copyable traits has no Might on it, so the Reflection keeps its own 0.
+   * R477.1.b.1.a's written list of copyable traits omits Might, but the
+   * official ruling on LeBlanc's Reflection is explicit: "the Reflection copies
+   * only the unit's copyable traits (printed Might and Rules Text)".
    */
-  it("does not copy Might", () => {
+  it("copies printed Might over the token's own", () => {
     const after = copied();
     const tokenId = Object.keys(after.permanents).find((id) => id !== "keeper")!;
 
+    // The token is still a printed 0 [M] Reflection underneath (R187.6).
     expect(after.cards[tokenId]?.might).toBe(0);
-    // 0 printed + 2 from the copied passive, not Keeper's 1 + 2.
-    expect(mightOf(after, tokenId)).toBe(2);
+    // Keeper's printed 1 replaces it in the trait layer, then its copied
+    // "+2 to self" lands in the arithmetic layer, same as on the original.
+    expect(characteristicsOf(after, tokenId).baseMight).toBe(1);
+    expect(mightOf(after, tokenId)).toBe(3);
     expect(mightOf(after, "keeper")).toBe(3);
+  });
+
+  /**
+   * The other half of that ruling: gear, buffs, and Might bonuses stay behind.
+   * A copy "enters as a clean copy", so it takes printed Might, not current.
+   */
+  it("does not copy a buff on the original", () => {
+    const start = board([keeper], [{ cardId: "keeper", location: NORTH }]);
+    const buffed = execute(
+      start,
+      modifyMight(4, "thisTurn"),
+      CONTEXT(["keeper"]),
+    ).state;
+    expect(mightOf(buffed, "keeper")).toBe(7);
+
+    const after = execute(
+      buffed,
+      createToken("reflection", 1, { copyOfTarget: 0 }),
+      CONTEXT(["keeper"]),
+    ).state;
+    const tokenId = Object.keys(after.permanents).find((id) => id !== "keeper")!;
+
+    // Printed 1 plus the copied passive — the +4 this turn does not come along.
+    expect(mightOf(after, tokenId)).toBe(3);
   });
 
   it("copies the cost, which a token otherwise does not have (R185.3.a.2)", () => {
@@ -223,7 +252,7 @@ describe("copy effects (R477.1.b)", () => {
     )!;
 
     expect(characteristicsOf(second, secondToken).name).toBe("Keeper of Masks");
-    expect(mightOf(second, secondToken)).toBe(2);
+    expect(mightOf(second, secondToken)).toBe(3);
   });
 
   it("terminates on a copy cycle rather than recurring forever", () => {

@@ -29,6 +29,13 @@ export interface Characteristics {
   assault: number;
   /** R814.2 — likewise for Shield. */
   shield: number;
+  /**
+   * Printed-or-copied Might, before the ability and arithmetic layers. This is
+   * the value a copy effect takes: RiftJudge's ruling on LeBlanc's Reflection
+   * is "the Reflection copies only the unit's copyable traits (printed Might
+   * and Rules Text)" — so buffs, gear, and Might bonuses do not come across.
+   */
+  baseMight: number;
   /** R477.1.b.1.a's copyable traits, which a copy effect replaces wholesale. */
   name: string;
   type: CardType;
@@ -46,10 +53,11 @@ export type Modification =
   /** R477.1.a.1 — "a unit's Might becomes 4" is assignment, not arithmetic. */
   | { layer: "trait"; op: "setMight"; amount: number }
   /**
-   * R477.1.b — becoming a copy. Only R477.1.b.1.a's copyable traits move
-   * across: Name, Super Type, Type, Tags, Cost, Domain, Rules Text. Might is
-   * conspicuously *not* on that list, so a Reflection token copying a 5-Might
-   * unit stays at its own printed 0. See the survey's note on this.
+   * R477.1.b — becoming a copy. R477.1.b.1.a lists the copyable traits as
+   * Name, Super Type, Type, Tags, Cost, Domain and Rules Text; Might is absent
+   * from that list but is copied in practice, which RiftJudge's LeBlanc ruling
+   * settles: "the Reflection copies only the unit's copyable traits (printed
+   * Might and Rules Text)". Printed Might — buffs and gear stay behind.
    */
   | { layer: "trait"; op: "copyOf"; sourceId: CardId }
   /**
@@ -303,6 +311,7 @@ export function characteristicsOf(
 
   const printed = (): Characteristics => ({
     might: printedMight,
+    baseMight: printedMight,
     keywords: [...printedKeywords],
     assault: 0,
     shield: 0,
@@ -391,6 +400,9 @@ export function characteristicsOf(
               domain: source.domain,
               abilities: source.abilities,
             };
+            // Printed-or-copied Might, not the source's current Might: a copy
+            // enters clean, without the original's buffs or gear bonuses.
+            baseMight = source.baseMight;
             // Rules text came across, so any passives in it now apply too.
             for (const ability of source.abilities) {
               if (ability.kind !== "passive") continue;
@@ -424,7 +436,14 @@ export function characteristicsOf(
     if (!changed) break;
   }
 
-  return { might: currentMight(), keywords, assault, shield, ...copyable };
+  return {
+    might: currentMight(),
+    baseMight,
+    keywords,
+    assault,
+    shield,
+    ...copyable,
+  };
 }
 
 /** A unit's Might right now, after every layer effect (R710). */

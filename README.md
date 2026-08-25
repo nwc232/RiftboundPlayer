@@ -250,13 +250,14 @@ pass
 pass
 ```
 
-The board then reads `Sentry Grunt (as Reflection) 0M`. The name, cost and
-rules text came across; **Might did not**, because R477.1.b.1.a's list of
-copyable traits is *Name, Super Type, Type, Tags, Cost, Domain, Rules
-Text* and Might is not on it. That is the literal reading, and it is the
-most likely place this engine is wrong by following the text too closely —
-it is flagged at the end of `reference/mechanic-survey.md` rather than
-quietly "corrected" to what the card looks like it should do.
+The name, cost, rules text **and printed Might** come across. R477.1.b.1.a's
+written list of copyable traits omits Might, and reading it literally left
+a Reflection stuck at its printed 0 — which an official ruling on
+LeBlanc's Reflection contradicts outright: *"the Reflection copies only the
+unit's copyable traits (printed Might and Rules Text)"*. The same ruling
+draws the other edge: gear, buffs and Might bonuses do **not** transfer,
+because a copy "enters as a clean copy". So a copy takes the original's
+printed Might, never its buffed Might.
 
 A copy carries its source's Rules Text, so its triggers are the copy's
 triggers — including a Deathknell, which has to survive the copy itself

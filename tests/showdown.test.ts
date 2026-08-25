@@ -3,7 +3,11 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import type { GameEvent } from "../src/events.js";
 import { VICTORY_SCORE } from "../src/scoring.js";
-import { runCleanup } from "../src/showdown.js";
+import {
+  openShowdown,
+  runCleanup,
+  stagedBattlefields,
+} from "../src/showdown.js";
 import type { GameState, Location } from "../src/state.js";
 import { beginTurn } from "../src/tasks.js";
 import { makeState, unit } from "./fixtures.js";
@@ -82,8 +86,11 @@ describe("opening a showdown", () => {
       },
     };
 
-    // The cleanup is what opens the showdown and assigns Focus.
-    const opened = runCleanup(contested).state;
+    // R323.8 stages the showdown in the cleanup; R323.12 opens it, and Focus
+    // goes to whoever applied Contested (R345).
+    const staged = runCleanup(contested).state;
+    expect(stagedBattlefields(staged)).toEqual(["bf-north"]);
+    const opened = openShowdown(staged, "bf-north").state;
     expect(opened.showdown?.attacker).toBe("p2");
     expect(opened.showdown?.focus).toBe("p2");
 
@@ -221,5 +228,99 @@ describe("winning", () => {
       ok: false,
       reason: "gameOver",
     });
+  });
+});
+
+/**
+ * R323.12 — "the Turn Player chooses one of those Battlefields. A Showdown
+ * begins there." Before this the engine took the first in board order, quietly
+ * making the choice on the player's behalf.
+ */
+describe("choosing which staged showdown opens (R323.12)", () => {
+  function twoContested(): GameState {
+    const base = makeState({
+      p1: { mainDeck: ["spare"] },
+      cards: [unit("a"), unit("b"), unit("spare")],
+      permanents: [
+        { cardId: "a", controller: "p1", location: { kind: "battlefield", id: "bf-north" } },
+        { cardId: "b", controller: "p1", location: { kind: "battlefield", id: "bf-south" } },
+      ],
+      battlefields: ["bf-north", "bf-south"],
+    });
+    return {
+      ...base,
+      battlefields: {
+        "bf-north": { cardId: "bf-north", controller: null, contestedBy: "p1" },
+        "bf-south": { cardId: "bf-south", controller: null, contestedBy: "p1" },
+      },
+    };
+  }
+
+  it("asks the turn player which one opens", () => {
+    const result = applyAction(twoContested(), {
+      type: "drawCard",
+      playerId: "p1",
+    });
+    if (!result.ok) throw new Error(`rejected: ${result.reason}`);
+
+    expect(result.state.showdown).toBeNull();
+    expect(result.state.pending).toEqual({
+      player: "p1",
+      prompt: {
+        kind: "chooseStagedBattlefield",
+        legal: ["bf-north", "bf-south"],
+      },
+    });
+  });
+
+  it("opens the one that was named, not the first in board order", () => {
+    const asked = applyAction(twoContested(), {
+      type: "drawCard",
+      playerId: "p1",
+    });
+    if (!asked.ok) throw new Error("setup failed");
+
+    const answered = applyAction(asked.state, {
+      type: "decide",
+      playerId: "p1",
+      targets: ["bf-south"],
+    });
+    if (!answered.ok) throw new Error(`rejected: ${answered.reason}`);
+
+    expect(answered.state.showdown?.battlefieldId).toBe("bf-south");
+    expect(answered.state.pending).toBeNull();
+  });
+
+  it("refuses a battlefield that is not staged", () => {
+    const asked = applyAction(twoContested(), {
+      type: "drawCard",
+      playerId: "p1",
+    });
+    if (!asked.ok) throw new Error("setup failed");
+
+    expect(
+      applyAction(asked.state, {
+        type: "decide",
+        playerId: "p1",
+        targets: ["bf-east"],
+      }),
+    ).toEqual({ ok: false, reason: "invalidTarget" });
+  });
+
+  it("does not ask when only one is staged", () => {
+    const one = twoContested();
+    const single: GameState = {
+      ...one,
+      battlefields: {
+        ...one.battlefields,
+        "bf-south": { cardId: "bf-south", controller: null, contestedBy: null },
+      },
+    };
+
+    const result = applyAction(single, { type: "drawCard", playerId: "p1" });
+    if (!result.ok) throw new Error(`rejected: ${result.reason}`);
+
+    expect(result.state.pending).toBeNull();
+    expect(result.state.showdown?.battlefieldId).toBe("bf-north");
   });
 });

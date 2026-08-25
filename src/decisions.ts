@@ -21,6 +21,12 @@ export type DecisionPrompt =
   /** R355.5 / R402.2 — targets are chosen as the item finalizes, not on resolution. */
   | { kind: "chooseTargets"; chainIndex: number; count: number; legal: CardId[] }
   /**
+   * R323.12/13 — when more than one showdown or combat is staged, the Turn
+   * Player chooses which battlefield opens. Only raised when there is a genuine
+   * choice; a single staged battlefield opens without asking.
+   */
+  | { kind: "chooseStagedBattlefield"; legal: CardId[] }
+  /**
    * R465.2.c — which unit to assign combat damage to next. The amount is not
    * asked for: c.3 forces exactly lethal and c.4 forbids more while other units
    * are unassigned, so choosing the unit determines the number. Only raised
