@@ -621,3 +621,46 @@ Recorded as they're found, so they don't get lost between slices.
   is constrained by the first cannot be expressed: each filter is evaluated
   against the board, not against what was already chosen. Only the
   no-reusing-an-object rule links them.
+
+---
+
+## Replacement effects (R369–375) — deliberately staged
+
+The largest unbuilt mechanism, and the one neither target deck forced. It
+is split here because the three parts are very different sizes, and the
+last one is explicitly **deferred, not dropped**.
+
+R369.1 identifies them by "as", "would", or "instead". The distinction
+from a triggered ability is that a replacement intercedes *before* the
+event, so the original never happened — R370.1.a.1: a death replaced "is
+the same as the kill action that caused that death not occurring", which
+means no Deathknell fires.
+
+**Two are already in the engine, hardcoded.** R369.2 names both: "Burning
+Out is a replacement effect. Preventing Damage is a replacement effect."
+Burn Out lives inside `drawCards` (`src/draw.ts`); [Accelerate]'s "I enter
+ready" is a boolean inside `playUnitFromHand`. Neither is *wrong* — R431 is
+a rule, not a card, so it belongs in engine code — but neither passes
+through a chokepoint, so a card that replaced a draw or a damage could
+never see them or order against them (R372).
+
+| Tier | Covers | Cards in pool | Retires |
+|---|---|---|---|
+| **A** | R369.3 — how a unit enters: "I enter ready", "I enter there", "as you play me" | ~67 | [Accelerate]'s hardcode |
+| **B** | The general mechanism: deaths, damage, draws, token creation | ~12 | Burn Out's and prevention's |
+| **C** | R373.2 — sequences across simultaneous events | 0 today | — |
+
+**Tier B is the structural one.** Events are currently *reports* — a
+`GameEvent[]` recording what happened. A replacement needs them to be
+*proposals*, intercepted before they apply. Two rules make it more than
+plumbing: R372 gives the controller of the object being acted on a choice
+of ordering, which is a player decision mid-resolution, and R370.2 limits
+each replacement to one application per event, which needs bookkeeping.
+
+**Tier C is deferred by decision.** R373.2's worked example — Soraka,
+Wanderer plus a Guardian Angel with four Recruits dying simultaneously,
+where the order the replacements are applied in changes who survives — is
+genuinely intricate: each replacement may be applied in only one
+uninterrupted sequence, to any number of qualifying simultaneous events.
+No card in either target deck reaches it. It is on the list, and it gets
+built when a card asks for it.

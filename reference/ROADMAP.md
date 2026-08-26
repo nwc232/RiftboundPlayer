@@ -260,10 +260,20 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
    casting Star-Crossed just passes the targets in; only something that
    has to *discover* the move could miss it, which is exactly a UI's
    position.
-4. **Front-end** over `legalActions` + `pending` + events. Next.
-5. **Replacement effects (R369–375)** — the largest unbuilt mechanism,
-   and the only Tier 2 entry neither deck forced.
-6. **Tier 3/4** as card authoring demands them.
+4. **Front-end** over `legalActions` + `pending` + events. Next — the CLI
+   is good enough to prove the engine runs, but not to *play* on, and
+   manual testing is currently worse than the unit tests.
+5. **Replacement effects, Tier A** (R369.3) — how a unit enters the board.
+   ~67 cards, one chokepoint, and it retires [Accelerate]'s hardcode.
+6. **Replacement effects, Tier B** — the general mechanism. This is the
+   structural one: events stop being reports and become proposals.
+   Retires Burn Out's and damage prevention's hardcodes.
+7. **Tier 3/4** as card authoring demands them.
+
+**Deferred by decision, not dropped:** replacement-effect Tier C
+(R373.2's sequences across simultaneous events). Written up at the end of
+`mechanic-survey.md` with the rules example that makes it hard. Nothing in
+either deck reaches it; it gets built when a card asks.
 
 The ordering principle throughout has been: build the mechanism when a
 real card needs it, and write down what is deliberately absent. That is
