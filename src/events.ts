@@ -4,6 +4,7 @@ import type { TokenKind } from "./tokens.js";
 import type {
   CardId,
   Cost,
+  Designation,
   Domain,
   GameState,
   Keyword,
@@ -33,6 +34,29 @@ export type GameEvent =
       to: Location;
     }
   | { type: "showdownOpened"; battlefieldId: CardId; attacker: PlayerId }
+  /**
+   * R464.2.c.3 — a unit gains the Attacker or Defender designation. R464.2.e
+   * makes this its own trigger moment ("Add items to the Combat Chain if
+   * establishing Attacker and Defender has caused Triggered Abilities to become
+   * Pending"), which is what "when I attack" and "when I defend" watch.
+   */
+  | {
+      type: "designated";
+      playerId: PlayerId;
+      cardId: CardId;
+      designation: Designation;
+    }
+  /**
+   * R466.3 — the Combat Result, determined in its own step after the Combat
+   * Cleanup's heal and recall. `winner`/`loser` are null on R466.3.d's "No
+   * Result", which is what a repelled attack produces.
+   */
+  | {
+      type: "combatResolved";
+      battlefieldId: CardId;
+      winner: PlayerId | null;
+      loser: PlayerId | null;
+    }
   | { type: "focusPassed"; playerId: PlayerId }
   | { type: "showdownClosed"; battlefieldId: CardId }
   | { type: "battlefieldControlled"; playerId: PlayerId; battlefieldId: CardId }

@@ -75,14 +75,18 @@ function closeShowdown(state: GameState): Progress {
       showdown.battlefieldId,
       showdown.attacker,
     );
+    // R464.2.e — the designations are what a "when I attack" trigger watches,
+    // and R335 makes the resulting chain item block the Combat Damage Step
+    // until it has resolved.
+    events.push(...designated.events);
     const { attackerMight } = combatSides(
-      designated,
+      designated.state,
       showdown.battlefieldId,
       showdown.attacker,
     );
     return {
       state: {
-        ...designated,
+        ...designated.state,
         tasks: [
           ...cleared.tasks,
           {
@@ -138,11 +142,28 @@ function closeShowdown(state: GameState): Progress {
   return { state: scored.state, events: [...events, ...scored.events] };
 }
 
-/** R323.8 — every contested battlefield has a showdown staged at it. */
+/**
+ * R323.8 — every contested battlefield has a showdown staged at it, and
+ * R323.12 opens one "at Battlefields *without a Combat staged*". A combat runs
+ * on past the showdown that opened it (R464.1) while Contested is still set, so
+ * without that exclusion the cleanup would open a second showdown on top of a
+ * combat already in progress.
+ */
 export function stagedBattlefields(state: GameState): CardId[] {
   if (state.showdown !== null) return [];
   return state.battlefieldOrder.filter(
-    (id) => state.battlefields[id]?.contestedBy != null,
+    (id) =>
+      state.battlefields[id]?.contestedBy != null &&
+      !combatInProgressAt(state, id),
+  );
+}
+
+/** A combat that has opened but not yet reached the end of R466. */
+function combatInProgressAt(state: GameState, battlefieldId: CardId): boolean {
+  return state.tasks.some(
+    (task) =>
+      (task.kind === "combatDamage" || task.kind === "combatResolution") &&
+      task.battlefieldId === battlefieldId,
   );
 }
 

@@ -8,7 +8,13 @@ import {
 } from "./layers.js";
 import { score } from "./scoring.js";
 import { ownerOf, permanentsAt } from "./state.js";
-import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
+import type {
+  CardId,
+  Designation,
+  GameState,
+  PermanentState,
+  PlayerId,
+} from "./state.js";
 
 export { mightOf };
 
@@ -129,8 +135,9 @@ export function assignDesignations(
   state: GameState,
   battlefieldId: CardId,
   attacker: PlayerId,
-): GameState {
+): Progress {
   const permanents: Record<CardId, PermanentState> = {};
+  const events: GameEvent[] = [];
 
   for (const [cardId, permanent] of Object.entries(state.permanents)) {
     const here =
@@ -138,18 +145,27 @@ export function assignDesignations(
       permanent.location.id === battlefieldId;
 
     if (here && state.cards[cardId]?.type === "unit") {
-      permanents[cardId] = {
-        ...permanent,
-        designation:
-          controllerOf(state, cardId) === attacker ? "attacker" : "defender",
-      };
+      const designation: Designation =
+        controllerOf(state, cardId) === attacker ? "attacker" : "defender";
+      permanents[cardId] = { ...permanent, designation };
+      // R323.2.a/b only *gain* a designation a unit doesn't already have, and
+      // R464.2.e watches that gaining. Re-affirming one it already holds is not
+      // an event, so "when I attack" cannot fire twice for the same combat.
+      if (permanent.designation !== designation) {
+        events.push({
+          type: "designated",
+          playerId: permanent.controller,
+          cardId,
+          designation,
+        });
+      }
     } else {
       const { designation: _cleared, ...rest } = permanent;
       permanents[cardId] = rest;
     }
   }
 
-  return { ...state, permanents };
+  return { state: { ...state, permanents }, events };
 }
 
 /** R466.7.a — combat ends, and every designation goes with it. */
@@ -327,7 +343,9 @@ export function resolveCombatAftermath(
   );
 
   // R466.1.a.2 — a repelled attack goes home. Recall is not a move (R456).
-  if (survivingDefenders.length > 0 && survivingAttackers.length > 0) {
+  const repelled =
+    survivingDefenders.length > 0 && survivingAttackers.length > 0;
+  if (repelled) {
     const recalled = { ...current.permanents };
     for (const unit of survivingAttackers) {
       recalled[unit.cardId] = {
@@ -342,6 +360,32 @@ export function resolveCombatAftermath(
     }
     current = { ...current, permanents: recalled };
   }
+
+  // R466.3 — the Combat Result, its own step after the Combat Cleanup. A player
+  // won if they held a designation and are the only one with units still here
+  // (R466.3.a); R466.3.c passes that result down to their units, which is what
+  // Nidalee's "I win if I remain after combat" means. R466.3.d makes a repel
+  // No Result, so a repelled attacker has neither won nor lost.
+  const stillHere = unitsAt(current, battlefieldId);
+  const attackersLeft = stillHere.some(
+    (unit) => controllerOf(current, unit.cardId) === attacker,
+  );
+  const defendersLeft = stillHere.some(
+    (unit) => controllerOf(current, unit.cardId) === defender,
+  );
+  const winner: PlayerId | null = repelled
+    ? null
+    : attackersLeft && !defendersLeft
+      ? attacker
+      : defendersLeft && !attackersLeft
+        ? defender
+        : null;
+  events.push({
+    type: "combatResolved",
+    battlefieldId,
+    winner,
+    loser: winner === null ? null : winner === attacker ? defender : attacker,
+  });
 
   // R466.5 — whoever is left establishes control; it need not be the attacker.
   const remaining = unitsAt(current, battlefieldId);

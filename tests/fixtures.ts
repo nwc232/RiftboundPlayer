@@ -78,6 +78,8 @@ interface PermanentSpec {
   location?: Location;
   /** R323.2 — set directly in tests that need Assault or Shield to apply. */
   designation?: "attacker" | "defender";
+  /** R423 — set directly rather than through an effect that has to resolve. */
+  stunned?: true;
 }
 
 export function makeState(options: {
@@ -104,6 +106,7 @@ export function makeState(options: {
       ...(spec.designation !== undefined
         ? { designation: spec.designation }
         : {}),
+      ...(spec.stunned !== undefined ? { stunned: spec.stunned } : {}),
     };
   }
 

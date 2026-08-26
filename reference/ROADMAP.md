@@ -22,7 +22,7 @@ Built and tested (174 tests):
 | Combat (R464–466) | Damage assignment as a player choice |
 | Scoring (R467–471) | Conquer, Hold, victory at 8 |
 | The Chain (R327–340) | LIFO, priority, timing from printed keywords |
-| Triggered abilities (R383) | 4 conditions; optional and targeted |
+| Triggered abilities (R383) | 8 conditions with subjects; optional and targeted |
 | Layers (R473–479) | 3 layers, fixpoint, dependency, snapshotting |
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
@@ -77,10 +77,13 @@ Counts are distinct cards in the pool carrying the keyword.
 (tokens) and `move` are covered or nearly so; `choose`, `spend`,
 `recycle`, `return`, `use` are not. Another ~10 ops covers the bulk.
 
-Trigger conditions: **4 built** (`unitPlayed`, `permanentKilled`,
-`battlefieldScored`, `phaseBegan`) against ~9 families in the survey.
-Missing and common: attack (~140 combined with conquer/hold), move (~30),
-combat outcome (~9), "when you play *another* card" (~15).
+Trigger conditions: **8 built** (`unitPlayed`, `spellPlayed`,
+`permanentKilled`, `battlefieldScored`, `phaseBegan`, `designated`,
+`combatWon`, `unitMoved`), each carrying a subject — `self`, `friendly` or
+`enemy` — which is how the card text distinguishes "when you play me" from
+"when you play a unit" from "when an opponent plays a unit". That covers the
+~9 families in the survey. Still absent: "when you play *another* card"
+(~15), which needs a subject that excludes the source.
 
 ---
 
@@ -129,15 +132,15 @@ Tier 2 list assumed:
 | Conditional effects (`if`/`while`) | 7 | — | medium, structural |
 | **[Ambush]** | 6 | R822 | medium — a *play permission*, not combat |
 | **[Hidden]** | 5 | R811, R107.3 | large — needs the Facedown Zone |
-| New trigger conditions (attack/defend/conquer/hold/move/win-combat/spell-played) | ~8 | R383 | small each — the event stream mostly exists |
-| Return to hand | 4 | R426 | small |
-| **Buffs** | 2 | R701–705 | small — counters, +1 Might, one per unit |
+| ~~New trigger conditions (attack/defend/conquer/hold/move/win-combat/spell-played)~~ | ~8 | R383 | Done — plus the Legend Zone as a trigger source |
+| ~~Return to hand~~ | 4 | R426 | Done |
+| ~~**Buffs**~~ | 2 | R701–705 | Done |
 | Cost modification ("costs 2 less") | 2 | R477.3 | small — the arithmetic layer already covers cost |
-| Move as an effect | 4 | R454 | small |
+| ~~Move as an effect~~ | 4 | R454 | Done |
 | Additional costs ("you may pay X as an additional cost") | 2 | R349 | medium |
-| **[Stun]** | 2 | R423 | small — a binary status cleared at R317.2's 3d |
-| Ready a unit | 2 | — | trivial |
-| Banish | 1 | R427 | small — the zone exists |
+| ~~**[Stun]**~~ | 2 | R423 | Done |
+| ~~Ready a unit~~ | 2 | — | Done |
+| ~~Banish~~ | 1 | R427 | Done |
 | XP | 1 | — | medium — a new per-player resource |
 | Swap Might | 1 | R433 | small |
 | [Equip] / attachments | 1 | R718 | large |
@@ -151,6 +154,38 @@ Sensible order: trigger conditions and the small effect ops first (return,
 ready, buff, banish, move, stun, cost modification), then conditionals,
 then [Ambush], then [Hidden]. That takes both decks from 3 authorable
 cards to most of the way there before either of the large keywords.
+
+**Progress:** the effect ops and the trigger conditions are done. Cost
+modification turned out not to belong with them — see §3b. Next is
+conditional effects, which several of these cards need anyway.
+
+The lists themselves are recorded in `decks.md`, along with what each
+individual card is still waiting on.
+
+---
+
+## 3b. Why cost modification was split out
+
+It was grouped with the small effect ops on the assumption that "costs 2
+less" is an arithmetic-layer modification like "+2 Might". It is not, and
+the reason is the subject:
+
+- **Might** is modified on a *permanent*. `characteristicsOf` runs the R477
+  pipeline over `state.permanents`, and R711 says anything off the board is
+  read on printed values alone.
+- **Cost** is modified on a *card in hand*, which has no permanent at all.
+  The pipeline returns printed values for it by design.
+
+So neither of the two cards is a layer op away:
+
+- **Noxus Hopeful** — `[Legion] — I cost 2 less` is a passive on a card in
+  hand, gated on "you've played another card this turn", which the engine
+  does not count.
+- **Astral Heron** — "your *next* card costs 2 [A][A] less" is a one-shot
+  reduction with a lifetime of its own, closer to a delayed effect than to a
+  modifier that expires.
+
+Both also want the conditional machinery. Conditionals first, then cost.
 
 ---
 

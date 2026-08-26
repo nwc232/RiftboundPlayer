@@ -124,12 +124,23 @@ function afterTasks(current: GameState, events: GameEvent[]): ActionResult {
   return awaitDecisions({ ok: true, state: current, events });
 }
 
-function thenCleanup(result: ActionResult): ActionResult {
+/**
+ * Runs the cleanup R319 makes outstanding after an action, then lets the queue
+ * carry on.
+ *
+ * `scanned` says the events have already been through `collectTriggers` — true
+ * for an action that drove the queue itself. Re-seeding those would collect the
+ * same triggers a second time and put two copies on the chain.
+ */
+function thenCleanup(
+  result: ActionResult,
+  { scanned = false }: { scanned?: boolean } = {},
+): ActionResult {
   if (!result.ok) return result;
 
   const worked = runTasks(
     enqueueNext(result.state, { kind: "cleanup" }),
-    result.events,
+    scanned ? [] : result.events,
   );
   return afterTasks(worked.state, [...result.events, ...worked.events]);
 }
@@ -935,7 +946,8 @@ export function applyAction(state: GameState, action: Action): ActionResult {
         playSpell(state, action.playerId, action.cardId, action.targets),
       );
     case "endTurn":
-      return thenCleanup(endTurn(state, action.playerId));
+      // endTurn drives the queue itself, so its events are already scanned.
+      return thenCleanup(endTurn(state, action.playerId), { scanned: true });
     case "activateAbility":
       return thenCleanup(activateAbility(
         state,

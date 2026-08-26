@@ -134,6 +134,9 @@ export interface BattlefieldState {
   contestedBy: PlayerId | null;
 }
 
+/** R464.2.c.3 — which side of a combat a unit is on. */
+export type Designation = "attacker" | "defender";
+
 /** Runtime state a card only has once it's a permanent on the board — doesn't exist while the card is in hand/deck. */
 export interface PermanentState {
   cardId: CardId;
@@ -153,7 +156,7 @@ export interface PermanentState {
    * unit's battlefield and removed when combat ends (R466.7.a). Assault and
    * Shield key off this rather than off "is a combat happening".
    */
-  designation?: "attacker" | "defender";
+  designation?: Designation;
   /**
    * R426.1.b / R702.3 — a unit has at most one Buff counter, worth +1 Might
    * (R703). Buffing an already-buffed unit does nothing at all (R426.1.c).

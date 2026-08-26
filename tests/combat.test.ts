@@ -235,6 +235,21 @@ describe("resolving combat", () => {
     expect(start.players.p1.points).toBe(1);
   });
 
+  /**
+   * R323.12 opens a showdown only "at Battlefields *without a Combat staged*".
+   * A combat runs on past the showdown that opened it while Contested is still
+   * set, so without that exclusion the cleanup opened a second showdown on top
+   * of the combat and left it behind once the combat had finished.
+   */
+  it("leaves no showdown open once the combat has finished (R323.12)", () => {
+    const start = run(
+      battle([{ id: "a1", might: 5 }], [{ id: "d1", might: 2 }]),
+      [charge("a1"), P1_PASS, P2_PASS],
+    );
+
+    expect(start.showdown).toBeNull();
+  });
+
   it("recalls surviving attackers when a defender lives (R466.1.a.2)", () => {
     const start = run(
       battle([{ id: "a1", might: 1 }], [{ id: "d1", might: 9 }]),

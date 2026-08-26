@@ -421,8 +421,11 @@ export function runTasks(
     );
   }
 
-  // Anything still unscanned had no task after it to trigger against.
-  if (unscanned.length > 0 && current.chain.length === 0) {
+  // Anything still unscanned had no task after it to trigger against. This runs
+  // even with items already on the chain: R335 stops the *next step*, it does
+  // not stop a trigger becoming pending, and a spell sitting on the chain is
+  // exactly what "when a player plays a spell" is waiting for.
+  if (unscanned.length > 0) {
     const triggered = collectTriggers(current, unscanned);
     if (triggered.length > 0) {
       current = {

@@ -295,6 +295,12 @@ export function renderEvent(event: GameEvent): string {
       return bold(`${event.playerId} burned out — trash recycled, opponent scores`);
     case "tokenCreated":
       return `${event.playerId} creates a ${event.token} token [${event.cardId}]`;
+    case "designated":
+      return `${event.cardId} is an ${event.designation}`;
+    case "combatResolved":
+      return event.winner === null
+        ? `combat at ${event.battlefieldId} ends with no result`
+        : bold(`${event.winner} wins the combat at ${event.battlefieldId}`);
     default: {
       const unhandled: never = event;
       return JSON.stringify(unhandled);
