@@ -22,7 +22,8 @@ Built and tested (174 tests):
 | Combat (R464–466) | Damage assignment as a player choice |
 | Scoring (R467–471) | Conquer, Hold, victory at 8 |
 | The Chain (R327–340) | LIFO, priority, timing from printed keywords |
-| Triggered abilities (R383) | 8 conditions with subjects; optional and targeted |
+| Triggered abilities (R383) | 8 conditions with subjects; gates (R383.2.a.1) |
+| Playing a card (R355.2) | Valid locations, and permissions that widen them |
 | Layers (R473–479) | 3 layers, fixpoint, dependency, snapshotting |
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
@@ -129,8 +130,8 @@ Tier 2 list assumed:
 
 | Mechanism | Cards | Rule | Size |
 |---|---|---|---|
-| Conditional effects (`if`/`while`) | 7 | — | medium, structural |
-| **[Ambush]** | 6 | R822 | medium — a *play permission*, not combat |
+| ~~Conditional effects (`if`/`while`)~~ | 7 | R383.2.a.1 | Done — two forms, split by where the clause sits in the text |
+| ~~**[Ambush]**~~ | 6 | R822 | Done — plus R355.2, which was never enforced at all |
 | **[Hidden]** | 5 | R811, R107.3 | large — needs the Facedown Zone |
 | ~~New trigger conditions (attack/defend/conquer/hold/move/win-combat/spell-played)~~ | ~8 | R383 | Done — plus the Legend Zone as a trigger source |
 | ~~Return to hand~~ | 4 | R426 | Done |
@@ -155,9 +156,17 @@ ready, buff, banish, move, stun, cost modification), then conditionals,
 then [Ambush], then [Hidden]. That takes both decks from 3 authorable
 cards to most of the way there before either of the large keywords.
 
-**Progress:** the effect ops and the trigger conditions are done. Cost
-modification turned out not to belong with them — see §3b. Next is
-conditional effects, which several of these cards need anyway.
+**Progress:** effect ops, trigger conditions, conditionals and [Ambush]
+are done. Cost modification turned out not to belong with the small ops —
+see §3b. Next is [Hidden], the last of the two large keywords, after which
+both decks are mostly authorable.
+
+Building [Ambush] turned up a bigger gap than the keyword: **R355.2 was
+never enforced.** A unit could be played to any location at all. R355.2.a
+limits it to "the controller's Base or a Battlefield the controller
+controls", and R355.2.b is the hook every play permission hangs off —
+[Ambush] is just the first one. `legalActions` picked the restriction up
+for free, because it filters candidates through `applyAction`.
 
 The lists themselves are recorded in `decks.md`, along with what each
 individual card is still waiting on.

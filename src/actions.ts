@@ -30,6 +30,7 @@ import {
   runTasks,
 } from "./tasks.js";
 import { passFocus as runPassFocus } from "./showdown.js";
+import { isValidPlayLocation, playedWithReactionTiming } from "./play.js";
 
 
 export type Action =
@@ -371,17 +372,6 @@ export function playUnitFromHand(
   cardId: CardId,
   destination: Location = { kind: "base", player: playerId },
 ): ActionResult {
-  if (state.turn.player !== playerId) {
-    return rejected("notYourTurn");
-  }
-  if (state.turn.phase !== "main") {
-    return rejected("wrongPhase");
-  }
-  // R343.1.a — cards can't be played during a showdown state by default.
-  if (state.showdown !== null) {
-    return rejected("showdownInProgress");
-  }
-
   const player = state.players[playerId];
   const card = state.cards[cardId];
 
@@ -390,6 +380,41 @@ export function playUnitFromHand(
   }
   if (card.type !== "unit") {
     return rejected("wrongCardType");
+  }
+
+  // R822.1.b — an Ambushing unit "has [Reaction] as long as I'm being played to
+  // a battlefield where you control Units", so the timing it may be played at
+  // depends on where it is going, not on the card alone.
+  if (playedWithReactionTiming(state, playerId, cardId, destination)) {
+    if (!canPlayAtThisTiming(state, playerId, ["reaction"])) {
+      return rejected("wrongTiming");
+    }
+    // R338.1 — while the chain is up, only the priority holder may act.
+    if (chainExists(state) && state.priority !== playerId) {
+      return rejected("notYourPriority");
+    }
+  } else {
+    if (state.turn.player !== playerId) {
+      return rejected("notYourTurn");
+    }
+    if (state.turn.phase !== "main") {
+      return rejected("wrongPhase");
+    }
+    // R343.1.a — cards can't be played during a showdown state by default.
+    if (state.showdown !== null) {
+      return rejected("showdownInProgress");
+    }
+    // A chain up is a Closed State; playing a unit needs [Reaction] (R813).
+    if (chainExists(state)) {
+      return rejected("wrongTiming");
+    }
+  }
+
+  // R355.2 — the chosen location has to be a valid one. R355.2.a's default is
+  // "the controller's Base or a Battlefield the controller controls"; anything
+  // beyond that is a permission the card carries (R355.2.b).
+  if (!isValidPlayLocation(state, playerId, cardId, destination)) {
+    return rejected("invalidDestination");
   }
 
   // R108.3.d — the Chosen Champion is played from the Champion Zone, following
@@ -692,10 +717,12 @@ export function passPriority(
       item.kind === "trigger"
         ? item.ability
         : abilitiesOf(current, sourceId)[0];
-    // A passive never resolves — it is read live by the layer pipeline — so it
-    // contributes nothing here even if one is somehow reached.
+    // Neither a passive (read live by the layer pipeline) nor a play permission
+    // (read off a card in hand) ever resolves, so both contribute nothing here
+    // even if one is somehow reached.
     const effect =
-      ability !== undefined && ability.kind !== "passive"
+      ability !== undefined &&
+      (ability.kind === "activated" || ability.kind === "triggered")
         ? ability.effect
         : { op: "seq" as const, steps: [] };
 

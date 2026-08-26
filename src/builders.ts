@@ -4,7 +4,9 @@ import type {
   ActivatedAbility,
   Effect,
   PassiveAbility,
+  PlayPermissionAbility,
 } from "./abilities.js";
+import type { PlayPermission } from "./play.js";
 import type {
   DelayedTiming,
   Duration,
@@ -188,6 +190,22 @@ export function moveUnit(
 ): Effect {
   return { op: "moveUnit", targetIndex, to };
 }
+
+/**
+ * R355.2.b / R822.1.d — rules text widening where a unit may be played.
+ * [Ambush] itself is a keyword, not this: R822.4 makes having it a
+ * characteristic other cards check.
+ */
+export function playPermission(
+  permission: PlayPermission,
+): PlayPermissionAbility {
+  return { kind: "playPermission", permission };
+}
+
+/** Rengar, Trophy Hunter — "I can be played to a battlefield where there are enemy units." */
+export const ambushEnemyBattlefields = playPermission({
+  kind: "whereEnemyUnits",
+});
 
 // Conditions (R383.2.a.1). `ifThen` is the effect-level form — the conditional
 // statement that sits *after* the instruction. The trigger-level form is a

@@ -109,7 +109,13 @@ export type Keyword =
   | "assault"
   | "shield"
   /** R816 — "at the start of my controller's Beginning Phase, kill this." */
-  | "temporary";
+  | "temporary"
+  /**
+   * R822 — a play permission plus a timing grant, not a combat keyword.
+   * R822.4 makes having it a characteristic other cards can check, which is
+   * why it lives here rather than as a bare ability.
+   */
+  | "ambush";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =

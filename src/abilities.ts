@@ -22,6 +22,7 @@ import type {
   PassiveScope,
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
+import type { PlayPermission } from "./play.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 
@@ -143,7 +144,21 @@ export interface PassiveAbility {
   modification: Modification;
 }
 
-export type Ability = ActivatedAbility | TriggeredAbility | PassiveAbility;
+/**
+ * R355.2.b / R822.1.d — rules text that widens where a unit may be played.
+ * Separate from PassiveAbility because it is read off a card in hand, which
+ * the R477 layer pipeline never sees.
+ */
+export interface PlayPermissionAbility {
+  kind: "playPermission";
+  permission: PlayPermission;
+}
+
+export type Ability =
+  | ActivatedAbility
+  | TriggeredAbility
+  | PassiveAbility
+  | PlayPermissionAbility;
 
 export interface EffectContext {
   controller: PlayerId;

@@ -112,10 +112,24 @@ describe("contested status (R190.3.a)", () => {
     expect(result.state.battlefields["bf-north"]?.contestedBy).toBeNull();
   });
 
+  /**
+   * R355.2.a only lets a unit be played to its controller's base or a
+   * battlefield they control, so reaching an enemy-held one takes a permission
+   * — here Rengar, Trophy Hunter's (R822.1.d).
+   */
   it("applies when a unit is played straight to a battlefield", () => {
     const inHand = makeState({
       p1: { hand: ["u1"] },
-      cards: [unit("u1")],
+      cards: [
+        {
+          ...unit("u1"),
+          abilities: [
+            { kind: "playPermission", permission: { kind: "whereEnemyUnits" } },
+          ],
+        },
+        unit("e1"),
+      ],
+      permanents: [{ cardId: "e1", controller: "p2", location: NORTH }],
       battlefields: ["bf-north"],
     });
 
