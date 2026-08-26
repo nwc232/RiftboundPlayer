@@ -43,6 +43,16 @@ function enterPhase(
   };
 }
 
+/** R423.1.a.2 — every Stunned unit loses the status in the Expiration Step. */
+function clearStuns(state: GameState): GameState {
+  const permanents: Record<string, (typeof state.permanents)[string]> = {};
+  for (const [cardId, permanent] of Object.entries(state.permanents)) {
+    const { stunned: _cleared, ...rest } = permanent;
+    permanents[cardId] = rest;
+  }
+  return { ...state, permanents };
+}
+
 /** R315.1 — the turn player readies every game object they control. */
 function awaken(progress: Progress, player: PlayerId): Progress {
   const { state } = progress;
@@ -280,6 +290,9 @@ export function runTurnStep(
     case "expiration": {
       // R317.2.b, then R317.2.c, then R317.2.e, in that order.
       progress = { ...progress, state: healAllUnits(progress.state) };
+      // R423.1.a.2 — Stunned is lost "during step 3d", alongside the "this
+      // turn" effects that expire there.
+      progress = { ...progress, state: clearStuns(progress.state) };
       const expired = expireModifiers(progress.state, "thisTurn");
       if (expired !== progress.state) {
         progress = {

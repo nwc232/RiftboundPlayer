@@ -81,6 +81,10 @@ export type GameEvent =
       abilities: Ability[];
     }
   | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId }
+  | { type: "returnedToHand"; playerId: PlayerId; cardId: CardId }
+  | { type: "banished"; playerId: PlayerId; cardId: CardId }
+  | { type: "buffed"; playerId: PlayerId; cardId: CardId }
+  | { type: "stunned"; playerId: PlayerId; cardId: CardId }
   | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }
   | { type: "spellPlayed"; playerId: PlayerId; cardId: CardId }
   | { type: "spellResolved"; playerId: PlayerId; cardId: CardId }

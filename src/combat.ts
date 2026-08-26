@@ -181,8 +181,15 @@ export function combatSides(
   const defenders = present.filter(
     (unit) => controllerOf(state, unit.cardId) === defender,
   );
+  // R423.1.b — a Stunned unit "does not contribute its might to damage in the
+  // combat damage step". R423.1.c keeps its full Might for lethal purposes, so
+  // this is deliberately only about the sum, not about `mightOf`.
   const sum = (units: PermanentState[]) =>
-    units.reduce((total, unit) => total + mightOf(state, unit.cardId), 0);
+    units.reduce(
+      (total, unit) =>
+        total + (unit.stunned === true ? 0 : mightOf(state, unit.cardId)),
+      0,
+    );
 
   return {
     attackers,

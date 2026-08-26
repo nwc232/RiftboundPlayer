@@ -283,6 +283,14 @@ export function renderEvent(event: GameEvent): string {
       return `${event.playerId} takes control of ${event.cardId} (${event.duration})`;
     case "mulliganed":
       return `${event.playerId} mulliganed ${event.count}`;
+    case "returnedToHand":
+      return `${event.cardId} returns to ${event.playerId}'s hand`;
+    case "banished":
+      return `${event.cardId} is banished`;
+    case "buffed":
+      return `${event.cardId} gets a buff`;
+    case "stunned":
+      return `${event.cardId} is stunned`;
     case "burnedOut":
       return bold(`${event.playerId} burned out — trash recycled, opponent scores`);
     case "tokenCreated":

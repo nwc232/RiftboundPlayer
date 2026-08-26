@@ -155,6 +155,39 @@ export function recall(targetIndex = 0): Effect {
   return { op: "recall", targetIndex };
 }
 
+/** Gust, Rebuke — "Return a unit … to its owner's hand." */
+export function returnToHand(targetIndex = 0): Effect {
+  return { op: "returnToHand", targetIndex };
+}
+
+/** R427 — Thrill of the Hunt's "Banish a friendly unit". */
+export function banish(targetIndex = 0): Effect {
+  return { op: "banish", targetIndex };
+}
+
+/** R415 — First Mate's "ready another unit". */
+export function ready(targetIndex = 0): Effect {
+  return { op: "ready", targetIndex };
+}
+
+/** R426 — Pit Rookie's "buff another friendly unit". */
+export function buff(targetIndex = 0): Effect {
+  return { op: "buff", targetIndex };
+}
+
+/** R423 — Back Off's "[Stun] a unit". */
+export function stun(targetIndex = 0): Effect {
+  return { op: "stun", targetIndex };
+}
+
+/** R420 — Irresistible Faefolk's "move an enemy unit to that battlefield". */
+export function moveUnit(
+  to: "sourceLocation" | "base" = "sourceLocation",
+  targetIndex = 0,
+): Effect {
+  return { op: "moveUnit", targetIndex, to };
+}
+
 // Passive abilities (R477). These modify characteristics rather than resolving,
 // so they never touch the chain — the layer pipeline reads them live.
 

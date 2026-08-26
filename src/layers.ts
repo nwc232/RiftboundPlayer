@@ -357,13 +357,17 @@ export function characteristicsOf(
   let shield = printedKeywords.includes("shield") ? (card.shield ?? 1) : 0;
   const arithmetic: ArithmeticStep[] = [];
 
+  // R703 — "Each Buff individually contributes +1 Might to a Unit." A counter
+  // rather than a modifier, so it is read off the permanent like a designation.
+  const buffBonus = subject.buffed === true ? 1 : 0;
+
   const designationBonus = (): number => {
     if (subject.designation === "attacker") return assault;
     if (subject.designation === "defender") return shield;
     return 0;
   };
   const currentMight = (): number =>
-    runArithmetic(baseMight + designationBonus(), arithmetic);
+    runArithmetic(baseMight + designationBonus() + buffBonus, arithmetic);
 
   // R476 — recur over the layers until a full pass changes nothing. The bound
   // is a safety net: each effect applies at most once (R476.1), so the loop

@@ -154,6 +154,17 @@ export interface PermanentState {
    * Shield key off this rather than off "is a combat happening".
    */
   designation?: "attacker" | "defender";
+  /**
+   * R426.1.b / R702.3 — a unit has at most one Buff counter, worth +1 Might
+   * (R703). Buffing an already-buffed unit does nothing at all (R426.1.c).
+   */
+  buffed?: true;
+  /**
+   * R423 — binary, and cleared in the end-of-turn cleanup (R423.1.a.2). A
+   * stunned unit contributes no Might to combat damage (R423.1.b) but still
+   * needs its full Might in damage to die (R423.1.c).
+   */
+  stunned?: true;
 }
 
 export interface PlayerState {

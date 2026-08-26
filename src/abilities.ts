@@ -9,6 +9,7 @@ import type {
   PlayerId,
 } from "./state.js";
 import { killUnits } from "./combat.js";
+import { ownerOf } from "./state.js";
 import { drawCards } from "./draw.js";
 import { controllerOf, mightOf } from "./layers.js";
 import { tokenCard } from "./tokens.js";
@@ -95,6 +96,18 @@ export type Effect =
   | { op: "recall"; targetIndex: number }
   /** R816 — what [Temporary] does. Kills the ability's own source. */
   | { op: "killSelf" }
+  /** Gust, Rebuke, Star-Crossed — back to its *owner's* hand (R56). */
+  | { op: "returnToHand"; targetIndex: number }
+  /** R415 — readying an already-ready unit does nothing (R415.1.c). */
+  | { op: "ready"; targetIndex: number }
+  /** R426 — place a Buff counter, worth +1 Might (R703). At most one. */
+  | { op: "buff"; targetIndex: number }
+  /** R427 — straight to Banishment, and not a kill or a discard (R427.2.a/b). */
+  | { op: "banish"; targetIndex: number }
+  /** R423 — a binary status, not a kill. */
+  | { op: "stun"; targetIndex: number }
+  /** R420 — moving as an *effect*, which is a Limited Action, not a move. */
+  | { op: "moveUnit"; targetIndex: number; to: "sourceLocation" | "base" }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
@@ -542,6 +555,123 @@ export function execute(
           },
         },
         events: [{ type: "unitRecalled", playerId: to, cardId: targetId }],
+      };
+    }
+
+    case "returnToHand": {
+      const targetId = context.targets[effect.targetIndex];
+      const permanent = targetId === undefined ? undefined : state.permanents[targetId];
+      if (targetId === undefined || permanent === undefined) {
+        return { state, events: [] };
+      }
+      // R56 — it is the *owner's* hand, not the current controller's.
+      const owner = ownerOf(permanent);
+      const { [targetId]: _gone, ...permanents } = state.permanents;
+      return {
+        state: {
+          ...state,
+          permanents,
+          players: {
+            ...state.players,
+            [owner]: {
+              ...state.players[owner],
+              hand: [...state.players[owner].hand, targetId],
+            },
+          },
+        },
+        events: [{ type: "returnedToHand", playerId: owner, cardId: targetId }],
+      };
+    }
+
+    case "banish": {
+      const targetId = context.targets[effect.targetIndex];
+      const permanent = targetId === undefined ? undefined : state.permanents[targetId];
+      if (targetId === undefined || permanent === undefined) {
+        return { state, events: [] };
+      }
+      const owner = ownerOf(permanent);
+      const { [targetId]: _gone, ...permanents } = state.permanents;
+      return {
+        state: {
+          ...state,
+          permanents,
+          players: {
+            ...state.players,
+            [owner]: {
+              ...state.players[owner],
+              banished: [...state.players[owner].banished, targetId],
+            },
+          },
+        },
+        events: [{ type: "banished", playerId: owner, cardId: targetId }],
+      };
+    }
+
+    case "ready":
+    case "buff":
+    case "stun": {
+      const targetId = context.targets[effect.targetIndex];
+      const permanent = targetId === undefined ? undefined : state.permanents[targetId];
+      if (targetId === undefined || permanent === undefined) {
+        return { state, events: [] };
+      }
+
+      // R415.1.c, R426.1.b.1, R423.1.a.1 — all three are no-ops on a unit that
+      // is already in the target state, and R426.1.c makes that observable:
+      // "if it was buffed this way" is false, so a linked effect will not fire.
+      const already =
+        (effect.op === "ready" && !permanent.exhausted) ||
+        (effect.op === "buff" && permanent.buffed === true) ||
+        (effect.op === "stun" && permanent.stunned === true);
+      if (already) return { state, events: [] };
+
+      const updated =
+        effect.op === "ready"
+          ? { ...permanent, exhausted: false }
+          : effect.op === "buff"
+            ? { ...permanent, buffed: true as const }
+            : { ...permanent, stunned: true as const };
+
+      return {
+        state: { ...state, permanents: { ...state.permanents, [targetId]: updated } },
+        events: [
+          {
+            type: effect.op === "ready" ? "objectReadied" : effect.op === "buff" ? "buffed" : "stunned",
+            playerId: context.controller,
+            cardId: targetId,
+          },
+        ],
+      };
+    }
+
+    case "moveUnit": {
+      const targetId = context.targets[effect.targetIndex];
+      const permanent = targetId === undefined ? undefined : state.permanents[targetId];
+      if (targetId === undefined || permanent === undefined) {
+        return { state, events: [] };
+      }
+      const to: Location =
+        effect.to === "sourceLocation" && context.sourceLocation !== undefined
+          ? context.sourceLocation
+          : { kind: "base", player: controllerOf(state, targetId) };
+
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            [targetId]: { ...permanent, location: to },
+          },
+        },
+        events: [
+          {
+            type: "unitMoved",
+            playerId: controllerOf(state, targetId),
+            cardId: targetId,
+            from: permanent.location,
+            to,
+          },
+        ],
       };
     }
 
