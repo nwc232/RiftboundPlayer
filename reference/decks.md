@@ -74,20 +74,38 @@ deckbuilder convention of "Vex, Gloomist".
 ## What each card is still waiting on
 
 Tracked against `ROADMAP.md` §3a. A card is authorable once every row it
-depends on is built.
+depends on is built. **14 of ~38 are authorable now**, up from 3 when the
+lists were first measured.
 
-| Card | Still needs |
+### Authorable today
+
+Discipline · Punch First · Ferrous Forerunner · Rebuke · En Garde ·
+Pridestalker · Rengar, Trophy Hunter · Inferna · Irresistible Faefolk ·
+Grim Apothecary · Kinkou Initiate · Nidalee, Cat Form · Noxus Hopeful ·
+Pit Rookie · First Mate · Gust
+
+### One thing away
+
+| Card | Missing |
 |---|---|
-| Discipline, Punch First, Ferrous Forerunner | — *authorable* |
-| Pit Rookie, First Mate, Gust, Rebuke, Star-Crossed | — *authorable* |
-| Pridestalker, Kai'Sa, Vilemaw, Nidalee, Kha'Zix, Irresistible Faefolk | — *triggers built; some still want conditionals or XP* |
-| En Garde, Kinkou Initiate, Pyke, Rampage, Vex Apathetic | conditional effects (`if` / `while`) |
-| Noxus Hopeful, Astral Heron | cost modification |
-| Inferna, Grim Apothecary, Rengar, Vilemaw, Nidalee | [Ambush] (R822) |
-| Evelynn, Tideturner, Switcheroo, Back Off, Pyke | [Hidden] (R811) + the Facedown Zone |
-| Boots of Swiftness | [Equip] / attachments (R718) |
-| Stacked Deck, Sabotage, Sneaky Deckhand, Thrill of the Hunt | look-at-top-N, reveal hand, play-to-an-open-battlefield, play-ignoring-cost |
-| Defy | counter with a cost ceiling |
-| Kai'Sa | [Accelerate] |
-| Kha'Zix | XP |
+| Star-Crossed | two targets with *different* filters — the prompt carries one |
+| Back Off | "if you played this from your hand" — a condition on the play's source zone |
+| Evelynn, Entrancing | a "played from facedown" trigger gate |
+| Kai'Sa, Survivor | [Accelerate] |
+| Vilemaw | a passive comparing an enemy's Might to the source's |
+| Sneaky Deckhand | "an open battlefield" — one more play permission, and the rules never define "open" |
+
+### Still blocked
+
+| Card | Needs |
+|---|---|
+| Gloomist | a *cost* on a triggered ability (R383.3.b) — "exhaust me to draw 1" |
+| Vex, Apathetic | [Deflect] (R809); a target taken from the trigger's own event; a movement restriction |
+| Kha'Zix, Mutating Horror | XP |
+| Pyke, Dockside Butcher · Rampage | optional additional costs (R349, R355.1.a) |
+| Astral Heron | a one-shot "your next card costs less" |
 | Switcheroo | Swap Might (R433) |
+| Boots of Swiftness | [Equip] / attachments (R718) |
+| Stacked Deck · Sabotage · Thrill of the Hunt | look at the top N, reveal a hand, play a card ignoring its cost |
+| Defy | counter with a cost ceiling — targets a chain item, not a permanent |
+| Tideturner | swap two units' locations |
