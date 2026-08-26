@@ -1,7 +1,11 @@
 import { execute } from "./abilities.js";
 import type { AbilityCost, EffectContext } from "./abilities.js";
 import { FREE, spend } from "./cost.js";
-import { additionalCostsOf, totalCostOf } from "./costing.js";
+import {
+  additionalCostsOf,
+  consumeDiscount,
+  totalCostOf,
+} from "./costing.js";
 import type { GameEvent } from "./events.js";
 import { permanentsAt, sameLocation } from "./state.js";
 import type {
@@ -365,9 +369,29 @@ function awaitDecisions(result: ActionResult): ActionResult {
   const extra: GameEvent[] = [];
   let pending = nextDecision(current);
 
-  // Finalizing one item can uncover the next: an unpayable cost removes its
-  // trigger, and the item beneath may still owe choices of its own.
-  while (pending === null) {
+  // Finalizing one item can uncover the next: an unpayable cost or an
+  // impossible choice removes its trigger, and the item beneath may still owe
+  // choices of its own.
+  for (;;) {
+    // R355.8 — "In order to put a spell or ability on the chain, valid choices
+    // must be made for all targets." With nothing legal to choose, there are
+    // none to be made, so the ability does not go on the chain at all.
+    if (pending?.prompt.kind === "chooseTargets" && pending.prompt.legal.length === 0) {
+      const chainIndex = pending.prompt.chainIndex;
+      const item = current.chain[chainIndex];
+      current = { ...current, chain: current.chain.slice(0, chainIndex) };
+      if (item !== undefined) {
+        extra.push({
+          type: "abilityDeclined",
+          playerId: item.controller,
+          cardId: chainItemCardId(item),
+        });
+      }
+      pending = nextDecision(current);
+      continue;
+    }
+    if (pending !== null) break;
+
     const paid = payTriggerCosts(current);
     if (paid === null) break;
     current = paid.state;
@@ -669,8 +693,11 @@ export function playUnitFromHand(
 
   const playedFrom: PlaySource =
     hiddenAt !== undefined ? "facedown" : fromChampionZone ? "champion" : "hand";
+  // Whatever a waiting "your next card costs less" gave, it gave it to this
+  // card and is spent.
+  const afterDiscount = consumeDiscount(state, playerId);
   const leavingZone =
-    hiddenAt === undefined ? state : clearFacedown(state, hiddenAt);
+    hiddenAt === undefined ? afterDiscount : clearFacedown(afterDiscount, hiddenAt);
   const newHand =
     hiddenAt !== undefined || fromChampionZone
       ? player.hand
@@ -939,8 +966,11 @@ export function playSpell(
   }
 
   const handIndex = player.hand.indexOf(cardId);
+  const spentDiscount = consumeDiscount(state, playerId);
   const withoutSource =
-    hiddenAt === undefined ? state : clearFacedown(state, hiddenAt);
+    hiddenAt === undefined
+      ? spentDiscount
+      : clearFacedown(spentDiscount, hiddenAt);
   return {
     ok: true,
     state: {

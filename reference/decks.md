@@ -71,41 +71,18 @@ deckbuilder convention of "Vex, Gloomist".
 
 ---
 
-## What each card is still waiting on
+## Status
 
-Tracked against `ROADMAP.md` §3a. A card is authorable once every row it
-depends on is built. **14 of ~38 are authorable now**, up from 3 when the
-lists were first measured.
+**All 38 distinct cards are authored**, in `src/decks/vex.ts` and
+`src/decks/rengar.ts`, with both battlefield sets. `src/decks/index.ts`
+assembles them into a legal `GameSetup`; `tests/decks.test.ts` checks the
+R103 requirements and `tests/playthrough.test.ts` plays 25 full games.
 
-### Authorable today
+Three things about a card are still approximations rather than the rule,
+and they are written up with the rest in `mechanic-survey.md`:
 
-Discipline · Punch First · Ferrous Forerunner · Rebuke · En Garde ·
-Pridestalker · Rengar, Trophy Hunter · Inferna · Irresistible Faefolk ·
-Grim Apothecary · Kinkou Initiate · Nidalee, Cat Form · Noxus Hopeful ·
-Pit Rookie · First Mate · Gust
-
-### One thing away
-
-| Card | Missing |
+| Card | Approximation |
 |---|---|
-| Star-Crossed | two targets with *different* filters — the prompt carries one |
-| Back Off | "if you played this from your hand" — a condition on the play's source zone |
-| Evelynn, Entrancing | a "played from facedown" trigger gate |
-| Kai'Sa, Survivor | [Accelerate] |
-| Vilemaw | a passive comparing an enemy's Might to the source's |
-| Sneaky Deckhand | "an open battlefield" — one more play permission, and the rules never define "open" |
-
-### Still blocked
-
-| Card | Needs |
-|---|---|
-| Gloomist | a *cost* on a triggered ability (R383.3.b) — "exhaust me to draw 1" |
-| Vex, Apathetic | [Deflect] (R809); a target taken from the trigger's own event; a movement restriction |
-| Kha'Zix, Mutating Horror | XP |
-| Pyke, Dockside Butcher · Rampage | optional additional costs (R349, R355.1.a) |
-| Astral Heron | a one-shot "your next card costs less" |
-| Switcheroo | Swap Might (R433) |
-| Boots of Swiftness | [Equip] / attachments (R718) |
-| Stacked Deck · Sabotage · Thrill of the Hunt | look at the top N, reveal a hand, play a card ignoring its cost |
-| Defy | counter with a cost ceiling — targets a chain item, not a permanent |
-| Tideturner | swap two units' locations |
+| Switcheroo | "two units **at the same battlefield**" — the second choice is not tied to the first, because filters are positional and independent |
+| Thrill of the Hunt | "plays it to any battlefield" — the destination is chosen at finalization rather than during the sub-play |
+| Sneaky Deckhand | "an open battlefield" — the rules never define "open"; read as *uncontrolled* |

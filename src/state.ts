@@ -315,6 +315,12 @@ export interface GameState {
    * its own rules text; cleared as each turn opens.
    */
   triggeredThisTurn: Record<string, number>;
+  /**
+   * Astral Heron — "your **next** card costs [2][A][A] less". A discount with
+   * a lifetime of its own rather than a passive on the card being reduced, so
+   * it waits here until the next card that player plays consumes it.
+   */
+  pendingDiscounts: { player: PlayerId; reduce: Cost }[];
   showdown: ShowdownState | null;
   winner: PlayerId | null;
   /** R327 — LIFO; last entry resolves first. Empty means an Open State. */

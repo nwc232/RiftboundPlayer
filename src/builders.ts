@@ -324,6 +324,16 @@ export function additionalCost(
   return { kind: "additionalCost", cost, ...(optional ? { optional } : {}) };
 }
 
+/** Astral Heron — "your next card costs [2][A][A] less". */
+export function discountNextCard(reduce: Cost): Effect {
+  return { op: "discountNextCard", reduce };
+}
+
+/** R383.2.a.1 — a gate made of several clauses that must all be true. */
+export function allOf(...of: Condition[]): Condition {
+  return { kind: "all", of };
+}
+
 /** Back Off — "If you played this from your hand, draw 1." */
 export function playedFrom(zone: PlaySource): Condition {
   return { kind: "playedFrom", zone };

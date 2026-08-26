@@ -181,6 +181,7 @@ export function startGame(setup: GameSetup): SetupResult {
     facedown: {},
     playedThisTurn: { p1: [], p2: [] },
     triggeredThisTurn: {},
+    pendingDiscounts: [],
     showdown: null,
     winner: null,
     chain: [],

@@ -616,3 +616,8 @@ Recorded as they're found, so they don't get lost between slices.
 - **R323.7's gear recall is not modelled.** "Recall all Unattached non-Unit
   Gear and non-Unit Runes at Battlefields" — gear can only reach a
   battlefield by being attached, so nothing exercises it yet.
+- **Positional target filters are independent (R355.5).** Switcheroo's "two
+  units **at the same battlefield**" and any other card whose second choice
+  is constrained by the first cannot be expressed: each filter is evaluated
+  against the board, not against what was already chosen. Only the
+  no-reusing-an-object rule links them.

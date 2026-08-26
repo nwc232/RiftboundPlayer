@@ -163,6 +163,8 @@ export type Effect =
    * the reveal.
    */
   | { op: "recycleFromOpponentHand"; exclude?: "unit" }
+  /** Astral Heron — "your next card costs [2][A][A] less". */
+  | { op: "discountNextCard"; reduce: Cost }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost =
@@ -1021,6 +1023,18 @@ export function execute(
         events: [],
       };
     }
+
+    case "discountNextCard":
+      return {
+        state: {
+          ...state,
+          pendingDiscounts: [
+            ...state.pendingDiscounts,
+            { player: context.controller, reduce: effect.reduce },
+          ],
+        },
+        events: [],
+      };
 
     case "lookAtTop": {
       const player = state.players[context.controller];

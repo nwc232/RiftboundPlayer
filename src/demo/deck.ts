@@ -251,6 +251,7 @@ function emptyBoard(): GameState {
     facedown: {},
     playedThisTurn: { p1: [], p2: [] },
     triggeredThisTurn: {},
+    pendingDiscounts: [],
     showdown: null,
     winner: null,
     chain: [],

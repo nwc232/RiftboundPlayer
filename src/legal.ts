@@ -1,5 +1,7 @@
 import { applyAction } from "./actions.js";
 import type { Action } from "./actions.js";
+import { legalTargets } from "./decisions.js";
+import type { TargetFilter } from "./decisions.js";
 import { MULLIGAN_MAX } from "./tasks.js";
 import type { CardId, GameState, Location, PlayerId } from "./state.js";
 
@@ -40,6 +42,44 @@ function targetable(state: GameState): CardId[] {
       item.kind === "spell" ? item.cardId : item.sourceId,
     ),
   ];
+}
+
+/**
+ * The filters a card's own rules text names, if any (R355.5). Read off the
+ * printed card, because it is still in hand.
+ */
+function filtersOf(state: GameState, cardId: CardId): TargetFilter[] {
+  const ability = state.cards[cardId]?.abilities.find(
+    (each) => each.kind === "activated" || each.kind === "triggered",
+  );
+  return ability?.targeting?.filters ?? [];
+}
+
+/**
+ * Every tuple of targets a card could legally be pointed at: one choice per
+ * filter, in the order the card names them, never reusing an object. A spell
+ * that names two things has to be offered as a pair — offering each half alone
+ * would mean it never appeared at all.
+ */
+function targetTuples(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+): CardId[][] {
+  const filters = filtersOf(state, cardId);
+  if (filters.length === 0) return [[]];
+
+  let tuples: CardId[][] = [[]];
+  for (const filter of filters) {
+    const legal = legalTargets(state, playerId, filter, cardId);
+    tuples = tuples.flatMap((prefix) =>
+      legal
+        .filter((id) => !prefix.includes(id))
+        .map((id) => [...prefix, id]),
+    );
+    if (tuples.length === 0) break;
+  }
+  return tuples;
 }
 
 /** Every subset of `ids` up to `max` in size, including the empty one. */
@@ -126,8 +166,6 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     }
   }
 
-  const targets = targetable(state);
-
   // R355.1.a — paying an optional additional cost is a choice made while
   // playing, so each play is offered both ways and `applyAction` prices them.
   for (const cardId of playable) {
@@ -141,13 +179,12 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
           payOptional,
         });
       }
-      out.push({ type: "playSpell", playerId, cardId, payOptional });
-      for (const target of targets) {
+      for (const chosen of targetTuples(state, playerId, cardId)) {
         out.push({
           type: "playSpell",
           playerId,
           cardId,
-          targets: [target],
+          targets: chosen,
           payOptional,
         });
       }
@@ -169,15 +206,13 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
         out.push({ type: "activateAbility", playerId, sourceId, abilityIndex });
         return;
       }
-      // Only single-choice abilities exist so far; more would need the
-      // combinations the mulligan builds.
-      for (const target of targetable(state)) {
+      for (const chosen of targetTuples(state, playerId, sourceId)) {
         out.push({
           type: "activateAbility",
           playerId,
           sourceId,
           abilityIndex,
-          targets: [target],
+          targets: chosen,
         });
       }
     });

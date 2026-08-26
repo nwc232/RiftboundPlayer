@@ -50,7 +50,12 @@ export type Condition =
    */
   | { kind: "playedFrom"; zone: PlaySource }
   /** Evelynn, Entrancing — "…on your turn". */
-  | { kind: "yourTurn" };
+  | { kind: "yourTurn" }
+  /**
+   * Evelynn, Entrancing — "when you play me from face down **on your turn**".
+   * R383.2.a.1 allows a whole conditional statement, not just one clause.
+   */
+  | { kind: "all"; of: Condition[] };
 
 /**
  * What a condition is asked *about*. `EffectContext` satisfies this
@@ -144,6 +149,9 @@ export function holds(
 
     case "yourTurn":
       return state.turn.player === context.controller;
+
+    case "all":
+      return condition.of.every((each) => holds(state, each, context));
 
     case "hasXP":
       return state.players[context.controller].xp >= condition.atLeast;

@@ -45,6 +45,12 @@ export type TriggerCondition =
   | { on: "unitPlayed"; subject: TriggerSubject; here?: true; nonToken?: true }
   | { on: "spellPlayed"; subject: TriggerSubject }
   /**
+   * Astral Heron — "when you play your **first card** each turn". A card is
+   * either, so this watches both events rather than making the card carry two
+   * abilities that would each get their own once-per-turn allowance.
+   */
+  | { on: "cardPlayed"; subject: TriggerSubject }
+  /**
    * R464.2 — Threshold of the Gray's "When combat starts here". Combat opening
    * is its own moment, distinct from the designations it hands out.
    */
@@ -199,6 +205,17 @@ function matches(
         controller,
       );
     }
+    case "cardPlayed":
+      return (
+        (event.type === "unitPlayed" || event.type === "spellPlayed") &&
+        subjectMatches(
+          condition.subject,
+          event.cardId,
+          event.playerId,
+          sourceId,
+          controller,
+        )
+      );
     case "spellPlayed":
       return (
         event.type === "spellPlayed" &&

@@ -16,6 +16,29 @@ export interface CostModifier {
   when?: Condition;
 }
 
+function subtract(cost: Cost, by: Cost): Cost {
+  return {
+    energy: Math.max(0, cost.energy - by.energy),
+    power: reducePower(cost.power, by.power),
+    anyPower: Math.max(0, cost.anyPower - by.anyPower),
+  };
+}
+
+/** Consumes the discount that `totalCostOf` just applied, if there was one. */
+export function consumeDiscount(
+  state: GameState,
+  playerId: PlayerId,
+): GameState {
+  const index = state.pendingDiscounts.findIndex(
+    (entry) => entry.player === playerId,
+  );
+  if (index === -1) return state;
+  return {
+    ...state,
+    pendingDiscounts: state.pendingDiscounts.filter((_, i) => i !== index),
+  };
+}
+
 function reducePower(power: PowerCount, by: PowerCount): PowerCount {
   const out: PowerCount = { ...power };
   for (const [domain, amount] of Object.entries(by)) {
@@ -174,5 +197,13 @@ export function totalCostOf(
   }
 
   // 4. Discounts (R356.4). Step 3, cost increases, has no card yet.
-  return applyDiscounts(state, playerId, cardId, total);
+  // R356.4.d — a discount on the *total* applies after component ones, which
+  // is where a waiting "your next card costs less" belongs.
+  const discounted = applyDiscounts(state, playerId, cardId, total);
+  const waiting = state.pendingDiscounts.find(
+    (entry) => entry.player === playerId,
+  );
+  return waiting === undefined
+    ? discounted
+    : subtract(discounted, waiting.reduce);
 }
