@@ -2,6 +2,8 @@ import type { Ability, Effect } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
 import type { TargetFilter } from "./decisions.js";
 import { abilitiesOf, controllerOf } from "./layers.js";
+import { holds } from "./conditions.js";
+import type { Condition } from "./conditions.js";
 import type { GameEvent } from "./events.js";
 import type { ScoreMethod } from "./scoring.js";
 import type { Phase } from "./turn.js";
@@ -68,6 +70,18 @@ export type TriggerCondition =
 export interface TriggeredAbility {
   kind: "triggered";
   trigger: TriggerCondition;
+  /**
+   * R383.2.a.1 — "any additional conditional statement immediately after the
+   * Condition must be true in order for the Condition to be fulfilled. Such a
+   * conditional statement is part of the Trigger Condition and not the Effect."
+   *
+   * So "when X, if Y, do Z" is this, and "when X, do Z if Y" is a `conditional`
+   * inside the effect. Position in the printed text is what separates them, and
+   * the difference is observable: this is checked once, when the trigger would
+   * fire, and never again — the Sona example says that if she is removed in
+   * reaction to the ability, "it will still resolve".
+   */
+  requires?: Condition;
   effect: Effect;
   /**
    * R383.3.a — "you may" as the *first* clause of the effect makes performing
@@ -299,6 +313,22 @@ export function collectTriggers(
         matches(state, ability.trigger, event, sourceId, controller),
       );
       if (!fired) return;
+
+      // R383.2.a.1 — the gate is part of the Condition, so a false one means
+      // the ability never triggered at all rather than resolving to nothing.
+      if (
+        ability.requires !== undefined &&
+        !holds(state, ability.requires, {
+          controller,
+          sourceId,
+          // Targets are chosen at finalization (R355.5), so a gate can only ask
+          // about the source and the board.
+          targets: [],
+          ...(location !== undefined ? { sourceLocation: location } : {}),
+        })
+      ) {
+        return;
+      }
 
       found.push({
         controller,

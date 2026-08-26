@@ -12,6 +12,7 @@ import type {
   PassiveCondition,
   PassiveScope,
 } from "./layers.js";
+import type { Condition } from "./conditions.js";
 import { FREE } from "./cost.js";
 import type { TokenKind } from "./tokens.js";
 import type { CardInstance, Cost, Domain, Keyword } from "./state.js";
@@ -186,6 +187,48 @@ export function moveUnit(
   targetIndex = 0,
 ): Effect {
   return { op: "moveUnit", targetIndex, to };
+}
+
+// Conditions (R383.2.a.1). `ifThen` is the effect-level form — the conditional
+// statement that sits *after* the instruction. The trigger-level form is a
+// `requires` on the ability itself, not a builder.
+
+export function ifThen(
+  test: Condition,
+  then: Effect,
+  otherwise?: Effect,
+): Effect {
+  return {
+    op: "conditional",
+    test,
+    then,
+    ...(otherwise !== undefined ? { otherwise } : {}),
+  };
+}
+
+/** Vex, Apathetic — "while I'm at a battlefield". */
+export const atBattlefield: Condition = { kind: "sourceAtBattlefield" };
+
+/** Kinkou Initiate — "if your other units have total Might 5 or more". */
+export function otherUnitsTotalMight(atLeast: number): Condition {
+  return { kind: "totalMight", of: "otherFriendlyUnits", atLeast };
+}
+
+/**
+ * En Garde — "if it is the only unit you control there"; Kha'Zix, Mutating
+ * Horror — "if an enemy unit is alone here".
+ */
+export function aloneThere(
+  subject: "source" | "target",
+  units: "friendly" | "enemy",
+  targetIndex?: number,
+): Condition {
+  return {
+    kind: "aloneThere",
+    subject,
+    units,
+    ...(targetIndex !== undefined ? { targetIndex } : {}),
+  };
 }
 
 // Passive abilities (R477). These modify characteristics rather than resolving,

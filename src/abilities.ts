@@ -22,6 +22,8 @@ import type {
   PassiveScope,
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
+import { holds } from "./conditions.js";
+import type { Condition } from "./conditions.js";
 
 /**
  * The vocabulary of what an effect can say. No behaviour lives here — these are
@@ -108,6 +110,13 @@ export type Effect =
   | { op: "stun"; targetIndex: number }
   /** R420 — moving as an *effect*, which is a Limited Action, not a move. */
   | { op: "moveUnit"; targetIndex: number; to: "sourceLocation" | "base" }
+  /**
+   * R383.2.a.1's second half — a conditional statement that is *not*
+   * immediately after the trigger condition is part of the effect, so it is
+   * asked here, on resolution. Loose Cannon's "draw 1 if you have one or fewer
+   * cards in your hand" is this; Sona's "if I'm at a battlefield" is not.
+   */
+  | { op: "conditional"; test: Condition; then: Effect; otherwise?: Effect }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
@@ -680,6 +689,14 @@ export function execute(
         return { state, events: [] };
       }
       return killUnits(state, [context.sourceId]);
+    }
+
+    case "conditional": {
+      const branch = holds(state, effect.test, context)
+        ? effect.then
+        : effect.otherwise;
+      if (branch === undefined) return { state, events: [] };
+      return execute(state, branch, context);
     }
 
     case "seq": {
