@@ -29,6 +29,8 @@ export interface Characteristics {
   assault: number;
   /** R814.2 — likewise for Shield. */
   shield: number;
+  /** R809.2 — likewise for Deflect: granted values are summed, not redundant. */
+  deflect: number;
   /**
    * Printed-or-copied Might, before the ability and arithmetic layers. This is
    * the value a copy effect takes: RiftJudge's ruling on LeBlanc's Reflection
@@ -383,6 +385,7 @@ export function characteristicsOf(
     keywords: [...printedKeywords],
     assault: 0,
     shield: 0,
+    deflect: 0,
     name: card?.name ?? cardId,
     type: card?.type ?? "unit",
     cost: card?.cost ?? { energy: 0, power: {}, anyPower: 0 },
@@ -450,6 +453,8 @@ export function characteristicsOf(
   // Printed Assault/Shield seed the totals that granted copies add to (R807.2).
   let assault = printedKeywords.includes("assault") ? (card.assault ?? 1) : 0;
   let shield = printedKeywords.includes("shield") ? (card.shield ?? 1) : 0;
+  // R809.1.b.3 — "If X is omitted, it is presumed to be 1."
+  let deflect = printedKeywords.includes("deflect") ? (card.deflect ?? 1) : 0;
   const arithmetic: ArithmeticStep[] = [];
   let silenced = false;
 
@@ -527,6 +532,7 @@ export function characteristicsOf(
             if (!keywords.includes(keyword)) keywords = [...keywords, keyword];
             if (keyword === "assault") assault += value ?? 1;
             if (keyword === "shield") shield += value ?? 1;
+            if (keyword === "deflect") deflect += value ?? 1;
             break;
           }
           case "addMight":
@@ -555,6 +561,7 @@ export function characteristicsOf(
     keywords,
     assault,
     shield,
+    deflect,
     silenced,
     ...copyable,
     abilities:

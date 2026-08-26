@@ -21,6 +21,7 @@ import {
 } from "./chain.js";
 import {
   abilitiesOf,
+  characteristicsOf,
   controllerOf,
   keywordsOf,
   movementRestricted,
@@ -250,6 +251,27 @@ function nextDecision(state: GameState): PendingDecision | null {
   }
 
   return null;
+}
+
+/**
+ * R809.1.c — the Power an ability owes for choosing Deflecting objects an
+ * opponent controls, "for each time they choose [me]". R809.1.c.1 makes it any
+ * Domain, so it is always `[A]`.
+ */
+function deflectTax(
+  state: GameState,
+  playerId: PlayerId,
+  targets: CardId[],
+): AbilityCost | undefined {
+  let owed = 0;
+  for (const targetId of targets) {
+    if (state.permanents[targetId] === undefined) continue;
+    if (controllerOf(state, targetId) === playerId) continue;
+    owed += characteristicsOf(state, targetId).deflect;
+  }
+  return owed === 0
+    ? undefined
+    : { kind: "pay", cost: { energy: 0, power: {}, anyPower: owed } };
 }
 
 /** The filters a spell's own rules text names, if it names any (R355.5). */
@@ -880,6 +902,8 @@ export function playSpell(
   const cost = totalCostOf(state, playerId, cardId, {
     payOptional,
     ignoreBaseCost: hiddenAt !== undefined,
+    // R809.1.d — Deflect prices the targets, so they are part of the cost.
+    targets,
   });
 
   const remainingPool = spend(player.runePool, cost, {
@@ -1266,7 +1290,12 @@ export function activateAbility(
 
   let current = state;
   const events: GameEvent[] = [];
-  for (const cost of ability.costs) {
+  // R809.1.c — "Spells and abilities an opponent controls that target [me]
+  // cost … more to play as an additional cost", so an ability pays it too.
+  const deflect = deflectTax(state, playerId, targets);
+  const costs: AbilityCost[] =
+    deflect === undefined ? ability.costs : [...ability.costs, deflect];
+  for (const cost of costs) {
     const paid = payAbilityCost(current, cost, context);
     if (paid === undefined) {
       return rejected("cannotPayAbilityCost");

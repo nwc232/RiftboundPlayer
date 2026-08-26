@@ -88,6 +88,8 @@ export interface CardInstance {
    */
   assault?: number;
   shield?: number;
+  /** R809.1.b.2 — the Deflect Value. Omitted means 1 (R809.1.b.3). */
+  deflect?: number;
   /**
    * R185.1 — "token" is an intrinsic category: a token can never stop being
    * one, and a card can never become one. R186.1 is what it buys us — a token

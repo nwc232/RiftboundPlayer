@@ -1,4 +1,4 @@
-import { characteristicsOf, keywordsOf } from "./layers.js";
+import { characteristicsOf, controllerOf, keywordsOf } from "./layers.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 import type { CardId, Cost, GameState, PlayerId, PowerCount } from "./state.js";
@@ -128,6 +128,11 @@ export function additionalCostsOf(
 }
 
 export interface CostOptions {
+  /**
+   * R809.1.d — what this play chooses. Deflect imposes a Mandatory Additional
+   * Cost "for each time they choose [me]", so the targets are part of pricing.
+   */
+  targets?: CardId[];
   /** R356.1.b — "ignoring its cost" sets the base cost to zero. */
   ignoreBaseCost?: boolean;
   /** R356.2.b.1 — whether the player chose to pay the optional additional cost. */
@@ -155,6 +160,17 @@ export function totalCostOf(
   for (const additional of additionalCostsOf(state, cardId)) {
     if (additional.optional && options.payOptional !== true) continue;
     total = addCosts(total, additional.cost);
+  }
+  // R356.2.a.2 / R809 — Deflect is a Mandatory Additional Cost, once per time
+  // this play chooses a Deflecting object an opponent controls. R809.1.c.1:
+  // "The Power used to pay this cost may always be of any Domain."
+  for (const targetId of options.targets ?? []) {
+    if (state.permanents[targetId] === undefined) continue;
+    if (controllerOf(state, targetId) === playerId) continue;
+    const value = characteristicsOf(state, targetId).deflect;
+    if (value > 0) {
+      total = addCosts(total, { energy: 0, power: {}, anyPower: value });
+    }
   }
 
   // 4. Discounts (R356.4). Step 3, cost increases, has no card yet.
