@@ -310,6 +310,12 @@ function withPlayer(
   return { ...state, players: { ...state.players, [playerId]: player } };
 }
 
+/**
+ * A harness action, not a rules action: Riftbound has no "draw a card" move.
+ * Drawing happens in the Draw Phase or from an effect, both of which go through
+ * `drawCards` and can Burn Out (R431). This rejects on an empty deck instead,
+ * so tests using it as a generic "make something happen" stay honest.
+ */
 export function drawCard(state: GameState, playerId: PlayerId): ActionResult {
   const player = state.players[playerId];
   const [drawnId, ...remainingDeck] = player.mainDeck;
@@ -362,8 +368,12 @@ export function playUnitFromHand(
     return rejected("wrongCardType");
   }
 
+  // R108.3.d — the Chosen Champion is played from the Champion Zone, following
+  // the same rules as any other card. It is an always-available extra card, not
+  // an inert marker, so this is the one legal source besides the hand.
+  const fromChampionZone = player.champion === cardId;
   const handIndex = player.hand.indexOf(cardId);
-  if (handIndex === -1) {
+  if (handIndex === -1 && !fromChampionZone) {
     return rejected("notInHand");
   }
 
@@ -375,10 +385,9 @@ export function playUnitFromHand(
     return rejected("cannotAffordCost");
   }
 
-  const newHand = [
-    ...player.hand.slice(0, handIndex),
-    ...player.hand.slice(handIndex + 1),
-  ];
+  const newHand = fromChampionZone
+    ? player.hand
+    : [...player.hand.slice(0, handIndex), ...player.hand.slice(handIndex + 1)];
 
   return {
     ok: true,
@@ -386,6 +395,9 @@ export function playUnitFromHand(
       ...withPlayer(state, playerId, {
         ...player,
         hand: newHand,
+        // R108.3.c — it cannot be returned here by normal means, so the zone
+        // empties for good once the champion is played.
+        ...(fromChampionZone ? { champion: null } : {}),
         runePool: remainingPool,
       }),
       permanents: {

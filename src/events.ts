@@ -44,6 +44,8 @@ export type GameEvent =
       method: ScoreMethod;
     }
   | { type: "pointGained"; playerId: PlayerId; points: number }
+  /** R431 — drew from an empty deck; trash recycled, opponent gains a point. */
+  | { type: "burnedOut"; playerId: PlayerId }
   | { type: "gameWon"; playerId: PlayerId; points: number }
   | {
       type: "combatDamageDealt";

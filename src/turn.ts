@@ -1,5 +1,6 @@
 import { execute } from "./abilities.js";
 import { healAllUnits } from "./combat.js";
+import { drawCards } from "./draw.js";
 import { expireModifiers } from "./layers.js";
 import type { DelayedTiming } from "./layers.js";
 import type { GameEvent, Progress } from "./events.js";
@@ -85,12 +86,20 @@ function scoringStep(progress: Progress, player: PlayerId): Progress {
   };
 }
 
-/** R315.3 — the turn player channels 2 runes, or as many as remain. */
-function channelTwo(progress: Progress, player: PlayerId): Progress {
+/**
+ * R315.3 — the turn player channels 2 runes, or as many as remain.
+ *
+ * R485.7 is the 1v1 First Turn Process: "the player going second channels an
+ * extra Rune from their Rune Deck during their first Channel Phase of the
+ * game" — their first Channel Phase being turn 2.
+ */
+function channelTwo(progress: Progress, player: PlayerId, number: number): Progress {
   let { state } = progress;
   const events: GameEvent[] = [];
+  const count =
+    number === 2 && player !== state.startingPlayer ? 3 : 2;
 
-  for (let i = 0; i < 2; i += 1) {
+  for (let i = 0; i < count; i += 1) {
     const playerState = state.players[player];
     const [runeId, ...rest] = playerState.runeDeck;
     if (runeId === undefined) break;
@@ -115,28 +124,10 @@ function channelTwo(progress: Progress, player: PlayerId): Progress {
   return { state, events: [...progress.events, ...events] };
 }
 
-/** R315.4 — the turn player draws 1. Burn Out (R431) is not modelled yet. */
+/** R315.4 — the turn player draws 1, burning out if the deck is dry (R431). */
 function drawOne(progress: Progress, player: PlayerId): Progress {
-  const { state } = progress;
-  const playerState = state.players[player];
-  const [drawnId, ...rest] = playerState.mainDeck;
-  if (drawnId === undefined) {
-    return progress;
-  }
-
-  return {
-    state: {
-      ...state,
-      players: {
-        ...state.players,
-        [player]: { ...playerState, mainDeck: rest, hand: [...playerState.hand, drawnId] },
-      },
-    },
-    events: [
-      ...progress.events,
-      { type: "cardDrawn", playerId: player, cardId: drawnId },
-    ],
-  };
+  const drawn = drawCards(progress.state, player, 1);
+  return { state: drawn.state, events: [...progress.events, ...drawn.events] };
 }
 
 /**
@@ -273,7 +264,7 @@ export function runTurnStep(
       return { ...scoringStep(progress, player), next: at("channel") };
 
     case "channel":
-      return { ...channelTwo(progress, player), next: at("draw") };
+      return { ...channelTwo(progress, player, number), next: at("draw") };
 
     case "draw":
       return { ...drawOne(progress, player), next: at("main") };

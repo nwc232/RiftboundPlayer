@@ -18,7 +18,15 @@ const NORTH: Location = { kind: "battlefield", id: "bf-north" };
 function board(overrides: Partial<GameState> = {}): GameState {
   return {
     ...makeState({
-      cards: [unit("u1"), unit("e1")],
+      // Both players need something to draw, or the Draw Phase burns them out
+      // (R431) and hands the opponent a point.
+      p1: { mainDeck: ["d1", "d2", "d3"] },
+      p2: { mainDeck: ["d4", "d5", "d6"] },
+      cards: [
+        unit("u1"),
+        unit("e1"),
+        ...["d1", "d2", "d3", "d4", "d5", "d6"].map((id) => unit(id)),
+      ],
       permanents: [{ cardId: "u1", controller: "p1" }],
       battlefields: ["bf-north", "bf-south"],
     }),

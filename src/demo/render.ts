@@ -277,6 +277,8 @@ export function renderEvent(event: GameEvent): string {
       return dim(`  ${event.cardId} schedules an effect for ${event.at}`);
     case "controlTaken":
       return `${event.playerId} takes control of ${event.cardId} (${event.duration})`;
+    case "burnedOut":
+      return bold(`${event.playerId} burned out — trash recycled, opponent scores`);
     case "tokenCreated":
       return `${event.playerId} creates a ${event.token} token [${event.cardId}]`;
     default: {

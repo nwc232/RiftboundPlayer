@@ -162,6 +162,8 @@ export interface PlayerState {
   mainDeck: CardId[];
   hand: CardId[];
   trash: CardId[];
+  /** R108.6 — removed from play in a harder-to-recover way than the trash. */
+  banished: CardId[];
   /** Index 0 is the top of the rune deck (the next rune channeled). */
   runeDeck: CardId[];
   /** Runes on the board, in the order they were channeled (oldest first). */
@@ -170,6 +172,17 @@ export interface PlayerState {
   points: number;
   /** R470 — a battlefield may only be scored once per turn per player. */
   scoredThisTurn: CardId[];
+  /**
+   * R107.4 — the Champion Legend, which cannot be removed or moved from its
+   * zone (R107.4.d). Null only in hand-built test boards.
+   */
+  legend: CardId | null;
+  /**
+   * R108.3 — the Chosen Champion. It starts here and is *playable from here*
+   * (R108.3.d), which makes it a permanently available extra card rather than
+   * an inert marker. Null once played, or in hand-built test boards.
+   */
+  champion: CardId | null;
 }
 
 export interface GameState {
@@ -203,6 +216,8 @@ export interface GameState {
   modifiers: Modifier[];
   /** Bumped for each token created, so minted ids stay deterministic. */
   tokensCreated: number;
+  /** R485.7 — the player who did *not* start channels an extra rune on turn 2. */
+  startingPlayer: PlayerId;
   /**
    * R317.1.a — effects scheduled to fire at a later moment, as opposed to
    * modifiers, which merely stop applying at one.

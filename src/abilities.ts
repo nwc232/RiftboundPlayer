@@ -9,6 +9,7 @@ import type {
   PlayerId,
 } from "./state.js";
 import { killUnits } from "./combat.js";
+import { drawCards } from "./draw.js";
 import { controllerOf, mightOf } from "./layers.js";
 import { tokenCard } from "./tokens.js";
 import type { TokenKind } from "./tokens.js";
@@ -239,32 +240,8 @@ export function execute(
       };
     }
 
-    case "draw": {
-      let current = state;
-      const events: GameEvent[] = [];
-      for (let i = 0; i < effect.count; i += 1) {
-        const player = current.players[context.controller];
-        const [drawnId, ...rest] = player.mainDeck;
-        if (drawnId === undefined) break;
-        current = {
-          ...current,
-          players: {
-            ...current.players,
-            [context.controller]: {
-              ...player,
-              mainDeck: rest,
-              hand: [...player.hand, drawnId],
-            },
-          },
-        };
-        events.push({
-          type: "cardDrawn",
-          playerId: context.controller,
-          cardId: drawnId,
-        });
-      }
-      return { state: current, events };
-    }
+    case "draw":
+      return drawCards(state, context.controller, effect.count);
 
     // R359.3.d — a countered spell never executes; it goes to its owner's
     // trash as if it had resolved. Cards like Abandon replace that destination.
