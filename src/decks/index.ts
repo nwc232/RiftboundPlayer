@@ -1,7 +1,7 @@
 import { basicRune } from "../builders.js";
 import { copies } from "../deck.js";
 import type { Deck, GameSetup } from "../deck.js";
-import type { CardInstance, Domain, PlayerId } from "../state.js";
+import type { CardId, CardInstance, Domain, PlayerId } from "../state.js";
 import * as vex from "./vex.js";
 import * as rengar from "./rengar.js";
 
@@ -119,19 +119,46 @@ export const RENGAR_DECK: Deck = {
 };
 
 /**
+ * A deterministic shuffle. The engine has no RNG on purpose — deck order is
+ * taken as given so a game replays exactly — so shuffling belongs here, at
+ * setup, where a seed makes it reproducible.
+ */
+function shuffled(ids: CardId[], seed: number): CardId[] {
+  let s = (seed || 1) >>> 0;
+  const next = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+  const out = [...ids];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+/**
  * R485.5 — each player brings three battlefields and one is used. Which one is
  * a choice; these are the defaults the demo and tests start from.
+ *
+ * `seed` shuffles both main decks. Omitting it keeps list order, which is what
+ * the tests want: the same game every time.
  */
 export function matchup(
-  choices: { p1?: string; p2?: string } = {},
+  options: { p1?: string; p2?: string; seed?: number } = {},
 ): GameSetup {
+  const order = (deck: Deck): Deck =>
+    options.seed === undefined
+      ? deck
+      : { ...deck, mainDeck: shuffled(deck.mainDeck, options.seed) };
+
   return {
     cards: ALL_CARDS,
-    p1: VEX_DECK,
-    p2: RENGAR_DECK,
+    p1: order(VEX_DECK),
+    p2: order(RENGAR_DECK),
     choices: {
-      p1: { battlefield: choices.p1 ?? vex.abandonedHall.id },
-      p2: { battlefield: choices.p2 ?? rengar.seatOfPower.id },
+      p1: { battlefield: options.p1 ?? vex.abandonedHall.id },
+      p2: { battlefield: options.p2 ?? rengar.seatOfPower.id },
     },
   };
 }

@@ -326,30 +326,45 @@ export function renderEvent(event: GameEvent): string {
  * own `legalActions` rather than a second guess at the rules, so the list can
  * never offer something the dispatcher would then reject.
  */
-export function renderAvailableAbilities(state: GameState): string[] {
+export function renderAvailableAbilities(
+  state: GameState,
+  playerId: PlayerId = "p1",
+): string[] {
   const seen = new Set<string>();
   const lines: string[] = [];
 
   const label = (cardId: string) => state.cards[cardId]?.name ?? cardId;
 
-  for (const action of legalActions(state, "p1")) {
+  for (const action of legalActions(state, playerId)) {
     let command: string;
     let note = "";
 
     switch (action.type) {
       case "playUnitFromHand":
-        command = `play ${action.cardId}`;
+        command = `play ${action.cardId} ${locationName(
+          action.destination ?? { kind: "base", player: action.playerId },
+        )}${action.payOptional === true ? " +cost" : ""}`;
         note = label(action.cardId);
         break;
       case "playSpell":
         command =
-          action.targets === undefined || action.targets.length === 0
-            ? `cast ${action.cardId}`
-            : `cast ${action.cardId} ${action.targets.join(" ")}`;
+          `cast ${action.cardId}` +
+          (action.targets === undefined || action.targets.length === 0
+            ? ""
+            : ` ${action.targets.join(" ")}`) +
+          (action.payOptional === true ? " +cost" : "");
+        note = label(action.cardId);
+        break;
+      case "hide":
+        command = `hide ${action.cardId} ${action.battlefieldId}`;
         note = label(action.cardId);
         break;
       case "activateAbility":
-        command = `use ${action.sourceId} ${action.abilityIndex}`;
+        command =
+          `use ${action.sourceId} ${action.abilityIndex}` +
+          (action.targets === undefined || action.targets.length === 0
+            ? ""
+            : ` ${action.targets.join(" ")}`);
         note = label(action.sourceId);
         break;
       case "standardMove":

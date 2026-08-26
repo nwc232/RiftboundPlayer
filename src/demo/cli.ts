@@ -3,39 +3,71 @@ import { applyAction } from "../actions.js";
 import type { Action } from "../actions.js";
 import type { GameEvent } from "../events.js";
 import type { GameState } from "../state.js";
+import { startGame } from "../deck.js";
+import { matchup } from "../decks/index.js";
 import { makeDemoState } from "./deck.js";
 import { renderAvailableAbilities, renderEvent, renderState } from "./render.js";
 
 const HELP = `
 commands
-  state             show the board
-  abilities         list abilities you can use right now
-  pass              pass priority (chain) or focus (showdown)
-  choose <id>       answer a target choice
-  yes / no          answer a "you may" choice
-  end               end your turn
-  use <id> <n>      activate ability n of card <id>
-  draw              draw a card
-  play <id>         play a unit from hand
-  cast <id> [tgt]   play a spell onto the chain
-  move <id> <dest>  standard move; dest is base or a battlefield id
-  log               show everything that has happened
-  reset             start over
-  help              this
-  quit              leave
+  state                 show the board
+  moves                 every legal move right now, as typeable commands
+  pass                  pass priority (chain) or focus (showdown)
+  choose <id...>        answer a target choice
+  yes / no              answer a "you may" choice
+  end                   end your turn
+  use <id> <n> [tgt]    activate ability n of card <id>
+  draw                  draw a card
+  play <id> [dest]      play a unit or gear; dest is base or a battlefield id
+  cast <id> [tgt...]    play a spell onto the chain
+  hide <id> <bf>        hide a [Hidden] card facedown at a battlefield
+  move <id> <dest>      standard move
+  log                   show everything that has happened
+  reset                 start over
+  help                  this
+  quit                  leave
 
-p2 garrisons bf-south with a Tank and a Backline unit — attack it to see
-combat. first to 8 points wins.
+add "+cost" to the end of a play or cast to pay an optional additional
+cost — [Accelerate], Pyke, Rampage.
 
-Cloud Drake has a play trigger. Riptide Rex has one that needs a target —
-the engine stops and asks before anything else may happen.
+two modes, switched with "reset sandbox" / "reset decks":
+  decks    the two real lists — Vex, Gloomist against Rengar, Pridestalker
+  sandbox  a small hand-built board with a garrison to attack
 
-not built yet: Assault/Shield might modifiers, and choosing your own
-combat damage assignment.
+first to 8 points wins. "moves" is driven by the engine's own legalActions,
+so it can never offer something the rules would then reject.
 `;
 
-let state: GameState = makeDemoState();
+/** R485 — the real matchup, or the small hand-built board. */
+type Mode = "decks" | "sandbox";
+
+function newGame(mode: Mode, seed = Date.now() % 100000): GameState {
+  if (mode === "sandbox") return makeDemoState();
+  // R485.2 — decks are shuffled at setup. The engine itself has no RNG, so the
+  // seed lives here and is printed, which makes any game replayable.
+  console.log(`  deck seed ${seed}`);
+  const started = startGame(matchup({ seed }));
+  if (!started.ok) {
+    throw new Error(`deck setup failed: ${JSON.stringify(started.errors)}`);
+  }
+  return started.state;
+}
+
+let mode: Mode = "decks";
+let state: GameState = newGame(mode);
 const log: GameEvent[] = [];
+
+/**
+ * Who the CLI is acting as. One person drives both seats here, so it is
+ * whoever the rules currently expect: the player owing a decision, the one
+ * holding priority, the one with Focus, else the turn player.
+ */
+function actingPlayer(): "p1" | "p2" {
+  if (state.pending !== null) return state.pending.player;
+  if (state.chain.length > 0 && state.priority !== null) return state.priority;
+  if (state.showdown !== null) return state.showdown.focus;
+  return state.turn.player;
+}
 
 function run(action: Action): void {
   const result = applyAction(state, action);
@@ -68,9 +100,11 @@ function handle(line: string): boolean {
     case "s":
       console.log(renderState(state));
       return true;
+    case "moves":
     case "abilities":
+    case "m":
     case "a": {
-      const lines = renderAvailableAbilities(state);
+      const lines = renderAvailableAbilities(state, actingPlayer());
       console.log(lines.length === 0 ? "\n  nothing available\n" : `\n${lines.join("\n")}\n`);
       return true;
     }
@@ -85,15 +119,12 @@ function handle(line: string): boolean {
       return true;
     }
     case "choose": {
-      const target = args[0];
-      if (target === undefined) {
-        console.log("  usage: choose <targetId>\n");
-        return true;
-      }
+      // Zero arguments is a real answer: R117.1's mulligan of "up to two"
+      // includes keeping the hand.
       run({
         type: "decide",
         playerId: state.pending?.player ?? state.turn.player,
-        targets: [target],
+        targets: args,
       });
       return true;
     }
@@ -111,9 +142,17 @@ function handle(line: string): boolean {
         console.log("  usage: cast <cardId> [targetId]\n");
         return true;
       }
-      const caster = state.players.p1.hand.includes(cardId) ? "p1" : "p2";
-      const targets = args[1] === undefined ? [] : [args[1]];
-      run({ type: "playSpell", playerId: caster, cardId, targets });
+      const rest = args.slice(1);
+      const payOptional = rest.includes("+cost");
+      const targets = rest.filter((arg) => arg !== "+cost");
+      const acting = actingPlayer();
+      run({
+        type: "playSpell",
+        playerId: acting,
+        cardId,
+        targets,
+        payOptional,
+      });
       return true;
     }
     case "end":
@@ -125,10 +164,38 @@ function handle(line: string): boolean {
     case "play": {
       const cardId = args[0];
       if (cardId === undefined) {
-        console.log("  usage: play <cardId>\n");
+        console.log("  usage: play <cardId> [base|battlefieldId] [+cost]\n");
         return true;
       }
-      run({ type: "playUnitFromHand", playerId: "p1", cardId });
+      const rest = args.slice(1);
+      const payOptional = rest.includes("+cost");
+      const where = rest.find((arg) => arg !== "+cost");
+      const acting = actingPlayer();
+      run({
+        type: "playUnitFromHand",
+        playerId: acting,
+        cardId,
+        destination:
+          where === undefined || where === "base"
+            ? { kind: "base", player: acting }
+            : { kind: "battlefield", id: where },
+        payOptional,
+      });
+      return true;
+    }
+    case "hide": {
+      const cardId = args[0];
+      const battlefieldId = args[1];
+      if (cardId === undefined || battlefieldId === undefined) {
+        console.log("  usage: hide <cardId> <battlefieldId>\n");
+        return true;
+      }
+      run({
+        type: "hide",
+        playerId: actingPlayer(),
+        cardId,
+        battlefieldId,
+      });
       return true;
     }
     case "move": {
@@ -149,10 +216,16 @@ function handle(line: string): boolean {
       const sourceId = args[0];
       const index = Number(args[1] ?? "0");
       if (sourceId === undefined || Number.isNaN(index)) {
-        console.log("  usage: use <cardId> <abilityIndex>\n");
+        console.log("  usage: use <cardId> <abilityIndex> [targetId...]\n");
         return true;
       }
-      run({ type: "activateAbility", playerId: "p1", sourceId, abilityIndex: index });
+      run({
+        type: "activateAbility",
+        playerId: actingPlayer(),
+        sourceId,
+        abilityIndex: index,
+        targets: args.slice(2),
+      });
       return true;
     }
     case "log":
@@ -162,12 +235,16 @@ function handle(line: string): boolean {
           : `\n${log.map((e, i) => `  ${i + 1}. ${renderEvent(e)}`).join("\n")}\n`,
       );
       return true;
-    case "reset":
-      state = makeDemoState();
+    case "reset": {
+      const asked = args[0];
+      if (asked === "sandbox" || asked === "decks") mode = asked;
+      const seed = Number(args.find((arg) => /^\d+$/.test(arg)));
+      state = newGame(mode, Number.isNaN(seed) ? undefined : seed);
       log.length = 0;
-      console.log("  reset");
+      console.log(`  reset — ${mode}`);
       console.log(renderState(state));
       return true;
+    }
     case "quit":
     case "q":
     case "exit":
