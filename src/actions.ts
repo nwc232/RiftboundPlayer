@@ -218,7 +218,12 @@ function nextDecision(state: GameState): PendingDecision | null {
         kind: "chooseTargets",
         chainIndex,
         count: ability.targeting.count,
-        legal: legalTargets(state, item.controller, ability.targeting.filter),
+        legal: legalTargets(
+          state,
+          item.controller,
+          ability.targeting.filter,
+          chainItemCardId(item),
+        ),
       },
     };
   }

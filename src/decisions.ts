@@ -1,4 +1,5 @@
-import { controllerOf } from "./layers.js";
+import { controllerOf, mightOf } from "./layers.js";
+import { sameLocation } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
 /**
@@ -51,16 +52,33 @@ export interface TargetFilter {
   /** Relative to the ability's controller. */
   controller?: "enemy" | "friendly";
   location?: "battlefield";
+  /**
+   * "*another* friendly unit" — Pit Rookie, First Mate. R355.5 never excludes
+   * the source by default, so the word "another" is what turns this on.
+   */
+  excludeSource?: true;
+  /** Gust — "a unit at a battlefield with 3 [M] or less". */
+  maxMight?: number;
+  /** Evelynn, Entrancing — "an enemy unit at a *different* location". */
+  awayFromSource?: true;
 }
 
 export function legalTargets(
   state: GameState,
   controller: PlayerId,
   filter: TargetFilter,
+  /** The ability's source, for the filters that are relative to it. */
+  sourceId?: CardId,
 ): CardId[] {
+  const here =
+    sourceId === undefined ? undefined : state.permanents[sourceId]?.location;
+
   return Object.values(state.permanents)
     .filter((permanent) => {
       if (state.cards[permanent.cardId]?.type !== filter.type) return false;
+      if (filter.excludeSource === true && permanent.cardId === sourceId) {
+        return false;
+      }
 
       const its = controllerOf(state, permanent.cardId);
       if (filter.controller === "enemy" && its === controller) return false;
@@ -70,6 +88,20 @@ export function legalTargets(
         permanent.location.kind !== "battlefield"
       ) {
         return false;
+      }
+      // Read through the layers: Gust asks what a unit's Might *is*, which an
+      // anthem or a buff has already had its say in (R477.3).
+      if (
+        filter.maxMight !== undefined &&
+        mightOf(state, permanent.cardId) > filter.maxMight
+      ) {
+        return false;
+      }
+      // A source that is nowhere has no location to differ from, so nothing
+      // qualifies rather than everything.
+      if (filter.awayFromSource === true) {
+        if (here === undefined) return false;
+        if (sameLocation(here, permanent.location)) return false;
       }
       return true;
     })
