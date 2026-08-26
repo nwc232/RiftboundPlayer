@@ -5,6 +5,7 @@ import type {
   AdditionalCostAbility,
   Effect,
   CostModifierAbility,
+  EntryReplacementAbility,
   PassiveAbility,
   PlayPermissionAbility,
 } from "./abilities.js";
@@ -189,6 +190,24 @@ export function buff(targetIndex = 0): Effect {
 /** R423 — Back Off's "[Stun] a unit". */
 export function stun(targetIndex = 0): Effect {
   return { op: "stun", targetIndex };
+}
+
+/**
+ * R369.3 — "I enter ready", and the conditional forms of it: Breakneck Mech's
+ * "if you control another Mech", Xin Zhao's "if you have two or more other
+ * units in your base".
+ */
+export function entersReady(when?: Condition): EntryReplacementAbility {
+  return {
+    kind: "entryReplacement",
+    ready: true,
+    ...(when !== undefined ? { when } : {}),
+  };
+}
+
+/** Xin Zhao, Vigilant — "if you have two or more other units in your base". */
+export function controlsOtherUnits(atLeast: number): Condition {
+  return { kind: "controlsOtherUnits", atLeast };
 }
 
 /** R730.1 — Kha'Zix, Mutating Horror's "gain 2 XP". */

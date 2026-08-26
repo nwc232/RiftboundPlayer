@@ -30,6 +30,7 @@ Built and tested (174 tests):
 | XP (R728–733) | A number on the player |
 | Two real decks | 38 cards, 6 battlefields, played start to finish |
 | Front-end | React over `legalActions` + `pending` + the event stream |
+| Replacement effects (R369.3) | How a unit enters the board |
 | Layers (R473–479) | 3 layers, fixpoint, dependency, snapshotting |
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
@@ -265,8 +266,9 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
    React + Vite in `src/ui/`, run with `npm run ui`. Hotseat for now; the
    panels are rendered symmetrically from the same data so "two windows,
    one per player" becomes a filter on what is passed in.
-5. **Replacement effects, Tier A** (R369.3) — how a unit enters the board.
-   ~67 cards, one chokepoint, and it retires [Accelerate]'s hardcode.
+5. ~~**Replacement effects, Tier A**~~ (R369.3) — done. 66 cards, and
+   [Accelerate] stopped being a special case: R805.1.a's "If you do, I
+   enter ready" is now literally a conditional entry replacement.
 6. **Replacement effects, Tier B** — the general mechanism. This is the
    structural one: events stop being reports and become proposals.
    Retires Burn Out's and damage prevention's hardcodes.

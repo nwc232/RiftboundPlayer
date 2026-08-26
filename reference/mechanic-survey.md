@@ -646,9 +646,15 @@ never see them or order against them (R372).
 
 | Tier | Covers | Cards in pool | Retires |
 |---|---|---|---|
-| **A** | R369.3 — how a unit enters: "I enter ready", "I enter there", "as you play me" | ~67 | [Accelerate]'s hardcode |
+| ~~**A**~~ | R369.3 — how a unit enters: "I enter ready" and its conditional forms | 66 | Done — [Accelerate]'s hardcode is gone |
 | **B** | The general mechanism: deaths, damage, draws, token creation | ~12 | Burn Out's and prevention's |
 | **C** | R373.2 — sequences across simultaneous events | 0 today | — |
+
+Two shapes inside Tier A were deliberately left out, because nothing they
+depend on exists yet: **"I enter there"** (Baron Nashor, 3 cards) needs
+battlefield tokens, and **"as you play me, <choose a tag>"** needs the tag
+system. The additional-cost half of the "as you play me" family is already
+built separately (R356.2).
 
 **Tier B is the structural one.** Events are currently *reports* — a
 `GameEvent[]` recording what happened. A replacement needs them to be

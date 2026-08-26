@@ -28,6 +28,7 @@ import type { ResolutionChoice } from "./tasks.js";
 import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
+import type { EntryReplacement } from "./replacements.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 
@@ -231,8 +232,18 @@ export interface AdditionalCostAbility {
   cost: Cost;
 }
 
+/**
+ * R369.3 — "I enter ready", and the conditional forms of it. Read off a card
+ * in hand like the other non-resolving kinds, because it has to be known
+ * before the permanent exists.
+ */
+export interface EntryReplacementAbility extends EntryReplacement {
+  kind: "entryReplacement";
+}
+
 export type Ability =
   | ActivatedAbility
+  | EntryReplacementAbility
   | AdditionalCostAbility
   | TriggeredAbility
   | PassiveAbility

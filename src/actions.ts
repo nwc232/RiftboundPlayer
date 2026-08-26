@@ -27,9 +27,9 @@ import {
   abilitiesOf,
   characteristicsOf,
   controllerOf,
-  keywordsOf,
   movementRestricted,
 } from "./layers.js";
+import { entersReady } from "./replacements.js";
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision, TargetFilter } from "./decisions.js";
 import {
@@ -719,12 +719,15 @@ export function playUnitFromHand(
         [cardId]: {
           cardId,
           controller: playerId,
-          // R359.2.c — a unit enters exhausted, unless R805.1.a's [Accelerate]
-          // cost was paid: "If you do, I enter ready." R359.2.d — gear enters
-          // ready.
+          // R359.2.c — a unit enters exhausted; R359.2.d — gear enters ready.
+          // R369.3 is the family of replacement effects that alter *how* a
+          // unit enters, and [Accelerate] is one of them rather than a case
+          // spelled out here.
           exhausted:
             !isGear &&
-            !(payOptional && keywordsOf(state, cardId).includes("accelerate")),
+            !entersReady(state, playerId, cardId, {
+              paidAdditionalCost: payOptional,
+            }),
           location: destination,
           damage: 0,
           // R205 — a later "if you paid the additional cost" checks whether the

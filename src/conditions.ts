@@ -55,7 +55,9 @@ export type Condition =
    * Evelynn, Entrancing — "when you play me from face down **on your turn**".
    * R383.2.a.1 allows a whole conditional statement, not just one clause.
    */
-  | { kind: "all"; of: Condition[] };
+  | { kind: "all"; of: Condition[] }
+  /** Xin Zhao, Vigilant — "if you have two or more other units in your base". */
+  | { kind: "controlsOtherUnits"; atLeast: number };
 
 /**
  * What a condition is asked *about*. `EffectContext` satisfies this
@@ -152,6 +154,16 @@ export function holds(
 
     case "all":
       return condition.of.every((each) => holds(state, each, context));
+
+    case "controlsOtherUnits": {
+      const count = Object.values(state.permanents).filter(
+        (permanent) =>
+          permanent.cardId !== context.sourceId &&
+          state.cards[permanent.cardId]?.type === "unit" &&
+          controllerOf(state, permanent.cardId) === context.controller,
+      ).length;
+      return count >= condition.atLeast;
+    }
 
     case "hasXP":
       return state.players[context.controller].xp >= condition.atLeast;
