@@ -19,16 +19,6 @@ const cyan = (t: string) => paint("36", t);
 const yellow = (t: string) => paint("33", t);
 const green = (t: string) => paint("32", t);
 
-export function formatCost(cost: Cost): string {
-  const parts: string[] = [];
-  if (cost.energy > 0) parts.push(`${cost.energy}e`);
-  for (const [domain, count] of Object.entries(cost.power)) {
-    if (count !== undefined && count > 0) parts.push(`${count} ${domain}`);
-  }
-  if (cost.anyPower > 0) parts.push(`${cost.anyPower} any`);
-  return parts.length === 0 ? "free" : parts.join(" + ");
-}
-
 function formatPool(state: GameState, playerId: PlayerId): string {
   const pool = totals(state.players[playerId].runePool);
   const parts: string[] = [];
@@ -103,10 +93,6 @@ function renderPlayer(state: GameState, playerId: PlayerId): string[] {
   lines.push(`  points     ${bold(String(player.points))}${dim(` / ${VICTORY_SCORE}`)}`);
 
   return lines;
-}
-
-export function locationName(location: Location): string {
-  return location.kind === "base" ? `${location.player} base` : location.id;
 }
 
 function renderBattlefields(state: GameState): string[] {
@@ -201,124 +187,9 @@ export function renderState(state: GameState): string {
   ].join("\n");
 }
 
-export function renderEvent(event: GameEvent): string {
-  switch (event.type) {
-    case "cardDrawn":
-      return `${event.playerId} drew ${event.cardId}`;
-    case "unitPlayed":
-      return `${event.playerId} played ${event.cardId}`;
-    case "runeChanneled":
-      return `${event.playerId} channeled ${event.cardId}`;
-    case "runeRecycled":
-      return `${event.playerId} recycled ${event.cardId} to the bottom of the rune deck`;
-    case "energyAdded":
-      return `${event.playerId} added ${event.amount} energy`;
-    case "powerAdded":
-      return `${event.playerId} added ${event.amount} ${event.domain} power`;
-    case "costPaid":
-      return `${event.playerId} paid ${formatCost(event.cost)} for ${event.cardId}`;
-    case "turnBegan":
-      return bold(`— turn ${event.turn}: ${event.playerId} —`);
-    case "phaseBegan":
-      return dim(`  ${event.phase} phase`);
-    case "objectReadied":
-      return `${event.playerId} readied ${event.cardId}`;
-    case "poolEmptied":
-      return dim(`  ${event.playerId} rune pool emptied`);
-    case "unitMoved":
-      return `${event.playerId} moved ${event.cardId} from ${locationName(event.from)} to ${locationName(event.to)}`;
-    case "showdownOpened":
-      return bold(`showdown opens at ${event.battlefieldId} — ${event.attacker} attacks and has focus`);
-    case "focusPassed":
-      return dim(`  ${event.playerId} passes`);
-    case "showdownClosed":
-      return dim(`  showdown at ${event.battlefieldId} closes`);
-    case "battlefieldControlled":
-      return green(`${event.playerId} takes control of ${event.battlefieldId}`);
-    case "battlefieldControlLost":
-      return `${event.playerId} loses control of ${event.battlefieldId}`;
-    case "battlefieldScored":
-      return `${event.playerId} ${event.method === "conquer" ? "conquers" : "holds"} ${event.battlefieldId}`;
-    case "pointGained":
-      return green(`${event.playerId} scores — now ${event.points} point${event.points === 1 ? "" : "s"}`);
-    case "gameWon":
-      return bold(`${event.playerId} WINS with ${event.points} points`);
-    case "combatDamageDealt":
-      return `combat at ${event.battlefieldId} — ${event.attacker} deals ${event.attackerMight}, defender deals ${event.defenderMight}`;
-    case "unitKilled":
-      return yellow(`${event.cardId} dies (${event.playerId})`);
-    case "unitRecalled":
-      return `${event.cardId} is recalled to ${event.playerId} base`;
-    case "damageDealt":
-      return `${event.cardId} takes ${event.amount} damage`;
-    case "spellPlayed":
-      return bold(`${event.playerId} plays ${event.cardId} — it goes on the chain`);
-    case "spellResolved":
-      return `${event.cardId} resolves`;
-    case "spellCountered":
-      return yellow(`${event.cardId} is countered`);
-    case "priorityPassed":
-      return dim(`  ${event.playerId} passes priority`);
-    case "abilityTriggered":
-      return bold(`${event.cardId} triggers — onto the chain`);
-    case "triggerResolved":
-      return `${event.cardId}'s trigger resolves`;
-    case "decisionRequired":
-      return bold(`${event.playerId} must decide: ${event.kind}`);
-    case "targetsChosen":
-      return `${event.playerId} targets ${event.targets.join(", ")}`;
-    case "abilityDeclined":
-      return dim(`  ${event.playerId} declines ${event.cardId}'s trigger`);
-    case "mightModified": {
-      const sign = event.amount >= 0 ? "+" : "";
-      return `${event.cardId} gets ${sign}${event.amount} Might (${event.duration})`;
-    }
-    case "keywordGranted":
-      return `${event.cardId} gains [${event.keyword}] (${event.duration})`;
-    case "modifiersExpired":
-      return dim(`  ${event.duration} effects expire`);
-    case "effectScheduled":
-      return dim(`  ${event.cardId} schedules an effect for ${event.at}`);
-    case "controlTaken":
-      return `${event.playerId} takes control of ${event.cardId} (${event.duration})`;
-    case "mulliganed":
-      return `${event.playerId} mulliganed ${event.count}`;
-    case "returnedToHand":
-      return `${event.cardId} returns to ${event.playerId}'s hand`;
-    case "banished":
-      return `${event.cardId} is banished`;
-    case "buffed":
-      return `${event.cardId} gets a buff`;
-    case "stunned":
-      return `${event.cardId} is stunned`;
-    case "burnedOut":
-      return bold(`${event.playerId} burned out — trash recycled, opponent scores`);
-    case "tokenCreated":
-      return `${event.playerId} creates a ${event.token} token [${event.cardId}]`;
-    case "xpGained":
-      return `${event.playerId} gains ${event.amount} XP`;
-    case "cardHidden":
-      return `${event.playerId} hides a card at ${event.battlefieldId}`;
-    case "facedownRemoved":
-      return `${event.cardId} is trashed from ${event.battlefieldId}'s facedown zone`;
-    case "cardRecycled":
-      return `${event.playerId} recycles ${event.cardId}`;
-    case "attached":
-      return `${event.cardId} attaches to ${event.to}`;
-    case "combatOpened":
-      return `combat opens at ${event.battlefieldId}`;
-    case "designated":
-      return `${event.cardId} is an ${event.designation}`;
-    case "combatResolved":
-      return event.winner === null
-        ? `combat at ${event.battlefieldId} ends with no result`
-        : bold(`${event.winner} wins the combat at ${event.battlefieldId}`);
-    default: {
-      const unhandled: never = event;
-      return JSON.stringify(unhandled);
-    }
-  }
-}
+import { formatCost, locationName, renderEvent } from "../event-text.js";
+
+export { formatCost, locationName, renderEvent };
 
 /** Everything the player could legally do right now, as typeable commands. */
 /**

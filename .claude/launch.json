@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "riftbound-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "ui"],
+      "port": 5173
+    }
+  ]
+}

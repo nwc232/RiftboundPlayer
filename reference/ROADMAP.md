@@ -29,6 +29,7 @@ Built and tested (174 tests):
 | Attachments (R434, R718, R818) | Effect Text, Might Bonus, [Equip] |
 | XP (R728–733) | A number on the player |
 | Two real decks | 38 cards, 6 battlefields, played start to finish |
+| Front-end | React over `legalActions` + `pending` + the event stream |
 | Layers (R473–479) | 3 layers, fixpoint, dependency, snapshotting |
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
@@ -233,7 +234,7 @@ rewriting. What is missing is the seam:
 | Needed | Why |
 |---|---|
 | ~~`legalActions(state, playerId)`~~ | Done. Enumerates candidates and filters them through `applyAction`, so it cannot disagree with the dispatcher. The demo's action list is driven by it. |
-| **Serialization** | `GameState` is plain data already, but `Ability` objects contain no functions *by design* — worth an explicit round-trip test so it stays true. |
+| ~~**Serialization**~~ | Done — `tests/decks.test.ts` round-trips every authored card through JSON, so "abilities are data" stays true rather than being a claim. |
 | **Client/server boundary** | Even single-machine, deciding now whether the UI holds state or asks an authority avoids a rewrite. Hidden information (hands, [Hidden] cards) makes a per-player *view* of state necessary, not optional. |
 | **Animation-friendly events** | The event stream already exists and is ordered — it is what a UI animates from. |
 
@@ -260,9 +261,10 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
    casting Star-Crossed just passes the targets in; only something that
    has to *discover* the move could miss it, which is exactly a UI's
    position.
-4. **Front-end** over `legalActions` + `pending` + events. Next — the CLI
-   is good enough to prove the engine runs, but not to *play* on, and
-   manual testing is currently worse than the unit tests.
+4. ~~**Front-end** over `legalActions` + `pending` + events.~~ Done —
+   React + Vite in `src/ui/`, run with `npm run ui`. Hotseat for now; the
+   panels are rendered symmetrically from the same data so "two windows,
+   one per player" becomes a filter on what is passed in.
 5. **Replacement effects, Tier A** (R369.3) — how a unit enters the board.
    ~67 cards, one chokepoint, and it retires [Accelerate]'s hardcode.
 6. **Replacement effects, Tier B** — the general mechanism. This is the
