@@ -105,10 +105,26 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
   ];
 
   // R108.3.d — the Chosen Champion is playable from its zone alongside the hand.
-  const playable = [
+  const held = [
     ...player.hand,
     ...(player.champion === null ? [] : [player.champion]),
   ];
+  // R811.1.b — and a card facedown at a battlefield is playable from there.
+  const playable = [
+    ...held,
+    ...Object.values(state.facedown)
+      .filter((entry) => entry.controller === playerId)
+      .map((entry) => entry.cardId),
+  ];
+
+  // R421 — Hide, offered for every held card against every battlefield. The
+  // prerequisites are left to `applyAction`, like everything else here.
+  for (const cardId of held) {
+    for (const battlefieldId of state.battlefieldOrder) {
+      out.push({ type: "hide", playerId, cardId, battlefieldId });
+    }
+  }
+
   const targets = targetable(state);
 
   for (const cardId of playable) {

@@ -71,6 +71,24 @@ export type GameEvent =
   /** R431 — drew from an empty deck; trash recycled, opponent gains a point. */
   | { type: "burnedOut"; playerId: PlayerId }
   | { type: "mulliganed"; playerId: PlayerId; count: number }
+  /**
+   * R421 — a card placed facedown at a battlefield. R107.3.f makes the zone
+   * public but its contents private, so a per-player view of the event stream
+   * has to withhold `cardId` from the opponent.
+   */
+  | {
+      type: "cardHidden";
+      playerId: PlayerId;
+      cardId: CardId;
+      battlefieldId: CardId;
+    }
+  /** R323.7 / R107.3.d — losing the battlefield trashes what was hidden there. */
+  | {
+      type: "facedownRemoved";
+      playerId: PlayerId;
+      cardId: CardId;
+      battlefieldId: CardId;
+    }
   | { type: "gameWon"; playerId: PlayerId; points: number }
   | {
       type: "combatDamageDealt";

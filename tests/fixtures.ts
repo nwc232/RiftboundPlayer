@@ -87,7 +87,8 @@ export function makeState(options: {
   p2?: Partial<PlayerState>;
   cards?: CardInstance[];
   permanents?: PermanentSpec[];
-  battlefields?: string[];
+  /** Ids only, or `[id, controller]` to hand one to a player already. */
+  battlefields?: (string | [string, PlayerId])[];
 } = {}): GameState {
   const cards: GameState["cards"] = {};
   for (const card of options.cards ?? []) {
@@ -110,9 +111,13 @@ export function makeState(options: {
     };
   }
 
+  const battlefieldOrder: string[] = [];
   const battlefields: GameState["battlefields"] = {};
-  for (const id of options.battlefields ?? []) {
-    battlefields[id] = { cardId: id, controller: null, contestedBy: null };
+  for (const entry of options.battlefields ?? []) {
+    const [id, controller] =
+      typeof entry === "string" ? [entry, null] : entry;
+    battlefieldOrder.push(id);
+    battlefields[id] = { cardId: id, controller, contestedBy: null };
   }
 
   return {
@@ -125,7 +130,8 @@ export function makeState(options: {
     permanents,
     runes: {},
     battlefields,
-    battlefieldOrder: options.battlefields ?? [],
+    battlefieldOrder,
+    facedown: {},
     showdown: null,
     winner: null,
     chain: [],

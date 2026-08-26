@@ -247,6 +247,7 @@ function emptyBoard(): GameState {
       "bf-south": { cardId: "bf-south", controller: "p2", contestedBy: null },
     },
     battlefieldOrder: ["bf-north", "bf-south"],
+    facedown: {},
     showdown: null,
     winner: null,
     chain: [],

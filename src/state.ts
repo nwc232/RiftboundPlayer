@@ -45,7 +45,9 @@ export type PaymentRestriction = { kind: "onlyCardType"; cardType: CardType };
 /** What the resources are being spent on, checked against a bucket's restriction. */
 export type PaymentPurpose =
   | { kind: "playCard"; cardType: CardType }
-  | { kind: "activateAbility" };
+  | { kind: "activateAbility" }
+  /** R421.2 — Hide is a Discretionary Action, neither playing nor activating. */
+  | { kind: "hide" };
 
 /**
  * A pool of resources sharing one restriction. `universalPower` is Power that
@@ -115,7 +117,13 @@ export type Keyword =
    * R822.4 makes having it a characteristic other cards can check, which is
    * why it lives here rather than as a bare ability.
    */
-  | "ambush";
+  | "ambush"
+  /**
+   * R811 — the prerequisite for the Hide action (R421), plus [Reaction] and a
+   * free play once the card is facedown. R811.5.a: having the keyword is
+   * independent of actually being facedown.
+   */
+  | "hidden";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =
@@ -205,6 +213,22 @@ export interface PlayerState {
   champion: CardId | null;
 }
 
+/**
+ * R107.3 — a card in a battlefield's Facedown Zone. R421.3 makes the *effect
+ * that put it there* define what may be done with it; everything here is
+ * [Hidden]'s version of that (R811.1.b).
+ */
+export interface FacedownCard {
+  cardId: CardId;
+  /** R107.3.c — must also control the associated battlefield. */
+  controller: PlayerId;
+  /** R811.1.b — playable "beginning on the next turn", so which one this was. */
+  hiddenOnTurn: number;
+}
+
+/** R107.3.b — "Each Facedown Zone has a maximum occupancy of one card." */
+export const FACEDOWN_CAPACITY = 1;
+
 export interface GameState {
   turn: TurnState;
   players: Record<PlayerId, PlayerState>;
@@ -214,6 +238,13 @@ export interface GameState {
   battlefields: Record<CardId, BattlefieldState>;
   /** Battlefields in play, in a stable display order. */
   battlefieldOrder: CardId[];
+  /**
+   * R107.3 — the Facedown Zone of each battlefield, keyed by battlefield id.
+   * A zone of its own rather than a field on BattlefieldState: R107.3.e says a
+   * Facedown Zone is not a location, and R107.3.f makes it a public zone whose
+   * contents are private.
+   */
+  facedown: Record<CardId, FacedownCard>;
   showdown: ShowdownState | null;
   winner: PlayerId | null;
   /** R327 — LIFO; last entry resolves first. Empty means an Open State. */

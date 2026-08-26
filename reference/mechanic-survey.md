@@ -569,3 +569,23 @@ Recorded as they're found, so they don't get lost between slices.
   assigned, leftover damage piles onto the last unit assigned rather than
   being offered as a choice. Unobservable until something triggers on
   damage amounts.
+- **Hidden targeting restrictions (R811.1.d.2).** A card played from
+  facedown must choose its targets "from among options at that
+  battlefield, unless the ability explicitly restricts targeting in a way
+  that makes this impossible." The engine enforces R811.1.d.1's
+  destination but not the targeting narrowing, so a hidden Blastcone Fae
+  could currently reach a unit somewhere else. Needs `TargetFilter` to
+  take a location, and R811.1.d.2.a says each target is judged separately.
+- **Facedown privacy (R107.3.f).** "Facedown Zones are Public Zones,
+  though facedown cards located there are Private." `GameState` holds the
+  card id in the open and the `cardHidden` event carries it. Nothing is
+  wrong for a local two-player engine, but a per-player *view* of state is
+  what makes this real — the same seam the roadmap's §4 calls out for
+  hands. Deliberately one problem, solved once.
+- **Facedown occupancy is fixed at one (R107.3.b.1).** The maximum "can
+  increase or decrease", and R107.3.b.2 says a decrease trashes the
+  excess. No card in the pool changes it, so the zone holds exactly one.
+- **Gear cannot be hidden.** R811.1.a puts [Hidden] on spells, units and
+  gear, and R811.1.d.1.a specifically overrides gear's base-only
+  restriction. There is no play path for gear at all yet, so this waits
+  on that rather than on [Hidden].

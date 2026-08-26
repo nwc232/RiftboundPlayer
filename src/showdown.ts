@@ -6,6 +6,7 @@ import {
 } from "./combat.js";
 import type { GameEvent, Progress } from "./events.js";
 import { controllerOf } from "./layers.js";
+import { sweepFacedown } from "./hidden.js";
 import { checkForWinner, score } from "./scoring.js";
 import { permanentsAt } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
@@ -258,6 +259,14 @@ export function runCleanup(state: GameState): Progress {
       });
     }
   }
+
+  // R323.7, step 5 — "Remove all Hidden cards from all Battlefields that are
+  // not controlled by the same player". It follows step 4's control loss above,
+  // in that order, so losing a battlefield costs you what you hid there in the
+  // same cleanup rather than the next one.
+  const swept = sweepFacedown(current);
+  current = swept.state;
+  events.push(...swept.events);
 
   return { state: current, events };
 }

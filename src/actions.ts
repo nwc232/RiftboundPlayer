@@ -1,6 +1,6 @@
 import { execute } from "./abilities.js";
 import type { AbilityCost, EffectContext } from "./abilities.js";
-import { spend } from "./cost.js";
+import { FREE, spend } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import { permanentsAt, sameLocation } from "./state.js";
 import type {
@@ -31,6 +31,12 @@ import {
 } from "./tasks.js";
 import { passFocus as runPassFocus } from "./showdown.js";
 import { isValidPlayLocation, playedWithReactionTiming } from "./play.js";
+import {
+  clearFacedown,
+  forcedDestination,
+  hide as runHide,
+  playableFromFacedown,
+} from "./hidden.js";
 
 
 export type Action =
@@ -64,6 +70,13 @@ export type Action =
       cardId: CardId;
       targets?: CardId[];
     }
+  /** R421 — the Hide discretionary action, granted by [Hidden] (R811.1.c). */
+  | {
+      type: "hide";
+      playerId: PlayerId;
+      cardId: CardId;
+      battlefieldId: CardId;
+    }
   | {
       type: "activateAbility";
       playerId: PlayerId;
@@ -73,6 +86,10 @@ export type Action =
 
 export type RejectionReason =
   | "cardNotFound"
+  | "notHidden"
+  | "notOpenState"
+  | "battlefieldNotControlled"
+  | "facedownZoneOccupied"
   | "wrongCardType"
   | "notInHand"
   | "deckEmpty"
@@ -382,6 +399,41 @@ export function playUnitFromHand(
     return rejected("wrongCardType");
   }
 
+  // R811.1.b — a card played from its Facedown Zone gains [Reaction], costs
+  // nothing, and must go to the battlefield it was hidden at (R811.1.d.1).
+  const hiddenAt = playableFromFacedown(state, playerId, cardId);
+
+  if (hiddenAt !== undefined) {
+    if (!sameLocation(destination, forcedDestination(hiddenAt))) {
+      return rejected("invalidDestination");
+    }
+    if (!canPlayAtThisTiming(state, playerId, ["reaction"])) {
+      return rejected("wrongTiming");
+    }
+    if (chainExists(state) && state.priority !== playerId) {
+      return rejected("notYourPriority");
+    }
+
+    return {
+      ok: true,
+      state: {
+        ...clearFacedown(state, hiddenAt),
+        permanents: {
+          ...state.permanents,
+          [cardId]: {
+            cardId,
+            controller: playerId,
+            exhausted: true,
+            location: destination,
+            damage: 0,
+          },
+        },
+        battlefields: applyContested(state, destination, playerId),
+      },
+      events: [{ type: "unitPlayed", playerId, cardId }],
+    };
+  }
+
   // R822.1.b — an Ambushing unit "has [Reaction] as long as I'm being played to
   // a battlefield where you control Units", so the timing it may be played at
   // depends on where it is going, not on the card alone.
@@ -589,6 +641,21 @@ export function passFocus(state: GameState, playerId: PlayerId): ActionResult {
 }
 
 /**
+ * R421 — Hide. R811.1.c.2 keeps it off the chain, so it takes effect at once;
+ * a cleanup still follows because the board changed.
+ */
+export function hide(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+  battlefieldId: CardId,
+): ActionResult {
+  const outcome = runHide(state, playerId, cardId, battlefieldId);
+  if (typeof outcome === "string") return rejected(outcome);
+  return thenCleanup({ ok: true, state: outcome.state, events: outcome.events });
+}
+
+/**
  * R354–359 — playing a spell. Steps 1–6 run atomically here: the card moves to
  * the chain, targets are taken from the action, the cost is paid, and it
  * finalizes. A spell then *lingers* on the chain (R359.3) rather than resolving,
@@ -605,9 +672,17 @@ export function playSpell(
 
   if (card === undefined) return rejected("cardNotFound");
   if (card.type !== "spell") return rejected("wrongCardType");
-  if (!player.hand.includes(cardId)) return rejected("notInHand");
 
-  if (!canPlayAtThisTiming(state, playerId, card.keywords)) {
+  // R811.1.b — from its Facedown Zone a card gains [Reaction] and is played
+  // "ignoring its base cost", so it needs neither a hand nor a payment.
+  const hiddenAt = playableFromFacedown(state, playerId, cardId);
+  if (hiddenAt === undefined && !player.hand.includes(cardId)) {
+    return rejected("notInHand");
+  }
+
+  const timingKeywords =
+    hiddenAt === undefined ? card.keywords : ["reaction", ...card.keywords];
+  if (!canPlayAtThisTiming(state, playerId, timingKeywords)) {
     return rejected("wrongTiming");
   }
   // R338.1 — while the chain is up, only the player holding priority may act.
@@ -615,7 +690,8 @@ export function playSpell(
     return rejected("notYourPriority");
   }
 
-  const remainingPool = spend(player.runePool, card.cost, {
+  const cost = hiddenAt === undefined ? card.cost : FREE;
+  const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
     cardType: "spell",
   });
@@ -631,15 +707,20 @@ export function playSpell(
   }
 
   const handIndex = player.hand.indexOf(cardId);
+  const withoutSource =
+    hiddenAt === undefined ? state : clearFacedown(state, hiddenAt);
   return {
     ok: true,
     state: {
-      ...withPlayer(state, playerId, {
+      ...withPlayer(withoutSource, playerId, {
         ...player,
-        hand: [
-          ...player.hand.slice(0, handIndex),
-          ...player.hand.slice(handIndex + 1),
-        ],
+        hand:
+          hiddenAt === undefined
+            ? [
+                ...player.hand.slice(0, handIndex),
+                ...player.hand.slice(handIndex + 1),
+              ]
+            : player.hand,
         runePool: remainingPool,
       }),
       chain: [
@@ -652,7 +733,7 @@ export function playSpell(
       priorityPasses: 0,
     },
     events: [
-      { type: "costPaid", playerId, cardId, cost: card.cost },
+      { type: "costPaid", playerId, cardId, cost },
       { type: "spellPlayed", playerId, cardId },
     ],
   };
@@ -961,6 +1042,8 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       );
     case "passFocus":
       return passFocus(state, action.playerId);
+    case "hide":
+      return hide(state, action.playerId, action.cardId, action.battlefieldId);
     case "passPriority":
       return passPriority(state, action.playerId);
     case "decide":

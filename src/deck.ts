@@ -177,6 +177,7 @@ export function startGame(setup: GameSetup): SetupResult {
     runes: {},
     battlefields,
     battlefieldOrder,
+    facedown: {},
     showdown: null,
     winner: null,
     chain: [],
