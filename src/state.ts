@@ -72,6 +72,12 @@ export interface CardInstance {
   cost: Cost;
   /** Only runes carry this — the domain of Power they produce when recycled. */
   domain?: Domain;
+  /**
+   * R135 — the card's own domains, which is what the `[C]` shorthand in a cost
+   * resolves against (R135.2.e.6.c). Distinct from `domain` above, which is
+   * about what a rune *produces*.
+   */
+  domains?: Domain[];
   abilities: Ability[];
   keywords: Keyword[];
   /** Units only. Absent elsewhere; treated as 0. */
@@ -123,7 +129,15 @@ export type Keyword =
    * free play once the card is facedown. R811.5.a: having the keyword is
    * independent of actually being facedown.
    */
-  | "hidden";
+  | "hidden"
+  /**
+   * R805 — "As you play me, you may pay [1][C] as an additional cost. If you
+   * do, I enter ready." A keyword rather than a written-out ability so that
+   * granting it works.
+   */
+  | "accelerate"
+  /** R809 — "Deflect [X]": a mandatory additional cost on opposing targeting. */
+  | "deflect";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =
@@ -172,6 +186,12 @@ export interface PermanentState {
    */
   designation?: Designation;
   /**
+   * R356.2.b — whether an optional additional cost was paid to play this.
+   * R205 is why it is recorded rather than re-derived: a later "if you paid
+   * the additional cost" clause checks whether the game action happened.
+   */
+  paidAdditionalCost?: true;
+  /**
    * R426.1.b / R702.3 — a unit has at most one Buff counter, worth +1 Might
    * (R703). Buffing an already-buffed unit does nothing at all (R426.1.c).
    */
@@ -200,6 +220,12 @@ export interface PlayerState {
   points: number;
   /** R470 — a battlefield may only be scored once per turn per player. */
   scoredThisTurn: CardId[];
+  /**
+   * R728–733 — XP. A plain number on the player: gained and spent (R730),
+   * public (R729.2), unbounded (R733), and explicitly not a Game Object
+   * (R731), so nothing can target or exhaust it.
+   */
+  xp: number;
   /**
    * R107.4 — the Champion Legend, which cannot be removed or moved from its
    * zone (R107.4.d). Null only in hand-built test boards.

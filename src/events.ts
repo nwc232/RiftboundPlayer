@@ -68,6 +68,8 @@ export type GameEvent =
       method: ScoreMethod;
     }
   | { type: "pointGained"; playerId: PlayerId; points: number }
+  /** R730.1 — XP is a plain number on the player, and public (R729.2). */
+  | { type: "xpGained"; playerId: PlayerId; amount: number }
   /** R431 — drew from an empty deck; trash recycled, opponent gains a point. */
   | { type: "burnedOut"; playerId: PlayerId }
   | { type: "mulliganed"; playerId: PlayerId; count: number }

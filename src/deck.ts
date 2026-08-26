@@ -131,6 +131,7 @@ function emptyPlayer(id: PlayerId, deck: Deck) {
     runePool: { buckets: [] },
     points: 0,
     scoredThisTurn: [],
+    xp: 0,
     legend: deck.legend,
     champion: deck.champion,
   };

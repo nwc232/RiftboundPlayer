@@ -2,6 +2,7 @@ import type {
   AbilityCost,
   AbilityTiming,
   ActivatedAbility,
+  AdditionalCostAbility,
   Effect,
   CostModifierAbility,
   PassiveAbility,
@@ -184,6 +185,11 @@ export function stun(targetIndex = 0): Effect {
   return { op: "stun", targetIndex };
 }
 
+/** R730.1 — Kha'Zix, Mutating Horror's "gain 2 XP". */
+export function gainXP(amount: number): Effect {
+  return { op: "gainXP", amount };
+}
+
 /** R420 — Irresistible Faefolk's "move an enemy unit to that battlefield". */
 export function moveUnit(
   to: "sourceLocation" | "base" = "sourceLocation",
@@ -233,6 +239,20 @@ export function ifThen(
 export function legionCostReduction(reduce: Partial<Cost>): CostModifierAbility {
   return { kind: "costModifier", reduce, when: { kind: "legion" } };
 }
+
+/**
+ * R356.2.b — Pyke, Dockside Butcher's "You may pay [Fury] as an additional
+ * cost to play me". Omit `optional` for R356.2.a's mandatory kind.
+ */
+export function additionalCost(
+  cost: Cost,
+  optional: true | undefined = true,
+): AdditionalCostAbility {
+  return { kind: "additionalCost", cost, ...(optional ? { optional } : {}) };
+}
+
+/** R205 — "if you paid the additional cost". */
+export const paidAdditionalCost: Condition = { kind: "paidAdditionalCost" };
 
 /** Vex, Apathetic — "while I'm at a battlefield". */
 export const atBattlefield: Condition = { kind: "sourceAtBattlefield" };

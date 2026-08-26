@@ -1,4 +1,4 @@
-import { characteristicsOf } from "./layers.js";
+import { characteristicsOf, keywordsOf } from "./layers.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 import type { CardId, Cost, GameState, PlayerId, PowerCount } from "./state.js";
@@ -30,12 +30,13 @@ function reducePower(power: PowerCount, by: PowerCount): PowerCount {
  * cost rather than its printed one — R477.1.b.1.a lists Cost among the
  * copyable traits, so a copy pays what it copied.
  */
-export function costOf(
+function applyDiscounts(
   state: GameState,
   playerId: PlayerId,
   cardId: CardId,
+  starting: Cost,
 ): Cost {
-  let cost = characteristicsOf(state, cardId).cost;
+  let cost = starting;
 
   for (const ability of state.cards[cardId]?.abilities ?? []) {
     if (ability.kind !== "costModifier") continue;
@@ -59,4 +60,103 @@ export function costOf(
   }
 
   return cost;
+}
+
+/**
+ * R356.2 — a cost added to a card's own. Mandatory ones "use the phrase 'as an
+ * additional cost' and don't include the word 'may'" (R356.2.a.1); optional
+ * ones do (R356.2.b.1) and are only paid if the player says so in step 2.
+ */
+export interface AdditionalCost {
+  optional: boolean;
+  cost: Cost;
+}
+
+/**
+ * R135.2.e.6.c — `[C]` is "any power of that card's Domains". A single-domain
+ * card resolves it to that domain; a multi-domain card would need a cost
+ * component meaning "one of these", which `spend` cannot express, so it falls
+ * back to `[A]`. Recorded as a deviation — it is strictly more permissive.
+ */
+function ownDomainPower(state: GameState, cardId: CardId, amount: number): Cost {
+  const domains = state.cards[cardId]?.domains ?? [];
+  const only = domains.length === 1 ? domains[0] : undefined;
+  return only === undefined
+    ? { energy: 0, power: {}, anyPower: amount }
+    : { energy: 0, power: { [only]: amount }, anyPower: 0 };
+}
+
+function addCosts(a: Cost, b: Cost): Cost {
+  const power: PowerCount = { ...a.power };
+  for (const [domain, amount] of Object.entries(b.power)) {
+    const key = domain as keyof PowerCount;
+    power[key] = (power[key] ?? 0) + amount;
+  }
+  return {
+    energy: a.energy + b.energy,
+    power,
+    anyPower: a.anyPower + b.anyPower,
+  };
+}
+
+/** Every additional cost attached to playing `cardId`, in no particular order. */
+export function additionalCostsOf(
+  state: GameState,
+  cardId: CardId,
+): AdditionalCost[] {
+  const costs: AdditionalCost[] = [];
+
+  // R805.1.a — [Accelerate]'s "[1][C]", read through the layers so a granted
+  // keyword counts the same as a printed one.
+  if (keywordsOf(state, cardId).includes("accelerate")) {
+    costs.push({
+      optional: true,
+      cost: addCosts(
+        { energy: 1, power: {}, anyPower: 0 },
+        ownDomainPower(state, cardId, 1),
+      ),
+    });
+  }
+
+  for (const ability of state.cards[cardId]?.abilities ?? []) {
+    if (ability.kind === "additionalCost") {
+      costs.push({ optional: ability.optional === true, cost: ability.cost });
+    }
+  }
+
+  return costs;
+}
+
+export interface CostOptions {
+  /** R356.1.b — "ignoring its cost" sets the base cost to zero. */
+  ignoreBaseCost?: boolean;
+  /** R356.2.b.1 — whether the player chose to pay the optional additional cost. */
+  payOptional?: boolean;
+}
+
+/**
+ * R356's full pipeline, in its order: base cost modifications, then additional
+ * costs, then discounts. R356.1.b.3 is why the order matters — an additional
+ * cost can raise a card played "ignoring its cost" back above zero.
+ */
+export function totalCostOf(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+  options: CostOptions = {},
+): Cost {
+  // 1. Base cost, possibly set to zero (R356.1.b).
+  let total: Cost =
+    options.ignoreBaseCost === true
+      ? { energy: 0, power: {}, anyPower: 0 }
+      : characteristicsOf(state, cardId).cost;
+
+  // 2. Additional costs (R356.2).
+  for (const additional of additionalCostsOf(state, cardId)) {
+    if (additional.optional && options.payOptional !== true) continue;
+    total = addCosts(total, additional.cost);
+  }
+
+  // 4. Discounts (R356.4). Step 3, cost increases, has no card yet.
+  return applyDiscounts(state, playerId, cardId, total);
 }

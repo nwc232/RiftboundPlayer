@@ -66,6 +66,7 @@ function player(id: PlayerId, partial: Partial<PlayerState> = {}): PlayerState {
     runePool: EMPTY_POOL,
     points: 0,
     scoredThisTurn: [],
+    xp: 0,
     ...partial,
   };
 }

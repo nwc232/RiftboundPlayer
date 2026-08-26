@@ -17,6 +17,8 @@ export type ChainItem =
       controller: PlayerId;
       /** Chosen when the item was played (R355), read again on resolution. */
       targets: CardId[];
+      /** R356.2.b — whether the optional additional cost was paid for this play. */
+      paidAdditionalCost?: true;
     }
   | {
       kind: "trigger";

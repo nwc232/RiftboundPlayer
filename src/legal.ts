@@ -127,13 +127,29 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
 
   const targets = targetable(state);
 
+  // R355.1.a — paying an optional additional cost is a choice made while
+  // playing, so each play is offered both ways and `applyAction` prices them.
   for (const cardId of playable) {
-    for (const destination of locations(state, playerId)) {
-      out.push({ type: "playUnitFromHand", playerId, cardId, destination });
-    }
-    out.push({ type: "playSpell", playerId, cardId });
-    for (const target of targets) {
-      out.push({ type: "playSpell", playerId, cardId, targets: [target] });
+    for (const payOptional of [false, true]) {
+      for (const destination of locations(state, playerId)) {
+        out.push({
+          type: "playUnitFromHand",
+          playerId,
+          cardId,
+          destination,
+          payOptional,
+        });
+      }
+      out.push({ type: "playSpell", playerId, cardId, payOptional });
+      for (const target of targets) {
+        out.push({
+          type: "playSpell",
+          playerId,
+          cardId,
+          targets: [target],
+          payOptional,
+        });
+      }
     }
   }
 

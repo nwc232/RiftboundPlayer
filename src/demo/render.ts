@@ -295,6 +295,8 @@ export function renderEvent(event: GameEvent): string {
       return bold(`${event.playerId} burned out — trash recycled, opponent scores`);
     case "tokenCreated":
       return `${event.playerId} creates a ${event.token} token [${event.cardId}]`;
+    case "xpGained":
+      return `${event.playerId} gains ${event.amount} XP`;
     case "cardHidden":
       return `${event.playerId} hides a card at ${event.battlefieldId}`;
     case "facedownRemoved":

@@ -180,6 +180,7 @@ function emptyBoard(): GameState {
         runePool: { buckets: [] },
         points: 0,
         scoredThisTurn: [],
+        xp: 0,
       },
       p2: {
         id: "p2",
@@ -194,6 +195,7 @@ function emptyBoard(): GameState {
         runePool: { buckets: [] },
         points: 0,
         scoredThisTurn: [],
+        xp: 0,
       },
     },
     cards,

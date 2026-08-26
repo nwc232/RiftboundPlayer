@@ -27,7 +27,15 @@ export type Condition =
    * R812.1.c — [Legion]: "as long as a card different than the one with the
    * Legion ability has been Finalized by you on the same turn". Noxus Hopeful.
    */
-  | { kind: "legion" };
+  | { kind: "legion" }
+  /**
+   * R205 — "the later instruction checks whether the game action was
+   * performed, not whether a cost was paid". Pyke, Dockside Butcher's "if you
+   * paid the additional cost"; Rampage's the same.
+   */
+  | { kind: "paidAdditionalCost" }
+  /** R728 — "[Level N]" and anything else gated on a player's XP. */
+  | { kind: "hasXP"; atLeast: number };
 
 /**
  * What a condition is asked *about*. `EffectContext` satisfies this
@@ -40,6 +48,12 @@ export interface ConditionContext {
   targets: CardId[];
   /** Where the source stood when it triggered, if it has since left (R323.4). */
   sourceLocation?: Location;
+  /**
+   * R356.2.b — set while resolving a spell that was played with its optional
+   * additional cost paid. A unit records it on its permanent instead, because
+   * its play effect triggers after the card has already entered.
+   */
+  paidAdditionalCost?: boolean;
 }
 
 function locationOf(
@@ -98,6 +112,15 @@ export function holds(
       });
       return matching.length === 1;
     }
+
+    case "paidAdditionalCost":
+      return (
+        context.paidAdditionalCost ??
+        state.permanents[context.sourceId]?.paidAdditionalCost === true
+      );
+
+    case "hasXP":
+      return state.players[context.controller].xp >= condition.atLeast;
 
     case "legion":
       // R812.2 — one other card satisfies every Legion ability at once, which

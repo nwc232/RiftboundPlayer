@@ -2,6 +2,7 @@ import { addEnergy as creditEnergy, addPower as creditPower } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import type {
   CardId,
+  Cost,
   Domain,
   GameState,
   Keyword,
@@ -119,6 +120,8 @@ export type Effect =
    * cards in your hand" is this; Sona's "if I'm at a battlefield" is not.
    */
   | { op: "conditional"; test: Condition; then: Effect; otherwise?: Effect }
+  /** R730.1 — Kha'Zix, Mutating Horror's "gain 2 XP". */
+  | { op: "gainXP"; amount: number }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
@@ -163,8 +166,21 @@ export interface CostModifierAbility extends CostModifier {
   kind: "costModifier";
 }
 
+/**
+ * R356.2 — Pyke, Dockside Butcher's "You may pay [Fury] as an additional cost
+ * to play me"; Rampage's "As you play this, you may pay [Body]…". Read off the
+ * card in hand, like the other two non-resolving ability kinds.
+ */
+export interface AdditionalCostAbility {
+  kind: "additionalCost";
+  /** R356.2.b.1 — the word "may". Absent makes it mandatory (R356.2.a.1). */
+  optional?: true;
+  cost: Cost;
+}
+
 export type Ability =
   | ActivatedAbility
+  | AdditionalCostAbility
   | TriggeredAbility
   | PassiveAbility
   | PlayPermissionAbility
@@ -180,6 +196,8 @@ export interface EffectContext {
    * ability triggered (R323.4). This is what "here" resolves against.
    */
   sourceLocation?: Location;
+  /** R356.2.b — whether this play's optional additional cost was paid. */
+  paidAdditionalCost?: boolean;
 }
 
 export interface EffectOutcome {
@@ -714,6 +732,26 @@ export function execute(
         return { state, events: [] };
       }
       return killUnits(state, [context.sourceId]);
+    }
+
+    case "gainXP": {
+      const player = state.players[context.controller];
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [context.controller]: { ...player, xp: player.xp + effect.amount },
+          },
+        },
+        events: [
+          {
+            type: "xpGained",
+            playerId: context.controller,
+            amount: effect.amount,
+          },
+        ],
+      };
     }
 
     case "conditional": {

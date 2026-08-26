@@ -1,7 +1,7 @@
 import { execute } from "./abilities.js";
 import type { AbilityCost, EffectContext } from "./abilities.js";
 import { FREE, spend } from "./cost.js";
-import { costOf } from "./costing.js";
+import { additionalCostsOf, totalCostOf } from "./costing.js";
 import type { GameEvent } from "./events.js";
 import { permanentsAt, sameLocation } from "./state.js";
 import type {
@@ -18,7 +18,7 @@ import {
   newestItem,
   sourceLocationOf,
 } from "./chain.js";
-import { abilitiesOf, controllerOf } from "./layers.js";
+import { abilitiesOf, controllerOf, keywordsOf } from "./layers.js";
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
 import {
@@ -47,6 +47,8 @@ export type Action =
       playerId: PlayerId;
       cardId: CardId;
       destination?: Location;
+      /** R355.1.a — the choice of whether to pay an optional additional cost. */
+      payOptional?: boolean;
     }
   | {
       type: "standardMove";
@@ -70,6 +72,8 @@ export type Action =
       playerId: PlayerId;
       cardId: CardId;
       targets?: CardId[];
+      /** R355.1.a — the choice of whether to pay an optional additional cost. */
+      payOptional?: boolean;
     }
   /** R421 — the Hide discretionary action, granted by [Hidden] (R811.1.c). */
   | {
@@ -88,6 +92,7 @@ export type Action =
 export type RejectionReason =
   | "cardNotFound"
   | "notHidden"
+  | "noAdditionalCost"
   | "notOpenState"
   | "battlefieldNotControlled"
   | "facedownZoneOccupied"
@@ -406,6 +411,7 @@ export function playUnitFromHand(
   playerId: PlayerId,
   cardId: CardId,
   destination: Location = { kind: "base", player: playerId },
+  payOptional = false,
 ): ActionResult {
   const player = state.players[playerId];
   const card = state.cards[cardId];
@@ -417,8 +423,17 @@ export function playUnitFromHand(
     return rejected("wrongCardType");
   }
 
-  // R811.1.b — a card played from its Facedown Zone gains [Reaction], costs
-  // nothing, and must go to the battlefield it was hidden at (R811.1.d.1).
+  // R355.1.a — offering to pay an optional additional cost the card does not
+  // have is not a choice that exists, so it is rejected rather than ignored.
+  if (
+    payOptional &&
+    !additionalCostsOf(state, cardId).some((extra) => extra.optional)
+  ) {
+    return rejected("noAdditionalCost");
+  }
+
+  // R811.1.b — a card played from its Facedown Zone gains [Reaction], ignores
+  // its base cost, and must go to the battlefield it was hidden at (R811.1.d.1).
   const hiddenAt = playableFromFacedown(state, playerId, cardId);
 
   if (hiddenAt !== undefined) {
@@ -431,32 +446,10 @@ export function playUnitFromHand(
     if (chainExists(state) && state.priority !== playerId) {
       return rejected("notYourPriority");
     }
-
-    return {
-      ok: true,
-      state: {
-        ...clearFacedown(state, hiddenAt),
-        permanents: {
-          ...state.permanents,
-          [cardId]: {
-            cardId,
-            controller: playerId,
-            exhausted: true,
-            location: destination,
-            damage: 0,
-          },
-        },
-        battlefields: applyContested(state, destination, playerId),
-        playedThisTurn: recordFinalized(state, playerId, cardId),
-      },
-      events: [{ type: "unitPlayed", playerId, cardId }],
-    };
-  }
-
-  // R822.1.b — an Ambushing unit "has [Reaction] as long as I'm being played to
-  // a battlefield where you control Units", so the timing it may be played at
-  // depends on where it is going, not on the card alone.
-  if (playedWithReactionTiming(state, playerId, cardId, destination)) {
+  } else if (playedWithReactionTiming(state, playerId, cardId, destination)) {
+    // R822.1.b — an Ambushing unit "has [Reaction] as long as I'm being played
+    // to a battlefield where you control Units", so the timing it may be played
+    // at depends on where it is going, not on the card alone.
     if (!canPlayAtThisTiming(state, playerId, ["reaction"])) {
       return rejected("wrongTiming");
     }
@@ -481,24 +474,31 @@ export function playUnitFromHand(
     }
   }
 
-  // R355.2 — the chosen location has to be a valid one. R355.2.a's default is
-  // "the controller's Base or a Battlefield the controller controls"; anything
-  // beyond that is a permission the card carries (R355.2.b).
-  if (!isValidPlayLocation(state, playerId, cardId, destination)) {
-    return rejected("invalidDestination");
-  }
-
   // R108.3.d — the Chosen Champion is played from the Champion Zone, following
   // the same rules as any other card. It is an always-available extra card, not
-  // an inert marker, so this is the one legal source besides the hand.
+  // an inert marker, so hand, Champion Zone and Facedown Zone are the three.
   const fromChampionZone = player.champion === cardId;
   const handIndex = player.hand.indexOf(cardId);
-  if (handIndex === -1 && !fromChampionZone) {
-    return rejected("notInHand");
+  if (hiddenAt === undefined) {
+    if (handIndex === -1 && !fromChampionZone) {
+      return rejected("notInHand");
+    }
+    // R355.2 — the chosen location has to be a valid one. R355.2.a's default is
+    // "the controller's Base or a Battlefield the controller controls"; anything
+    // beyond that is a permission the card carries (R355.2.b).
+    if (!isValidPlayLocation(state, playerId, cardId, destination)) {
+      return rejected("invalidDestination");
+    }
   }
 
-  // R355 step 5 — the cost paid is the current one, not the printed one.
-  const cost = costOf(state, playerId, cardId);
+  // R356 — the Total Cost, not the printed one: base modifications, then any
+  // additional cost the player chose to pay, then discounts. R356.1.b.3 is why
+  // a hidden card can still owe something: an additional cost raises a base
+  // cost of zero back above it.
+  const cost = totalCostOf(state, playerId, cardId, {
+    payOptional,
+    ignoreBaseCost: hiddenAt !== undefined,
+  });
   const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
     cardType: "unit",
@@ -507,30 +507,39 @@ export function playUnitFromHand(
     return rejected("cannotAffordCost");
   }
 
-  const newHand = fromChampionZone
-    ? player.hand
-    : [...player.hand.slice(0, handIndex), ...player.hand.slice(handIndex + 1)];
+  const leavingZone =
+    hiddenAt === undefined ? state : clearFacedown(state, hiddenAt);
+  const newHand =
+    hiddenAt !== undefined || fromChampionZone
+      ? player.hand
+      : [...player.hand.slice(0, handIndex), ...player.hand.slice(handIndex + 1)];
 
   return {
     ok: true,
     state: {
-      ...withPlayer(state, playerId, {
+      ...withPlayer(leavingZone, playerId, {
         ...player,
         hand: newHand,
         // R108.3.c — it cannot be returned here by normal means, so the zone
         // empties for good once the champion is played.
-        ...(fromChampionZone ? { champion: null } : {}),
+        ...(fromChampionZone && hiddenAt === undefined ? { champion: null } : {}),
         runePool: remainingPool,
       }),
       permanents: {
         ...state.permanents,
-        // R359.2.c — a unit enters exhausted, at the location chosen.
         [cardId]: {
           cardId,
           controller: playerId,
-          exhausted: true,
+          // R359.2.c — a unit enters exhausted, unless R805.1.a's [Accelerate]
+          // cost was paid: "If you do, I enter ready."
+          exhausted: !(
+            payOptional && keywordsOf(state, cardId).includes("accelerate")
+          ),
           location: destination,
           damage: 0,
+          // R205 — a later "if you paid the additional cost" checks whether the
+          // game action happened, so it is recorded rather than re-derived.
+          ...(payOptional ? { paidAdditionalCost: true as const } : {}),
         },
       },
       battlefields: applyContested(state, destination, playerId),
@@ -688,6 +697,7 @@ export function playSpell(
   playerId: PlayerId,
   cardId: CardId,
   targets: CardId[] = [],
+  payOptional = false,
 ): ActionResult {
   const player = state.players[playerId];
   const card = state.cards[cardId];
@@ -712,7 +722,18 @@ export function playSpell(
     return rejected("notYourPriority");
   }
 
-  const cost = hiddenAt === undefined ? costOf(state, playerId, cardId) : FREE;
+  const hasOptional = additionalCostsOf(state, cardId).some(
+    (extra) => extra.optional,
+  );
+  if (payOptional && !hasOptional) return rejected("noAdditionalCost");
+
+  // R356.1.b — a hidden card is played "ignoring its base cost", which
+  // R356.1.b.3 still lets an additional cost raise back above zero.
+  const cost = totalCostOf(state, playerId, cardId, {
+    payOptional,
+    ignoreBaseCost: hiddenAt !== undefined,
+  });
+
   const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
     cardType: "spell",
@@ -747,7 +768,13 @@ export function playSpell(
       }),
       chain: [
         ...state.chain,
-        { kind: "spell" as const, cardId, controller: playerId, targets },
+        {
+          kind: "spell" as const,
+          cardId,
+          controller: playerId,
+          targets,
+          ...(payOptional ? { paidAdditionalCost: true as const } : {}),
+        },
       ],
       // R337.4 — the controller of the newest item receives priority; the
       // chain only resolves once both players pass in sequence (R339).
@@ -817,10 +844,15 @@ export function passPriority(
     // A trigger carries its own ability; a spell's rules text is its first.
     // Both are read through the layers rather than off the printed card, so
     // copied rules text and keyword shorthand are as real as printed text.
+    // A spell's rules text is its first *resolving* ability. Cards now carry
+    // non-resolving ones too — play permissions, additional costs, cost
+    // modifiers — and those can be printed above the text that does the work.
     const ability =
       item.kind === "trigger"
         ? item.ability
-        : abilitiesOf(current, sourceId)[0];
+        : abilitiesOf(current, sourceId).find(
+            (each) => each.kind === "activated" || each.kind === "triggered",
+          );
     // Neither a passive (read live by the layer pipeline) nor a play permission
     // (read off a card in hand) ever resolves, so both contribute nothing here
     // even if one is somehow reached.
@@ -837,6 +869,9 @@ export function passPriority(
       sourceId,
       targets: item.targets,
       ...(sourceLocation !== undefined ? { sourceLocation } : {}),
+      ...(item.kind === "spell" && item.paidAdditionalCost === true
+        ? { paidAdditionalCost: true }
+        : {}),
     });
     current = outcome.state;
     events.push(...outcome.events);
@@ -1057,6 +1092,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
           action.playerId,
           action.cardId,
           action.destination,
+          action.payOptional,
         ),
       );
     case "standardMove":
@@ -1076,7 +1112,13 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       });
     case "playSpell":
       return thenCleanup(
-        playSpell(state, action.playerId, action.cardId, action.targets),
+        playSpell(
+          state,
+          action.playerId,
+          action.cardId,
+          action.targets,
+          action.payOptional,
+        ),
       );
     case "endTurn":
       // endTurn drives the queue itself, so its events are already scanned.

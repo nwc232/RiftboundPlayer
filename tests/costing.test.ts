@@ -3,7 +3,7 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import { draw, legionCostReduction, spell } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
-import { costOf } from "../src/costing.js";
+import { totalCostOf } from "../src/costing.js";
 import { legalActions } from "../src/legal.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
@@ -63,13 +63,13 @@ const CAST_CANTRIP: Action[] = [
 /** R812.1.b.1 — "If you have played another card this turn, this card gains [Text]." */
 describe("[Legion] cost reduction (R812)", () => {
   it("costs the printed amount before anything else is played", () => {
-    expect(costOf(board(3), "p1", "hopeful").energy).toBe(3);
+    expect(totalCostOf(board(3), "p1", "hopeful").energy).toBe(3);
   });
 
   it("costs less once another card has been finalized", () => {
     const after = run(board(3), [PLAY_CANTRIP]);
 
-    expect(costOf(after, "p1", "hopeful").energy).toBe(1);
+    expect(totalCostOf(after, "p1", "hopeful").energy).toBe(1);
   });
 
   /** R812.1.c — "a card *different than* the one with the Legion ability". */
@@ -77,7 +77,7 @@ describe("[Legion] cost reduction (R812)", () => {
     const played = run(board(3), [PLAY_HOPEFUL]);
 
     // The Hopeful is on the board now, but it was the only card played.
-    expect(costOf(played, "p1", "hopeful").energy).toBe(3);
+    expect(totalCostOf(played, "p1", "hopeful").energy).toBe(3);
   });
 
   it("does not count the opponent's plays", () => {
@@ -86,7 +86,7 @@ describe("[Legion] cost reduction (R812)", () => {
       playedThisTurn: { p1: [], p2: ["something"] },
     };
 
-    expect(costOf(theirs, "p1", "hopeful").energy).toBe(3);
+    expect(totalCostOf(theirs, "p1", "hopeful").energy).toBe(3);
   });
 
   it("is charged the reduced cost, not the printed one", () => {
@@ -130,7 +130,7 @@ describe("[Legion] cost reduction (R812)", () => {
       playedThisTurn: { p1: ["cantrip"], p2: [] },
     };
 
-    expect(costOf(state, "p1", "cheap")).toEqual(FREE);
+    expect(totalCostOf(state, "p1", "cheap")).toEqual(FREE);
   });
 });
 
