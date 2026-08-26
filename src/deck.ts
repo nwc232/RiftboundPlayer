@@ -1,4 +1,5 @@
-import { beginTurn } from "./tasks.js";
+import { enqueue, runTasks } from "./tasks.js";
+import { openTurn } from "./turn.js";
 import type { CardId, CardInstance, GameState, PlayerId } from "./state.js";
 
 /**
@@ -32,6 +33,8 @@ export const MAIN_DECK_MINIMUM = 40;
 export const RUNE_DECK_SIZE = 12;
 export const BATTLEFIELDS_PER_DECK = 3;
 export const MAX_COPIES = 3;
+/** R116 — "Players each draw 4." */
+export const OPENING_HAND = 4;
 
 /**
  * R103's countable requirements. Domain Identity (R103.1.b) and the Chosen
@@ -106,26 +109,21 @@ export interface GameSetup {
   choices: Record<PlayerId, SetupChoice>;
   /** R485.7 keys the extra rune off this. */
   startingPlayer?: PlayerId;
-  /**
-   * Not in the rules we have: R104 Setup is an empty heading in the published
-   * PDF and "shuffle" appears nowhere, so the opening hand size could not be
-   * sourced. Parameterised rather than guessed at silently.
-   */
-  openingHand?: number;
 }
 
 export type SetupResult =
   | { ok: true; state: GameState }
   | { ok: false; errors: Record<PlayerId, DeckError[]> };
 
-function emptyPlayer(id: PlayerId, deck: Deck, openingHand: number) {
+function emptyPlayer(id: PlayerId, deck: Deck) {
   // R103.2.a.1 — the Chosen Champion starts in the Champion Zone, so it is not
   // among the cards that can be drawn even though it counted toward the 40.
   const drawable = deck.mainDeck.filter((cardId) => cardId !== deck.champion);
   return {
     id,
-    mainDeck: drawable.slice(openingHand),
-    hand: drawable.slice(0, openingHand),
+    // R116 — each player draws 4 before the Mulligan.
+    mainDeck: drawable.slice(OPENING_HAND),
+    hand: drawable.slice(0, OPENING_HAND),
     trash: [],
     banished: [],
     runeDeck: [...deck.runeDeck],
@@ -156,7 +154,7 @@ export function startGame(setup: GameSetup): SetupResult {
   }
 
   const startingPlayer = setup.startingPlayer ?? "p1";
-  const openingHand = setup.openingHand ?? 5;
+  const second: PlayerId = startingPlayer === "p1" ? "p2" : "p1";
 
   // R485.4 — two battlefields in play, one contributed by each player.
   const battlefieldOrder = [
@@ -171,8 +169,8 @@ export function startGame(setup: GameSetup): SetupResult {
   const blank: GameState = {
     turn: { player: startingPlayer, phase: "main", number: 0 },
     players: {
-      p1: emptyPlayer("p1", setup.p1, openingHand),
-      p2: emptyPlayer("p2", setup.p2, openingHand),
+      p1: emptyPlayer("p1", setup.p1),
+      p2: emptyPlayer("p2", setup.p2),
     },
     cards,
     permanents: {},
@@ -192,5 +190,16 @@ export function startGame(setup: GameSetup): SetupResult {
     startingPlayer,
   };
 
-  return { ok: true, state: beginTurn(blank, startingPlayer, 1).state };
+  // R117 — the Mulligan happens in turn order, *before* turn 1 begins, so the
+  // queue holds both mulligans ahead of the first turn step. The driver stops
+  // at each for an answer.
+  const opened = openTurn(blank, startingPlayer, 1);
+  const queued = enqueue(
+    opened.state,
+    { kind: "mulligan", player: startingPlayer },
+    { kind: "mulligan", player: second },
+    { kind: "turnStep", player: startingPlayer, step: "awaken", number: 1 },
+  );
+
+  return { ok: true, state: runTasks(queued, opened.events).state };
 }

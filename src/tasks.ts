@@ -8,6 +8,7 @@ import {
 import type { Assignment } from "./combat.js";
 import type { PendingDecision } from "./decisions.js";
 import type { GameEvent, Progress } from "./events.js";
+import { drawCards } from "./draw.js";
 import { openShowdown, runCleanup, stagedBattlefields } from "./showdown.js";
 import { collectTriggers } from "./triggers.js";
 import { chainItemCardId } from "./chain.js";
@@ -27,6 +28,9 @@ import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
  * the first such case, and R323.12/13's "the Turn Player chooses" is the next.
  * A synchronous function cannot suspend; a queue entry can.
  */
+/** R117.1 — a player may set aside up to two cards. */
+export const MULLIGAN_MAX = 2;
+
 export type Task =
   | { kind: "cleanup" }
   /**
@@ -50,7 +54,9 @@ export type Task =
   /** R314–317 — one step of the turn. See `TurnStep`. */
   | { kind: "turnStep"; player: PlayerId; step: TurnStep; number: number }
   /** R323.12 — open a showdown at one of the staged battlefields. */
-  | { kind: "openStagedShowdown" };
+  | { kind: "openStagedShowdown" }
+  /** R117 — one player's setup Mulligan, taken in turn order. */
+  | { kind: "mulligan"; player: PlayerId };
 
 interface TaskOutcome {
   state: GameState;
@@ -84,6 +90,25 @@ function runTask(state: GameState, task: Task): TaskOutcome {
           ? [{ kind: "openStagedShowdown" as const }]
           : [];
       return { state: cleaned.state, events: cleaned.events, push };
+    }
+
+    case "mulligan": {
+      const hand = state.players[task.player].hand;
+      // R117.1 — "up to two", so a player with fewer cards is capped by them.
+      const max = Math.min(MULLIGAN_MAX, hand.length);
+      if (max === 0) return { state, events: [] };
+
+      return {
+        state,
+        events: [],
+        suspend: {
+          task: { kind: "mulligan", player: task.player },
+          decision: {
+            player: task.player,
+            prompt: { kind: "mulligan", max, legal: [...hand] },
+          },
+        },
+      };
     }
 
     case "openStagedShowdown": {
@@ -253,6 +278,57 @@ export function applyCombatAssignment(
         assigned: [...head.assigned, { cardId, amount }],
       },
       ...rest,
+    ],
+  };
+}
+
+/**
+ * R117 — set the chosen cards aside, draw that many, *then* recycle the ones
+ * set aside (R416.1: to the bottom of the Main Deck). The order matters: the
+ * replacements are drawn before the set-aside cards go back, so a player can
+ * never redraw the card they just threw away.
+ */
+export function applyMulligan(
+  state: GameState,
+  playerId: PlayerId,
+  setAside: CardId[],
+): Progress {
+  const [head, ...rest] = state.tasks;
+  if (head === undefined || head.kind !== "mulligan") {
+    return { state, events: [] };
+  }
+
+  const player = state.players[playerId];
+  const withoutSetAside: GameState = {
+    ...state,
+    pending: null,
+    tasks: rest,
+    players: {
+      ...state.players,
+      [playerId]: {
+        ...player,
+        hand: player.hand.filter((id) => !setAside.includes(id)),
+      },
+    },
+  };
+
+  const drawn = drawCards(withoutSetAside, playerId, setAside.length);
+  const after = drawn.state;
+
+  return {
+    state: {
+      ...after,
+      players: {
+        ...after.players,
+        [playerId]: {
+          ...after.players[playerId],
+          mainDeck: [...after.players[playerId].mainDeck, ...setAside],
+        },
+      },
+    },
+    events: [
+      { type: "mulliganed", playerId, count: setAside.length },
+      ...drawn.events,
     ],
   };
 }

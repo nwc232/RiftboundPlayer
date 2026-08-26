@@ -21,6 +21,11 @@ export type DecisionPrompt =
   /** R355.5 / R402.2 — targets are chosen as the item finalizes, not on resolution. */
   | { kind: "chooseTargets"; chainIndex: number; count: number; legal: CardId[] }
   /**
+   * R117 — the setup Mulligan: set aside up to two cards, draw that many, then
+   * recycle the ones set aside. Answering with none is a legal "keep".
+   */
+  | { kind: "mulligan"; max: number; legal: CardId[] }
+  /**
    * R323.12/13 — when more than one showdown or combat is staged, the Turn
    * Player chooses which battlefield opens. Only raised when there is a genuine
    * choice; a single staged battlefield opens without asking.

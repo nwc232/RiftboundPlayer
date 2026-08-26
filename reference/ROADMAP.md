@@ -43,7 +43,7 @@ Counts are distinct cards in the pool carrying the keyword.
 | Missing | Why it blocks |
 |---|---|
 | **Legend Zone + Champion Zone** | R103 *requires* a Champion Legend and a Chosen Champion. There is no zone for either, and `CardType: "legend"` is unused. A deck cannot legally exist without this. |
-| **Deck construction + setup (R103–104)** | No deck validation, no opening hand, no mulligan, no starting battlefields. The demo hand-builds a board. |
+| ~~Deck construction + setup~~ | Done — R103 validation, R114–117 setup, R485 mode-of-play. |
 | **Banishment zone (R427)** | Referenced by several cards; no zone exists. |
 | **Win/loss beyond points** | Burn Out (R431) — decking out — is not modelled. |
 

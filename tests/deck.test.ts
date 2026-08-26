@@ -4,6 +4,7 @@ import { basicRune } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import {
   MAIN_DECK_MINIMUM,
+  OPENING_HAND,
   RUNE_DECK_SIZE,
   copies,
   startGame,
@@ -64,6 +65,21 @@ function buildDeck(prefix: string): {
       battlefields: bfs.map((c) => c.id),
     },
   };
+}
+
+/** R117 — answer both setup mulligans, keeping every card unless told otherwise. */
+function keepAll(state: GameState): GameState {
+  let current = state;
+  while (current.pending?.prompt.kind === "mulligan") {
+    const result = applyAction(current, {
+      type: "decide",
+      playerId: current.pending.player,
+      targets: [],
+    });
+    if (!result.ok) throw new Error(`rejected: ${result.reason}`);
+    current = result.state;
+  }
+  return current;
 }
 
 function registry(cards: CardInstance[]): Record<CardId, CardInstance> {
@@ -193,9 +209,9 @@ describe("setup (R103/R485)", () => {
     if (!result.ok) throw new Error("setup failed");
 
     // p1 went first, so channelled two on turn 1.
-    expect(result.state.players.p1.runes).toHaveLength(2);
+    expect(keepAll(result.state).players.p1.runes).toHaveLength(2);
 
-    const turnTwo = applyAction(result.state, {
+    const turnTwo = applyAction(keepAll(result.state), {
       type: "endTurn",
       playerId: "p1",
     });
@@ -224,9 +240,10 @@ describe("playing the Chosen Champion (R108.3.d)", () => {
     });
     if (!started.ok) throw new Error("setup failed");
 
-    const championId = started.state.players.p1.champion!;
+    const ready = keepAll(started.state);
+    const championId = ready.players.p1.champion!;
     // The test units are free, so no rune payment is needed.
-    const played = applyAction(started.state, {
+    const played = applyAction(ready, {
       type: "playUnitFromHand",
       playerId: "p1",
       cardId: championId,
@@ -285,5 +302,108 @@ describe("Burn Out (R431)", () => {
     const checked = checkForWinner(burned.state);
 
     expect(checked.state.winner).toBe("p2");
+  });
+});
+
+/**
+ * R116/R117 — each player draws 4, then in turn order sets aside up to two,
+ * draws that many, and recycles the ones set aside (R416.1: to the bottom).
+ */
+describe("opening hand and Mulligan (R116/R117)", () => {
+  function game() {
+    const one = buildDeck("p1");
+    const two = buildDeck("p2");
+    const result = startGame({
+      cards: [...one.cards, ...two.cards],
+      p1: one.deck,
+      p2: two.deck,
+      choices: {
+        p1: { battlefield: one.deck.battlefields[0]! },
+        p2: { battlefield: two.deck.battlefields[0]! },
+      },
+    });
+    if (!result.ok) throw new Error("setup failed");
+    return result.state;
+  }
+
+  it("deals four and stops for the first player's Mulligan", () => {
+    const state = game();
+
+    expect(state.players.p1.hand).toHaveLength(OPENING_HAND);
+    expect(state.players.p2.hand).toHaveLength(OPENING_HAND);
+    // R117 happens before turn 1, so nothing has been channelled yet.
+    expect(state.pending?.prompt.kind).toBe("mulligan");
+    expect(state.pending?.player).toBe("p1");
+    expect(state.players.p1.runes).toEqual([]);
+  });
+
+  it("asks in turn order, then starts the turn", () => {
+    const afterFirst = applyAction(game(), {
+      type: "decide",
+      playerId: "p1",
+      targets: [],
+    });
+    if (!afterFirst.ok) throw new Error("p1 mulligan failed");
+    expect(afterFirst.state.pending?.player).toBe("p2");
+
+    const afterSecond = applyAction(afterFirst.state, {
+      type: "decide",
+      playerId: "p2",
+      targets: [],
+    });
+    if (!afterSecond.ok) throw new Error("p2 mulligan failed");
+
+    expect(afterSecond.state.pending).toBeNull();
+    expect(afterSecond.state.turn.phase).toBe("main");
+    expect(afterSecond.state.players.p1.runes).toHaveLength(2);
+  });
+
+  /**
+   * R117.2 then R117.3 — the replacements are drawn *before* the set-aside
+   * cards go to the bottom, so a mulliganed card can never be redrawn now.
+   */
+  it("draws replacements before recycling what was set aside", () => {
+    const state = game();
+    const [first, second] = state.players.p1.hand;
+    const topOfDeck = state.players.p1.mainDeck.slice(0, 2);
+
+    const after = applyAction(state, {
+      type: "decide",
+      playerId: "p1",
+      targets: [first!, second!],
+    });
+    if (!after.ok) throw new Error(`rejected: ${after.reason}`);
+
+    const hand = after.state.players.p1.hand;
+    expect(hand).toHaveLength(OPENING_HAND);
+    expect(hand).not.toContain(first);
+    expect(hand).not.toContain(second);
+    expect(hand).toEqual(expect.arrayContaining(topOfDeck));
+    // R416.1 — the set-aside cards went to the bottom of the Main Deck.
+    expect(after.state.players.p1.mainDeck.slice(-2)).toEqual([first, second]);
+  });
+
+  it("refuses more than two (R117.1)", () => {
+    const state = game();
+
+    expect(
+      applyAction(state, {
+        type: "decide",
+        playerId: "p1",
+        targets: state.players.p1.hand.slice(0, 3),
+      }),
+    ).toEqual({ ok: false, reason: "wrongTargetCount" });
+  });
+
+  it("refuses a card that is not in hand", () => {
+    const state = game();
+
+    expect(
+      applyAction(state, {
+        type: "decide",
+        playerId: "p1",
+        targets: [state.players.p1.mainDeck[0]!],
+      }),
+    ).toEqual({ ok: false, reason: "invalidTarget" });
   });
 });

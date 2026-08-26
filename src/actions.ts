@@ -22,6 +22,7 @@ import { legalTargets } from "./decisions.js";
 import type { PendingDecision } from "./decisions.js";
 import {
   applyCombatAssignment,
+  applyMulligan,
   applyStagedShowdown,
   beginTurn,
   enqueue,
@@ -221,6 +222,18 @@ export function decide(
   if (pending.player !== playerId) return rejected("notYourDecision");
 
   const { prompt } = pending;
+
+  // R117 — the setup Mulligan. Zero cards is a legal answer ("keep").
+  if (prompt.kind === "mulligan") {
+    const chosen = choice.targets ?? [];
+    if (chosen.length > prompt.max) return rejected("wrongTargetCount");
+    if (!chosen.every((id) => prompt.legal.includes(id))) {
+      return rejected("invalidTarget");
+    }
+    const done = applyMulligan(state, playerId, chosen);
+    const worked = runTasks(done.state, done.events);
+    return afterTasks(worked.state, [...done.events, ...worked.events]);
+  }
 
   // R323.12 — the Turn Player picks which staged battlefield opens.
   if (prompt.kind === "chooseStagedBattlefield") {

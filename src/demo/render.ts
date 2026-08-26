@@ -162,14 +162,17 @@ export function renderState(state: GameState): string {
       : [
           yellow(
             `awaiting ${state.pending.player}: ${state.pending.prompt.kind}` +
-              (state.pending.prompt.kind === "chooseStagedBattlefield"
+              (state.pending.prompt.kind === "mulligan"
+                ? ` — set aside up to ${state.pending.prompt.max}: ` +
+                  `${state.pending.prompt.legal.join(", ")}`
+                : state.pending.prompt.kind === "chooseStagedBattlefield"
                 ? ` — open a showdown at: ${state.pending.prompt.legal.join(", ")}`
                 : state.pending.prompt.kind === "assignCombatDamage"
                 ? ` — ${state.pending.prompt.remaining} Might left, ` +
                   `assign next to: ${state.pending.prompt.legal.join(", ")}`
                 : state.pending.prompt.kind === "chooseTargets"
                   ? ` — legal: ${state.pending.prompt.legal.join(", ") || "(none)"}`
-                    : ""),
+                      : ""),
           ),
           "",
         ];
@@ -277,6 +280,8 @@ export function renderEvent(event: GameEvent): string {
       return dim(`  ${event.cardId} schedules an effect for ${event.at}`);
     case "controlTaken":
       return `${event.playerId} takes control of ${event.cardId} (${event.duration})`;
+    case "mulliganed":
+      return `${event.playerId} mulliganed ${event.count}`;
     case "burnedOut":
       return bold(`${event.playerId} burned out — trash recycled, opponent scores`);
     case "tokenCreated":
