@@ -8,7 +8,7 @@ import type { GameEvent, Progress } from "./events.js";
 import { controllerOf } from "./layers.js";
 import { sweepFacedown } from "./hidden.js";
 import { checkForWinner, score } from "./scoring.js";
-import { permanentsAt } from "./state.js";
+import { permanentsAt, sameLocation } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
 /**
@@ -71,6 +71,12 @@ function closeShowdown(state: GameState): Progress {
   if (isCombatAt(cleared, showdown.battlefieldId)) {
     // R323.2 before R465.2.a: the sides are summed *after* designations exist,
     // so Assault and Shield are already in the Might they contribute.
+    // R464.2 — combat opens here, before R464.2.c hands out designations.
+    events.push({
+      type: "combatOpened",
+      battlefieldId: showdown.battlefieldId,
+      attacker: showdown.attacker,
+    });
     const designated = assignDesignations(
       cleared,
       showdown.battlefieldId,
@@ -238,6 +244,24 @@ export function runCleanup(state: GameState): Progress {
   const dead = killLethalUnits(current);
   current = dead.state;
   events.push(...dead.events);
+
+  // R718.5.c / R434.4 — an Attached card "cannot be moved separately from the
+  // Top-Most Card", so its location follows. Detached if its host has left.
+  const attachments = { ...current.permanents };
+  let movedAny = false;
+  for (const [cardId, permanent] of Object.entries(current.permanents)) {
+    if (permanent.attachedTo === undefined) continue;
+    const host = current.permanents[permanent.attachedTo];
+    if (host === undefined) {
+      const { attachedTo: _detached, ...rest } = permanent;
+      attachments[cardId] = rest;
+      movedAny = true;
+    } else if (!sameLocation(host.location, permanent.location)) {
+      attachments[cardId] = { ...permanent, location: host.location };
+      movedAny = true;
+    }
+  }
+  if (movedAny) current = { ...current, permanents: attachments };
 
   // R190.4.c — a controller with no units there loses control in the cleanup.
   for (const battlefieldId of current.battlefieldOrder) {

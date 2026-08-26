@@ -19,6 +19,8 @@ export type GameEvent =
   | { type: "unitPlayed"; playerId: PlayerId; cardId: CardId }
   | { type: "runeChanneled"; playerId: PlayerId; cardId: CardId }
   | { type: "runeRecycled"; playerId: PlayerId; cardId: CardId }
+  /** R416.1 — a main-deck card put on the bottom of its owner's Main Deck. */
+  | { type: "cardRecycled"; playerId: PlayerId; cardId: CardId }
   | { type: "energyAdded"; playerId: PlayerId; amount: number }
   | { type: "powerAdded"; playerId: PlayerId; domain: Domain; amount: number }
   | { type: "costPaid"; playerId: PlayerId; cardId: CardId; cost: Cost }
@@ -59,6 +61,11 @@ export type GameEvent =
     }
   | { type: "focusPassed"; playerId: PlayerId }
   | { type: "showdownClosed"; battlefieldId: CardId }
+  /**
+   * R464.2 — combat opens. Distinct from `designated`, which is one of the
+   * things that then happens: Threshold of the Gray watches the opening itself.
+   */
+  | { type: "combatOpened"; battlefieldId: CardId; attacker: PlayerId }
   | { type: "battlefieldControlled"; playerId: PlayerId; battlefieldId: CardId }
   | { type: "battlefieldControlLost"; playerId: PlayerId; battlefieldId: CardId }
   | {
@@ -127,6 +134,8 @@ export type GameEvent =
   | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId }
   | { type: "returnedToHand"; playerId: PlayerId; cardId: CardId }
   | { type: "banished"; playerId: PlayerId; cardId: CardId }
+  /** R434 — a card Attached to a Top-Most Card. */
+  | { type: "attached"; playerId: PlayerId; cardId: CardId; to: CardId }
   | { type: "buffed"; playerId: PlayerId; cardId: CardId }
   | { type: "stunned"; playerId: PlayerId; cardId: CardId }
   | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }

@@ -43,6 +43,8 @@ export type ChainItem =
       targets: CardId[];
       /** R383.3.a — set once the controller has answered the "you may". */
       optionalResolved?: boolean;
+      /** R383.3.b.1 — set once the ability's base cost has been paid. */
+      costsPaid?: true;
       /**
        * R323.4 — where the source stood when this triggered, kept only when the
        * source is no longer on the board to be asked. A live source is looked up

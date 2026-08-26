@@ -80,8 +80,22 @@ function awaken(progress: Progress, player: PlayerId): Progress {
     }
   }
 
+  // R107.4.c — the Champion Legend is a Game Object too, so it readies here
+  // along with everything else its controller has exhausted.
+  const players = { ...state.players };
+  if (playerState.legendExhausted === true) {
+    players[player] = { ...playerState, legendExhausted: false };
+    if (playerState.legend !== null) {
+      events.push({
+        type: "objectReadied",
+        playerId: player,
+        cardId: playerState.legend,
+      });
+    }
+  }
+
   return {
-    state: { ...state, runes, permanents },
+    state: { ...state, runes, permanents, players },
     events: [...progress.events, ...events],
   };
 }
@@ -246,6 +260,8 @@ export function openTurn(
       // R812.1.c's "on the same turn" — both players' lists, since a card can
       // be finalized on an opponent's turn with [Reaction] timing.
       playedThisTurn: { p1: [], p2: [] },
+      // R383.3.e.1 — "each turn" counts reset with the turn.
+      triggeredThisTurn: {},
     },
     events: [{ type: "turnBegan", playerId: player, turn: number }],
   };

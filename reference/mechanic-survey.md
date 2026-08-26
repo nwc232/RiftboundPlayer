@@ -589,3 +589,30 @@ Recorded as they're found, so they don't get lost between slices.
   gear, and R811.1.d.1.a specifically overrides gear's base-only
   restriction. There is no play path for gear at all yet, so this waits
   on that rather than on [Hidden].
+- **`[C]` on a multi-domain card (R135.2.e.6.c).** "Any power of that card's
+  Domains" needs a cost component meaning "one of these", which `spend`
+  cannot express. A single-domain card resolves it exactly; a multi-domain
+  one falls back to `[A]`, which is strictly more permissive. Only reachable
+  through [Accelerate] so far.
+- **"An open battlefield" is undefined by the rules.** Sneaky Deckhand says
+  it and nothing in the Core Rules defines "open". Read here as
+  *uncontrolled*, which is the reading that makes the card do anything —
+  a battlefield its controller holds is already valid under R355.2.a.
+- **Resolution-time choices arrive through the task queue.** `execute` is
+  synchronous and cannot suspend, so Stacked Deck's "put 1 into your hand"
+  and Sabotage's "choose a non-unit card" enqueue a task instead. R334.1
+  makes that legal — outstanding work is completed before anything else
+  happens — but a `seq` step *after* one of these would run before the
+  answer arrived. Both cards end with the choice, so it never shows.
+- **"Plays it to any battlefield" is chosen at finalization (R355.2).**
+  Thrill of the Hunt's destination is taken as a second target rather than
+  as a choice made during the sub-play. Observationally the same unless the
+  board changes between the two moments.
+- **Attached cards follow their host in the cleanup, not instantly.**
+  R718.5.c says an Attached card "cannot be moved separately from the
+  Top-Most Card"; the engine re-seats it during the next cleanup rather
+  than deriving its location. Only visible to something reading a gear's
+  location mid-resolution.
+- **R323.7's gear recall is not modelled.** "Recall all Unattached non-Unit
+  Gear and non-Unit Runes at Battlefields" — gear can only reach a
+  battlefield by being attached, so nothing exercises it yet.

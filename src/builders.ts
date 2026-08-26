@@ -196,6 +196,73 @@ export function gainXP(amount: number): Effect {
   return { op: "gainXP", amount };
 }
 
+/** R433 — Switcheroo's "Swap the Might of two units at the same battlefield". */
+export function swapMight(
+  duration: Duration,
+  targetIndex = 0,
+  otherIndex = 1,
+): Effect {
+  return { op: "swapMight", duration, targetIndex, otherIndex };
+}
+
+/** Tideturner — "Move me to its location and it to my original location." */
+export function swapLocations(targetIndex = 0): Effect {
+  return { op: "swapLocations", targetIndex };
+}
+
+/** Rampage — "They deal damage equal to their Mights to each other." */
+export function mutualDamage(targetIndex = 0, otherIndex = 1): Effect {
+  return { op: "mutualDamage", targetIndex, otherIndex };
+}
+
+/** Targon's Peak — "ready 2 runes at the end of this turn". */
+export function readyRunes(count: number): Effect {
+  return { op: "readyRunes", count };
+}
+
+/** Seat of Power — "draw 1 for each other battlefield you or allies control". */
+export function drawPerBattlefield(options: { excludeSource?: true } = {}): Effect {
+  return {
+    op: "drawPerBattlefield",
+    ...(options.excludeSource !== undefined
+      ? { excludeSource: options.excludeSource }
+      : {}),
+  };
+}
+
+/** Threshold of the Gray — "the attacker and defender each [Add] [1]". */
+export function addEnergyToEach(amount: number): Effect {
+  return { op: "addEnergyToEach", amount };
+}
+
+/** Vex, Apathetic — "They can't move it this turn." */
+export function restrictMovement(duration: Duration, targetIndex = 0): Effect {
+  return { op: "restrictMovement", duration, targetIndex };
+}
+
+/** Thrill of the Hunt — "Banish a friendly unit, then its owner plays it…". */
+export function banishThenPlay(targetIndex = 0, destinationIndex = 1): Effect {
+  return { op: "banishThenPlay", targetIndex, destinationIndex };
+}
+
+/** R818.1.c.2 — "[Cost]: Attach this gear to a unit you control." */
+export function attachSelf(targetIndex = 0): Effect {
+  return { op: "attachSelf", targetIndex };
+}
+
+/** Stacked Deck — "Look at the top 3 … Put 1 into your hand and recycle the rest." */
+export function lookAtTop(count: number, keep: number): Effect {
+  return { op: "lookAtTop", count, keep };
+}
+
+/** Sabotage — "Choose a non-unit card from it, and recycle that card." */
+export function recycleFromOpponentHand(exclude?: "unit"): Effect {
+  return {
+    op: "recycleFromOpponentHand",
+    ...(exclude !== undefined ? { exclude } : {}),
+  };
+}
+
 /** R420 — Irresistible Faefolk's "move an enemy unit to that battlefield". */
 export function moveUnit(
   to: "sourceLocation" | "base" = "sourceLocation",

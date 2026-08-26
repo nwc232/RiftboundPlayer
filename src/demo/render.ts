@@ -301,6 +301,12 @@ export function renderEvent(event: GameEvent): string {
       return `${event.playerId} hides a card at ${event.battlefieldId}`;
     case "facedownRemoved":
       return `${event.cardId} is trashed from ${event.battlefieldId}'s facedown zone`;
+    case "cardRecycled":
+      return `${event.playerId} recycles ${event.cardId}`;
+    case "attached":
+      return `${event.cardId} attaches to ${event.to}`;
+    case "combatOpened":
+      return `combat opens at ${event.battlefieldId}`;
     case "designated":
       return `${event.cardId} is an ${event.designation}`;
     case "combatResolved":

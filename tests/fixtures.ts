@@ -134,6 +134,7 @@ export function makeState(options: {
     battlefieldOrder,
     facedown: {},
     playedThisTurn: { p1: [], p2: [] },
+    triggeredThisTurn: {},
     showdown: null,
     winner: null,
     chain: [],

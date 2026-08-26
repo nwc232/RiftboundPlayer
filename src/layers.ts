@@ -43,6 +43,12 @@ export interface Characteristics {
   domain: Domain | undefined;
   /** "Rules Text" in R477.1.b.1.a's list. */
   abilities: Ability[];
+  /**
+   * Vilemaw — "Enemy units here with less Might than me don't deal combat
+   * damage." The same shape as R423.1.b's Stunned: the unit contributes
+   * nothing to the summed Might, but keeps its own Might against lethal.
+   */
+  silenced: boolean;
 }
 
 /** R477's layers, in the order they are applied. */
@@ -68,6 +74,14 @@ export type Modification =
   | { layer: "trait"; op: "setController"; player: PlayerId }
   /** R477.2 — granting a keyword. Assault/Shield carry a value (R807.1.b). */
   | { layer: "ability"; op: "grantKeyword"; keyword: Keyword; value?: number }
+  /**
+   * Vex, Apathetic — "They can't move it this turn." A restriction rather than
+   * a characteristic, but it lives here so it expires the same way everything
+   * else with a duration does (R317.2.c).
+   */
+  | { layer: "ability"; op: "restrictMovement" }
+  /** Vilemaw — "…don't deal combat damage." See `Characteristics.silenced`. */
+  | { layer: "ability"; op: "silenceCombatDamage" }
   /** R477.3 — the mathematics of raising and lowering Might. */
   | { layer: "arithmetic"; op: "addMight"; amount: number }
   /**
@@ -119,7 +133,13 @@ export interface DelayedEffect {
 /** Who a passive ability modifies, relative to its source. */
 export type PassiveScope =
   | { target: "self" }
-  | { target: "otherFriendlyUnits"; here?: boolean };
+  | { target: "otherFriendlyUnits"; here?: boolean }
+  /**
+   * Vilemaw — "Enemy units here with less Might than me…". The Might
+   * comparison lives in the scope rather than in a PassiveCondition because it
+   * is relative to the *source*, and a condition only ever sees the subject.
+   */
+  | { target: "enemyUnits"; here?: boolean; weakerThanSource?: true };
 
 /**
  * When a passive applies. Absent means always. `mighty` is R708 (Might 5+) and
@@ -158,7 +178,7 @@ function passivesFor(
 
     for (const ability of abilities) {
       if (ability.kind !== "passive") continue;
-      if (!inScope(state, ability, source, subject)) continue;
+      if (!inScope(state, ability, source, subject, seen)) continue;
       found.push({
         modification: ability.modification,
         condition: ability.condition,
@@ -175,10 +195,35 @@ function inScope(
   ability: PassiveAbility,
   source: PermanentState,
   subject: PermanentState,
+  seen: ReadonlySet<CardId>,
 ): boolean {
   switch (ability.scope.target) {
     case "self":
       return source.cardId === subject.cardId;
+
+    case "enemyUnits": {
+      if (
+        controllerOf(state, source.cardId) ===
+        controllerOf(state, subject.cardId)
+      ) {
+        return false;
+      }
+      if (state.cards[subject.cardId]?.type !== "unit") return false;
+      if (
+        ability.scope.here === true &&
+        !sameLocation(source.location, subject.location)
+      ) {
+        return false;
+      }
+      if (ability.scope.weakerThanSource === true) {
+        // Read through the pipeline on both sides, with `seen` guarding the
+        // recursion — Vilemaw asks about Might as it stands, not as printed.
+        const mine = characteristicsOf(state, source.cardId, seen).might;
+        const theirs = characteristicsOf(state, subject.cardId, seen).might;
+        if (theirs >= mine) return false;
+      }
+      return true;
+    }
 
     case "otherFriendlyUnits": {
       if (source.cardId === subject.cardId) return false;
@@ -283,6 +328,29 @@ export function controllerOf(state: GameState, cardId: CardId): PlayerId {
   return controller ?? "p1";
 }
 
+/**
+ * Vex, Apathetic — "They can't move it this turn." Read as a flat modifier
+ * scan for the same reason `controllerOf` is: this is asked while deciding
+ * whether an action is legal, not while deriving a characteristic.
+ */
+export function movementRestricted(state: GameState, cardId: CardId): boolean {
+  return state.modifiers.some(
+    (modifier) =>
+      modifier.targetId === cardId &&
+      modifier.modification.op === "restrictMovement",
+  );
+}
+
+/** R719 — every card Attached to `cardId`, which is its Top-Most Card. */
+export function attachmentsTo(
+  state: GameState,
+  cardId: CardId,
+): PermanentState[] {
+  return Object.values(state.permanents).filter(
+    (permanent) => permanent.attachedTo === cardId,
+  );
+}
+
 /** R317.2.c / R466.7.c — drop every modifier whose lifetime has ended. */
 export function expireModifiers(
   state: GameState,
@@ -320,6 +388,7 @@ export function characteristicsOf(
     cost: card?.cost ?? { energy: 0, power: {}, anyPower: 0 },
     domain: card?.domain,
     abilities: card?.abilities ?? [],
+    silenced: false,
   });
 
   const subject = state.permanents[cardId];
@@ -332,6 +401,32 @@ export function characteristicsOf(
 
   const pending = [
     ...passivesFor(state, subject, nested),
+    // R434.1.c/d — every Attached card appends its Effect Text to this card's
+    // Rules Text and modulates its Might by its Might Bonus.
+    ...attachmentsTo(state, cardId).flatMap((attached) => {
+      const gear = state.cards[attached.cardId]?.attachment;
+      if (gear === undefined) return [];
+      const steps: PendingModification[] = [];
+      if (gear.mightBonus !== undefined && gear.mightBonus !== 0) {
+        steps.push({
+          modification: {
+            layer: "arithmetic",
+            op: "addMight",
+            amount: gear.mightBonus,
+          },
+          condition: undefined,
+          applied: false,
+        });
+      }
+      for (const keyword of gear.keywords ?? []) {
+        steps.push({
+          modification: { layer: "ability", op: "grantKeyword", keyword },
+          condition: undefined,
+          applied: false,
+        });
+      }
+      return steps;
+    }),
     // Stored modifiers carry an already-snapshotted amount (R477.3.b), so they
     // have no condition to re-evaluate — only a lifetime.
     ...state.modifiers
@@ -356,6 +451,7 @@ export function characteristicsOf(
   let assault = printedKeywords.includes("assault") ? (card.assault ?? 1) : 0;
   let shield = printedKeywords.includes("shield") ? (card.shield ?? 1) : 0;
   const arithmetic: ArithmeticStep[] = [];
+  let silenced = false;
 
   // R703 — "Each Buff individually contributes +1 Might to a Unit." A counter
   // rather than a modifier, so it is read off the permanent like a designation.
@@ -419,6 +515,13 @@ export function characteristicsOf(
             }
             break;
           }
+          case "silenceCombatDamage":
+            silenced = true;
+            break;
+          case "restrictMovement":
+            // Read directly off the modifier list by `movementRestricted`; it
+            // is a restriction on an action, not a characteristic.
+            break;
           case "grantKeyword": {
             const { keyword, value } = entry.modification;
             if (!keywords.includes(keyword)) keywords = [...keywords, keyword];
@@ -440,14 +543,33 @@ export function characteristicsOf(
     if (!changed) break;
   }
 
+  // R718.3 — an Attached card's Effect Text is appended to the Top-Most Card's
+  // Rules Text; R718.2 makes its own printed text Inactive while it is there.
+  const appended = attachmentsTo(state, cardId).flatMap(
+    (attached) => state.cards[attached.cardId]?.attachment?.abilities ?? [],
+  );
+
   return {
     might: currentMight(),
     baseMight,
     keywords,
     assault,
     shield,
+    silenced,
     ...copyable,
+    abilities:
+      subject.attachedTo !== undefined
+        ? []
+        : [...copyable.abilities, ...appended],
   };
+}
+
+/** Vilemaw — whether this unit contributes its Might to combat damage. */
+export function dealsCombatDamage(state: GameState, cardId: CardId): boolean {
+  // R423.1.b — a Stunned unit contributes nothing either; both answers meet
+  // here so `combatSides` has one question to ask.
+  if (state.permanents[cardId]?.stunned === true) return false;
+  return !characteristicsOf(state, cardId).silenced;
 }
 
 /** A unit's Might right now, after every layer effect (R710). */

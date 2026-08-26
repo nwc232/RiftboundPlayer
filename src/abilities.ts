@@ -24,6 +24,7 @@ import type {
   PassiveScope,
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
+import type { ResolutionChoice } from "./tasks.js";
 import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
@@ -124,9 +125,51 @@ export type Effect =
   | { op: "conditional"; test: Condition; then: Effect; otherwise?: Effect }
   /** R730.1 — Kha'Zix, Mutating Horror's "gain 2 XP". */
   | { op: "gainXP"; amount: number }
+  /**
+   * R433 — Switcheroo's "Swap the Might of two units at the same battlefield
+   * this turn." R433.1.b: find the difference and apply it as an increase to
+   * the lower and a decrease to the higher, for the stated duration.
+   */
+  | { op: "swapMight"; duration: Duration; targetIndex: number; otherIndex: number }
+  /** Tideturner — "Move me to its location and it to my original location." */
+  | { op: "swapLocations"; targetIndex: number }
+  /** Rampage — "They deal damage equal to their Mights to each other." */
+  | { op: "mutualDamage"; targetIndex: number; otherIndex: number }
+  /** Targon's Peak — "ready 2 runes at the end of this turn". */
+  | { op: "readyRunes"; count: number }
+  /** Threshold of the Gray — "the attacker and defender each [Add] [1]". */
+  | { op: "addEnergyToEach"; amount: number }
+  /** Seat of Power — "draw 1 for each other battlefield you or allies control". */
+  | { op: "drawPerBattlefield"; excludeSource?: true }
+  /** Vex, Apathetic — "They can't move it this turn." */
+  | { op: "restrictMovement"; duration: Duration; targetIndex: number }
+  /**
+   * Thrill of the Hunt — "Banish a friendly unit, then its owner plays it to
+   * any battlefield, ignoring its cost." Two choices: the unit, then where it
+   * comes back. R356.1.b.1 sets both base costs to zero.
+   */
+  | { op: "banishThenPlay"; targetIndex: number; destinationIndex: number }
+  /** R434 / R818.1.c.2 — "[Cost]: Attach this gear to a unit you control." */
+  | { op: "attachSelf"; targetIndex: number }
+  /**
+   * Stacked Deck — "Look at the top 3 cards of your Main Deck. Put 1 into your
+   * hand and recycle the rest." The choice is made on resolution, not at
+   * finalization, so this enqueues a task the queue can suspend on.
+   */
+  | { op: "lookAtTop"; count: number; keep: number }
+  /**
+   * Sabotage — "Choose an opponent. They reveal their hand. Choose a non-unit
+   * card from it, and recycle that card." Same shape: the choice comes after
+   * the reveal.
+   */
+  | { op: "recycleFromOpponentHand"; exclude?: "unit" }
   | { op: "seq"; steps: Effect[] };
 
-export type AbilityCost = { kind: "exhaustSelf" } | { kind: "recycleSelf" };
+export type AbilityCost =
+  | { kind: "exhaustSelf" }
+  | { kind: "recycleSelf" }
+  /** Emperor's Dais — "you may pay [1] and…". R383.3.b makes it a base cost. */
+  | { kind: "pay"; cost: Cost };
 
 /** Recorded from the card, but not yet enforced — that needs the chain. */
 export type AbilityTiming = "reaction" | "action" | "default";
@@ -213,6 +256,19 @@ export interface EffectContext {
 export interface EffectOutcome {
   state: GameState;
   events: GameEvent[];
+}
+
+/**
+ * Leaves a choice behind for the task queue. `execute` is synchronous and
+ * cannot suspend, so an effect that needs an answer mid-resolution enqueues
+ * one instead. R334.1 makes that legal: work outstanding when an item finishes
+ * resolving is worked through before anything else happens.
+ *
+ * A step *after* one of these inside a `seq` therefore runs before the answer
+ * arrives. Both cards that use it end with the choice, so it never shows.
+ */
+function enqueueChoice(state: GameState, task: ResolutionChoice): GameState {
+  return { ...state, tasks: [...state.tasks, task] };
 }
 
 function resolveDomain(
@@ -760,6 +816,329 @@ export function execute(
             playerId: context.controller,
             amount: effect.amount,
           },
+        ],
+      };
+    }
+
+    case "addEnergyToEach": {
+      let current = state;
+      const events: GameEvent[] = [];
+      for (const playerId of ["p1", "p2"] as const) {
+        current = withPool(current, playerId, (pool) =>
+          creditEnergy(pool, effect.amount),
+        );
+        events.push({ type: "energyAdded", playerId, amount: effect.amount });
+      }
+      return { state: current, events };
+    }
+
+    case "swapMight": {
+      const a = context.targets[effect.targetIndex];
+      const b = context.targets[effect.otherIndex];
+      if (a === undefined || b === undefined) return { state, events: [] };
+      if (state.permanents[a] === undefined) return { state, events: [] };
+      if (state.permanents[b] === undefined) return { state, events: [] };
+
+      const mightA = mightOf(state, a);
+      const mightB = mightOf(state, b);
+      // R433.1.c — "If both attributes are the same numeric value, Swapping
+      // has no effect." Not merely invisible: nothing is created to expire.
+      if (mightA === mightB) return { state, events: [] };
+
+      const difference = Math.abs(mightA - mightB);
+      const raise = mightA < mightB ? a : b;
+      const lower = mightA < mightB ? b : a;
+
+      return {
+        state: {
+          ...state,
+          modifiers: [
+            ...state.modifiers,
+            {
+              id: `swap-up-${state.modifiers.length}-${raise}`,
+              targetId: raise,
+              modification: {
+                layer: "arithmetic",
+                op: "addMight",
+                amount: difference,
+              },
+              duration: effect.duration,
+            },
+            {
+              id: `swap-down-${state.modifiers.length}-${lower}`,
+              targetId: lower,
+              modification: {
+                layer: "arithmetic",
+                op: "addMight",
+                amount: -difference,
+              },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [
+          {
+            type: "mightModified",
+            playerId: context.controller,
+            cardId: raise,
+            amount: difference,
+            duration: effect.duration,
+          },
+          {
+            type: "mightModified",
+            playerId: context.controller,
+            cardId: lower,
+            amount: -difference,
+            duration: effect.duration,
+          },
+        ],
+      };
+    }
+
+    case "swapLocations": {
+      const targetId = context.targets[effect.targetIndex];
+      const source = state.permanents[context.sourceId];
+      if (targetId === undefined || source === undefined) {
+        return { state, events: [] };
+      }
+      const target = state.permanents[targetId];
+      if (target === undefined) return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            [context.sourceId]: { ...source, location: target.location },
+            [targetId]: { ...target, location: source.location },
+          },
+        },
+        events: [
+          {
+            type: "unitMoved",
+            playerId: context.controller,
+            cardId: context.sourceId,
+            from: source.location,
+            to: target.location,
+          },
+          {
+            type: "unitMoved",
+            playerId: controllerOf(state, targetId),
+            cardId: targetId,
+            from: target.location,
+            to: source.location,
+          },
+        ],
+      };
+    }
+
+    case "mutualDamage": {
+      const a = context.targets[effect.targetIndex];
+      const b = context.targets[effect.otherIndex];
+      if (a === undefined || b === undefined) return { state, events: [] };
+      if (state.permanents[a] === undefined) return { state, events: [] };
+      if (state.permanents[b] === undefined) return { state, events: [] };
+
+      // R465.2.c.1.a's principle: both amounts are read before either lands, so
+      // a unit that dies still dealt its Might.
+      const damageFromA = mightOf(state, a);
+      const damageFromB = mightOf(state, b);
+      const permanents = { ...state.permanents };
+      permanents[a] = { ...permanents[a]!, damage: permanents[a]!.damage + damageFromB };
+      permanents[b] = { ...permanents[b]!, damage: permanents[b]!.damage + damageFromA };
+
+      return {
+        state: { ...state, permanents },
+        events: [
+          {
+            type: "damageDealt",
+            playerId: controllerOf(state, a),
+            cardId: a,
+            amount: damageFromB,
+          },
+          {
+            type: "damageDealt",
+            playerId: controllerOf(state, b),
+            cardId: b,
+            amount: damageFromA,
+          },
+        ],
+      };
+    }
+
+    case "readyRunes": {
+      const player = state.players[context.controller];
+      const runes = { ...state.runes };
+      const events: GameEvent[] = [];
+      let left = effect.count;
+
+      // R414.1 — readying an already-ready rune does nothing, so the count is
+      // spent on the exhausted ones in the order they were channeled.
+      for (const runeId of player.runes) {
+        if (left === 0) break;
+        const rune = runes[runeId];
+        if (rune === undefined || !rune.exhausted) continue;
+        runes[runeId] = { ...rune, exhausted: false };
+        events.push({
+          type: "objectReadied",
+          playerId: context.controller,
+          cardId: runeId,
+        });
+        left -= 1;
+      }
+
+      return { state: { ...state, runes }, events };
+    }
+
+    case "drawPerBattlefield": {
+      const count = state.battlefieldOrder.filter(
+        (battlefieldId) =>
+          state.battlefields[battlefieldId]?.controller === context.controller &&
+          !(effect.excludeSource === true && battlefieldId === context.sourceId),
+      ).length;
+      if (count === 0) return { state, events: [] };
+      return drawCards(state, context.controller, count);
+    }
+
+    case "restrictMovement": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      if (state.permanents[targetId] === undefined) return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          modifiers: [
+            ...state.modifiers,
+            {
+              id: `noMove-${state.modifiers.length}-${targetId}`,
+              targetId,
+              modification: { layer: "ability", op: "restrictMovement" },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [],
+      };
+    }
+
+    case "lookAtTop": {
+      const player = state.players[context.controller];
+      const revealed = player.mainDeck.slice(0, effect.count);
+      if (revealed.length === 0) return { state, events: [] };
+
+      return {
+        state: enqueueChoice(state, {
+          kind: "chooseFromRevealed",
+          player: context.controller,
+          legal: revealed,
+          keep: Math.min(effect.keep, revealed.length),
+          source: "mainDeck",
+        }),
+        events: [],
+      };
+    }
+
+    case "recycleFromOpponentHand": {
+      const opponent = context.controller === "p1" ? "p2" : "p1";
+      const legal = state.players[opponent].hand.filter(
+        (cardId) =>
+          effect.exclude === undefined ||
+          state.cards[cardId]?.type !== effect.exclude,
+      );
+      if (legal.length === 0) return { state, events: [] };
+
+      return {
+        state: enqueueChoice(state, {
+          kind: "chooseFromRevealed",
+          // R355.5 — "Choose a non-unit card from it" is the *spell's*
+          // controller choosing, not the player revealing.
+          player: context.controller,
+          legal,
+          keep: 0,
+          source: "opponentHand",
+        }),
+        events: [],
+      };
+    }
+
+    case "attachSelf": {
+      const targetId = context.targets[effect.targetIndex];
+      const gear = state.permanents[context.sourceId];
+      if (targetId === undefined || gear === undefined) {
+        return { state, events: [] };
+      }
+      const host = state.permanents[targetId];
+      if (host === undefined) return { state, events: [] };
+      // R434.1.g/h — attaching to its current Top-Most Card does nothing.
+      if (gear.attachedTo === targetId) return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            // R434.1.f — attaching elsewhere detaches from wherever it was;
+            // R434.4 — its location becomes the new Top-Most Card's.
+            [context.sourceId]: {
+              ...gear,
+              attachedTo: targetId,
+              location: host.location,
+            },
+          },
+        },
+        events: [{ type: "attached", playerId: context.controller, cardId: context.sourceId, to: targetId }],
+      };
+    }
+
+    case "banishThenPlay": {
+      const targetId = context.targets[effect.targetIndex];
+      const battlefieldId = context.targets[effect.destinationIndex];
+      if (targetId === undefined || battlefieldId === undefined) {
+        return { state, events: [] };
+      }
+      const permanent = state.permanents[targetId];
+      if (permanent === undefined) return { state, events: [] };
+      if (state.battlefields[battlefieldId] === undefined) {
+        return { state, events: [] };
+      }
+
+      // R427 — banished first, and R186.1 means a token banished this way
+      // ceases to exist rather than coming back.
+      const owner = ownerOf(permanent);
+      if (state.cards[targetId]?.isToken === true) {
+        const { [targetId]: _gone, ...rest } = state.permanents;
+        return {
+          state: { ...state, permanents: rest },
+          events: [{ type: "banished", playerId: owner, cardId: targetId }],
+        };
+      }
+
+      const destination: Location = { kind: "battlefield", id: battlefieldId };
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            // R359.2.c — it is played, so it enters exhausted at the chosen
+            // location. Its owner plays it, so its owner controls it (R56).
+            [targetId]: {
+              ...permanent,
+              controller: owner,
+              exhausted: true,
+              location: destination,
+              damage: 0,
+            },
+          },
+          playedThisTurn: {
+            ...state.playedThisTurn,
+            [owner]: [...state.playedThisTurn[owner], targetId],
+          },
+        },
+        events: [
+          { type: "banished", playerId: owner, cardId: targetId },
+          // A real play, so R383.4.a's play effects trigger off it.
+          { type: "unitPlayed", playerId: owner, cardId: targetId },
         ],
       };
     }

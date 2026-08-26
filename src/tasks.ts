@@ -10,7 +10,7 @@ import type { PendingDecision } from "./decisions.js";
 import type { GameEvent, Progress } from "./events.js";
 import { drawCards } from "./draw.js";
 import { openShowdown, runCleanup, stagedBattlefields } from "./showdown.js";
-import { collectTriggers } from "./triggers.js";
+import { harvestTriggers } from "./triggers.js";
 import { chainItemCardId } from "./chain.js";
 import { runTurnStep, openTurn } from "./turn.js";
 import type { TurnStep } from "./turn.js";
@@ -56,7 +56,23 @@ export type Task =
   /** R323.12 — open a showdown at one of the staged battlefields. */
   | { kind: "openStagedShowdown" }
   /** R117 — one player's setup Mulligan, taken in turn order. */
-  | { kind: "mulligan"; player: PlayerId };
+  | { kind: "mulligan"; player: PlayerId }
+  /**
+   * A choice made *during* an effect's resolution rather than at finalization:
+   * Stacked Deck's "put 1 into your hand and recycle the rest", Sabotage's
+   * "choose a non-unit card from it". `execute` cannot suspend, so it leaves
+   * one of these behind and the queue asks.
+   */
+  | ResolutionChoice;
+
+export interface ResolutionChoice {
+  kind: "chooseFromRevealed";
+  player: PlayerId;
+  legal: CardId[];
+  /** How many of `legal` go to hand; the rest are recycled (R416.1). */
+  keep: number;
+  source: "mainDeck" | "opponentHand";
+}
 
 interface TaskOutcome {
   state: GameState;
@@ -106,6 +122,30 @@ function runTask(state: GameState, task: Task): TaskOutcome {
           decision: {
             player: task.player,
             prompt: { kind: "mulligan", max, legal: [...hand] },
+          },
+        },
+      };
+    }
+
+    case "chooseFromRevealed": {
+      if (task.legal.length === 0) return { state, events: [] };
+      // Only one answer is ever needed: `keep` is 1 (Stacked Deck) or 0 with a
+      // single card recycled (Sabotage).
+      if (task.legal.length === 1) {
+        return applyRevealedChoice({ ...state, pending: null }, task, task.legal);
+      }
+      return {
+        state,
+        events: [],
+        suspend: {
+          task,
+          decision: {
+            player: task.player,
+            prompt: {
+              kind: "chooseFromRevealed",
+              legal: task.legal,
+              keep: task.keep,
+            },
           },
         },
       };
@@ -349,6 +389,76 @@ export function applyStagedShowdown(
   return opened;
 }
 
+/**
+ * R416.1 — recycling puts a card on the bottom of the deck it came from. The
+ * chosen cards go to hand (Stacked Deck) or are the ones recycled (Sabotage);
+ * either way everything named leaves the zone it was in.
+ */
+export function applyRevealedChoice(
+  state: GameState,
+  task: ResolutionChoice,
+  chosen: CardId[],
+): { state: GameState; events: GameEvent[] } {
+  const events: GameEvent[] = [];
+
+  if (task.source === "mainDeck") {
+    const player = state.players[task.player];
+    const rest = task.legal.filter((cardId) => !chosen.includes(cardId));
+    return {
+      state: {
+        ...state,
+        players: {
+          ...state.players,
+          [task.player]: {
+            ...player,
+            hand: [...player.hand, ...chosen],
+            // The looked-at cards leave the top; the unkept ones go under.
+            mainDeck: [...player.mainDeck.slice(task.legal.length), ...rest],
+          },
+        },
+      },
+      events: chosen.map((cardId) => ({
+        type: "cardDrawn" as const,
+        playerId: task.player,
+        cardId,
+      })),
+    };
+  }
+
+  const opponent = task.player === "p1" ? "p2" : "p1";
+  const theirs = state.players[opponent];
+  return {
+    state: {
+      ...state,
+      players: {
+        ...state.players,
+        [opponent]: {
+          ...theirs,
+          hand: theirs.hand.filter((cardId) => !chosen.includes(cardId)),
+          mainDeck: [...theirs.mainDeck, ...chosen],
+        },
+      },
+    },
+    events: chosen.map((cardId) => ({
+      type: "cardRecycled" as const,
+      playerId: opponent,
+      cardId,
+    })),
+  };
+}
+
+/** Answers a `chooseFromRevealed` and drops the task that was waiting on it. */
+export function applyRevealedDecision(
+  state: GameState,
+  chosen: CardId[],
+): Progress {
+  const [head, ...rest] = state.tasks;
+  if (head === undefined || head.kind !== "chooseFromRevealed") {
+    return { state, events: [] };
+  }
+  return applyRevealedChoice({ ...state, pending: null, tasks: rest }, head, chosen);
+}
+
 export function enqueue(state: GameState, ...tasks: Task[]): GameState {
   return { ...state, tasks: [...state.tasks, ...tasks] };
 }
@@ -401,8 +511,12 @@ export function runTasks(
 
     current = { ...outcome.state, tasks: [...(outcome.push ?? []), ...rest] };
 
-    const triggered = collectTriggers(current, unscanned);
+    const harvest = harvestTriggers(current, unscanned);
+    const triggered = harvest.items;
     unscanned = [];
+    // R383.3.e.1's counts advance whether or not anything fired, so they are
+    // carried back even when the harvest is empty.
+    current = { ...current, triggeredThisTurn: harvest.triggeredThisTurn };
     if (triggered.length === 0) continue;
 
     current = {
@@ -426,7 +540,9 @@ export function runTasks(
   // not stop a trigger becoming pending, and a spell sitting on the chain is
   // exactly what "when a player plays a spell" is waiting for.
   if (unscanned.length > 0) {
-    const triggered = collectTriggers(current, unscanned);
+    const harvest = harvestTriggers(current, unscanned);
+    const triggered = harvest.items;
+    current = { ...current, triggeredThisTurn: harvest.triggeredThisTurn };
     if (triggered.length > 0) {
       current = {
         ...current,

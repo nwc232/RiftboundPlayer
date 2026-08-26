@@ -1,5 +1,5 @@
 import { chainItemCardId } from "./chain.js";
-import { controllerOf, mightOf } from "./layers.js";
+import { characteristicsOf, controllerOf, mightOf } from "./layers.js";
 import { sameLocation } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
@@ -50,6 +50,12 @@ export type DecisionPrompt =
    * are unassigned, so choosing the unit determines the number. Only raised
    * when more than one unit is legally assignable (R465.2.c.7).
    */
+  /**
+   * A choice made while an effect resolves: Stacked Deck's "put 1 into your
+   * hand and recycle the rest", Sabotage's "choose a non-unit card from it".
+   * `keep` is how many of `legal` are being asked for.
+   */
+  | { kind: "chooseFromRevealed"; legal: CardId[]; keep: number }
   | {
       kind: "assignCombatDamage";
       battlefieldId: CardId;
@@ -69,8 +75,11 @@ export interface Targeting {
 
 /** What a targeted ability will accept. Deliberately small; grows with cards. */
 export interface TargetFilter {
-  /** R355.6 — a permanent on the board, or an item still on the chain. */
-  type: "unit" | "spellOnChain";
+  /**
+   * R355.6 — a permanent on the board, an item still on the chain, or a
+   * battlefield (Thrill of the Hunt names one as a destination).
+   */
+  type: "unit" | "spellOnChain" | "battlefield";
   /** Relative to the ability's controller. */
   controller?: "enemy" | "friendly";
   location?: "battlefield";
@@ -83,6 +92,11 @@ export interface TargetFilter {
   maxMight?: number;
   /** Evelynn, Entrancing — "an enemy unit at a *different* location". */
   awayFromSource?: true;
+  /** Abandoned Hall — "a unit they control **here**". */
+  atSource?: true;
+  /** Defy — "a spell that costs no more than [4] and no more than [A]". */
+  maxEnergy?: number;
+  maxPower?: number;
 }
 
 export function legalTargets(
@@ -106,7 +120,31 @@ export function legalTargets(
         }
         return true;
       })
+      .filter((item) => {
+        // Defy's ceilings, read from the card's current cost (R356.1.c keeps
+        // "base cost" separate, and Defy asks what it *costs*).
+        const cost = characteristicsOf(state, chainItemCardId(item)).cost;
+        if (filter.maxEnergy !== undefined && cost.energy > filter.maxEnergy) {
+          return false;
+        }
+        if (filter.maxPower !== undefined) {
+          const power =
+            cost.anyPower +
+            Object.values(cost.power).reduce((sum, n) => sum + n, 0);
+          if (power > filter.maxPower) return false;
+        }
+        return true;
+      })
       .map((item) => chainItemCardId(item));
+  }
+
+  if (filter.type === "battlefield") {
+    return state.battlefieldOrder.filter((battlefieldId) => {
+      const its = state.battlefields[battlefieldId]?.controller;
+      if (filter.controller === "friendly" && its !== controller) return false;
+      if (filter.controller === "enemy" && its === controller) return false;
+      return true;
+    });
   }
 
   const here =
@@ -141,6 +179,10 @@ export function legalTargets(
       if (filter.awayFromSource === true) {
         if (here === undefined) return false;
         if (sameLocation(here, permanent.location)) return false;
+      }
+      if (filter.atSource === true) {
+        if (here === undefined) return false;
+        if (!sameLocation(here, permanent.location)) return false;
       }
       return true;
     })

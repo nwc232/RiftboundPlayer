@@ -83,6 +83,7 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
           playerId,
           targets: [id],
         }));
+      case "chooseFromRevealed":
       case "assignCombatDamage":
       case "chooseStagedBattlefield":
         return prompt.legal.map((id) => ({
@@ -160,8 +161,25 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
   ];
   for (const sourceId of sources) {
     const abilities = state.cards[sourceId]?.abilities ?? [];
-    abilities.forEach((_, abilityIndex) => {
-      out.push({ type: "activateAbility", playerId, sourceId, abilityIndex });
+    abilities.forEach((ability, abilityIndex) => {
+      // R355.5 — an ability that chooses something is offered once per choice.
+      const filters =
+        ability.kind === "activated" ? (ability.targeting?.filters ?? []) : [];
+      if (filters.length === 0) {
+        out.push({ type: "activateAbility", playerId, sourceId, abilityIndex });
+        return;
+      }
+      // Only single-choice abilities exist so far; more would need the
+      // combinations the mulligan builds.
+      for (const target of targetable(state)) {
+        out.push({
+          type: "activateAbility",
+          playerId,
+          sourceId,
+          abilityIndex,
+          targets: [target],
+        });
+      }
     });
   }
 

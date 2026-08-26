@@ -1,4 +1,4 @@
-import type { Ability, Effect } from "./abilities.js";
+import type { Ability, AbilityCost, Effect } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
 import type { Targeting } from "./decisions.js";
 import { abilitiesOf, controllerOf } from "./layers.js";
@@ -25,7 +25,7 @@ import type {
  * R383 gives no general rule excluding the source, so narrowing waits for a
  * card that actually asks for it.
  */
-export type TriggerSubject = "self" | "friendly" | "enemy";
+export type TriggerSubject = "self" | "friendly" | "enemy" | "any";
 
 /**
  * R383 — a triggered ability is a Condition plus an Effect. The condition is
@@ -37,8 +37,18 @@ export type TriggerSubject = "self" | "friendly" | "enemy";
  * mechanism, not a spelling of this one.
  */
 export type TriggerCondition =
-  | { on: "unitPlayed"; subject: TriggerSubject }
+  /**
+   * `here` and `nonToken` are Star Spring's — "the first time a player plays a
+   * non-token unit **here** each turn". They narrow which plays count, not who
+   * is watching, so they sit beside the subject rather than replacing it.
+   */
+  | { on: "unitPlayed"; subject: TriggerSubject; here?: true; nonToken?: true }
   | { on: "spellPlayed"; subject: TriggerSubject }
+  /**
+   * R464.2 — Threshold of the Gray's "When combat starts here". Combat opening
+   * is its own moment, distinct from the designations it hands out.
+   */
+  | { on: "combatStarted"; subject: "here" }
   | { on: "permanentKilled"; subject: TriggerSubject }
   /**
    * R471.2 — Score abilities trigger "at the Battlefield that Scored", so
@@ -91,6 +101,32 @@ export interface TriggeredAbility {
   optional?: boolean;
   /** R355.5 — declared here, chosen by the controller as the trigger finalizes. */
   targeting?: Targeting;
+  /**
+   * Vex, Apathetic — "When an opponent plays a unit …, [Stun] **it**." The
+   * object is named by the trigger's own condition, so there is nothing to
+   * choose: it is not a target, and R355.5's choice step never happens.
+   */
+  targetsSubject?: true;
+  /**
+   * R383.3.b — "If a Triggered Ability contains a cost within instructions at
+   * the beginning of the effect or immediately following the 'you may'…, that
+   * cost is treated as the base cost of the Triggered Ability." R383.3.b.1:
+   * it "must be paid in order to finalize the Triggered Ability to the Chain",
+   * so an unpayable one takes the trigger back off.
+   */
+  costs?: AbilityCost[];
+  /**
+   * R383.3.e — "once each turn". R383.3.e.1: once performed that many times it
+   * does not trigger at all, rather than triggering and doing nothing.
+   */
+  oncePerTurn?: true;
+  /**
+   * Abandoned Hall — "When a player plays a spell, **they** may give a unit
+   * **they** control here +1 [M]." The ability's controller is the player who
+   * caused the event, not the battlefield's controller, and every "you" in the
+   * effect follows it.
+   */
+  controllerIsEventPlayer?: true;
 }
 
 /**
@@ -112,6 +148,9 @@ function subjectMatches(
       return eventPlayer === controller;
     case "enemy":
       return eventPlayer !== controller;
+    // Abandoned Hall and Star Spring watch *a player*, either one.
+    case "any":
+      return true;
     default: {
       const unhandled: never = subject;
       return false;
@@ -141,17 +180,25 @@ function matches(
   controller: PlayerId,
 ): boolean {
   switch (condition.on) {
-    case "unitPlayed":
-      return (
-        event.type === "unitPlayed" &&
-        subjectMatches(
-          condition.subject,
-          event.cardId,
-          event.playerId,
-          sourceId,
-          controller,
-        )
+    case "unitPlayed": {
+      if (event.type !== "unitPlayed") return false;
+      // R185.1 — "token" is intrinsic, so this is a property of the card.
+      if (condition.nonToken === true && state.cards[event.cardId]?.isToken) {
+        return false;
+      }
+      // "here" is about where the *played* unit landed, not where its
+      // controller is: the battlefield is watching its own space.
+      if (condition.here === true && !atBattlefield(state, event.cardId, sourceId)) {
+        return false;
+      }
+      return subjectMatches(
+        condition.subject,
+        event.cardId,
+        event.playerId,
+        sourceId,
+        controller,
       );
+    }
     case "spellPlayed":
       return (
         event.type === "spellPlayed" &&
@@ -201,6 +248,11 @@ function matches(
         (condition.designation === undefined ||
           condition.designation === event.designation)
       );
+    case "combatStarted":
+      return (
+        event.type === "combatOpened" && event.battlefieldId === sourceId
+      );
+
     case "combatWon":
       return (
         event.type === "combatResolved" &&
@@ -224,6 +276,11 @@ function matches(
       return false;
     }
   }
+}
+
+/** What an event is *about*, for a trigger whose effect says "it". */
+function subjectOf(event: GameEvent): (CardId | undefined)[] {
+  return "cardId" in event ? [event.cardId] : [];
 }
 
 interface TriggerSource {
@@ -292,11 +349,22 @@ function triggerSources(state: GameState, events: GameEvent[]): TriggerSource[] 
  * then the other player. Order within one player's own set is that player's
  * choice; board order is used, which is one of the legal orderings.
  */
-export function collectTriggers(
+export interface TriggerHarvest {
+  items: ChainItem[];
+  /** R383.3.e.1 — updated counts for anything that triggers "each turn". */
+  triggeredThisTurn: GameState["triggeredThisTurn"];
+}
+
+export function collectTriggers(state: GameState, events: GameEvent[]): ChainItem[] {
+  return harvestTriggers(state, events).items;
+}
+
+export function harvestTriggers(
   state: GameState,
   events: GameEvent[],
-): ChainItem[] {
+): TriggerHarvest {
   const found: { controller: PlayerId; item: ChainItem }[] = [];
+  const counts = { ...state.triggeredThisTurn };
 
   for (const {
     sourceId,
@@ -307,19 +375,31 @@ export function collectTriggers(
   } of triggerSources(state, events)) {
     // A killed source uses the rules text noted before it left the board;
     // anything still there is read live through the layers.
-    (abilities ?? abilitiesOf(state, sourceId)).forEach((ability) => {
+    (abilities ?? abilitiesOf(state, sourceId)).forEach((ability, index) => {
       if (ability.kind !== "triggered") return;
-      const fired = events.some((event) =>
+      const inciting = events.find((event) =>
         matches(state, ability.trigger, event, sourceId, controller),
       );
-      if (!fired) return;
+      if (inciting === undefined) return;
+
+      // R383.3.e.1 — already performed its allowance this turn, so it "does
+      // not trigger" rather than triggering and doing nothing.
+      const tally = `${sourceId}#${index}`;
+      if (ability.oncePerTurn === true && (counts[tally] ?? 0) >= 1) return;
+
+      // Abandoned Hall's "when a player plays a spell, **they** may…" — the
+      // ability belongs to whoever acted, and every "you" in it follows.
+      const actor =
+        ability.controllerIsEventPlayer === true && "playerId" in inciting
+          ? inciting.playerId
+          : controller;
 
       // R383.2.a.1 — the gate is part of the Condition, so a false one means
       // the ability never triggered at all rather than resolving to nothing.
       if (
         ability.requires !== undefined &&
         !holds(state, ability.requires, {
-          controller,
+          controller: actor,
           sourceId,
           // Targets are chosen at finalization (R355.5), so a gate can only ask
           // about the source and the board.
@@ -330,14 +410,19 @@ export function collectTriggers(
         return;
       }
 
+      if (ability.oncePerTurn === true) counts[tally] = (counts[tally] ?? 0) + 1;
+
       found.push({
-        controller,
+        controller: actor,
         item: {
           kind: "trigger",
           sourceId,
           ability,
-          controller,
-          targets: [],
+          controller: actor,
+          targets:
+            ability.targetsSubject === true
+              ? subjectOf(inciting).filter((id) => id !== undefined)
+              : [],
           ...(location !== undefined ? { sourceLocation: location } : {}),
           ...(might !== undefined ? { sourceMight: might } : {}),
         },
@@ -346,8 +431,11 @@ export function collectTriggers(
   }
 
   const turnPlayer = state.turn.player;
-  return [
-    ...found.filter((f) => f.controller === turnPlayer).map((f) => f.item),
-    ...found.filter((f) => f.controller !== turnPlayer).map((f) => f.item),
-  ];
+  return {
+    items: [
+      ...found.filter((f) => f.controller === turnPlayer).map((f) => f.item),
+      ...found.filter((f) => f.controller !== turnPlayer).map((f) => f.item),
+    ],
+    triggeredThisTurn: counts,
+  };
 }

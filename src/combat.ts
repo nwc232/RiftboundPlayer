@@ -2,6 +2,7 @@ import type { GameEvent, Progress } from "./events.js";
 import {
   abilitiesOf,
   controllerOf,
+  dealsCombatDamage,
   expireModifiers,
   keywordsOf,
   mightOf,
@@ -198,12 +199,14 @@ export function combatSides(
     (unit) => controllerOf(state, unit.cardId) === defender,
   );
   // R423.1.b — a Stunned unit "does not contribute its might to damage in the
-  // combat damage step". R423.1.c keeps its full Might for lethal purposes, so
-  // this is deliberately only about the sum, not about `mightOf`.
+  // combat damage step", and Vilemaw silences an enemy the same way. R423.1.c
+  // keeps full Might for lethal purposes, so this is deliberately only about
+  // the sum, not about `mightOf`.
   const sum = (units: PermanentState[]) =>
     units.reduce(
       (total, unit) =>
-        total + (unit.stunned === true ? 0 : mightOf(state, unit.cardId)),
+        total +
+        (dealsCombatDamage(state, unit.cardId) ? mightOf(state, unit.cardId) : 0),
       0,
     );
 

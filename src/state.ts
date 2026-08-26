@@ -94,6 +94,17 @@ export interface CardInstance {
    * leaving the board ceases to exist rather than going to a trash.
    */
   isToken?: true;
+  /**
+   * R718.3/R718.4 — a gear's Effect Text and Might Bonus, which are what an
+   * Attached card contributes to its Top-Most Card. Separate from `abilities`
+   * because R718.2 makes the printed Rules Text Inactive while attached: the
+   * two texts are never both live.
+   */
+  attachment?: {
+    mightBonus?: number;
+    keywords?: Keyword[];
+    abilities?: Ability[];
+  };
 }
 
 export interface RuneState {
@@ -200,6 +211,8 @@ export interface PermanentState {
   paidAdditionalCost?: true;
   /** Which zone this was played from — see `PlaySource`. */
   playedFrom?: PlaySource;
+  /** R718 — the Top-Most Card this is Attached to, if any (R434). */
+  attachedTo?: CardId;
   /**
    * R426.1.b / R702.3 — a unit has at most one Buff counter, worth +1 Might
    * (R703). Buffing an already-buffed unit does nothing at all (R426.1.c).
@@ -240,6 +253,12 @@ export interface PlayerState {
    * zone (R107.4.d). Null only in hand-built test boards.
    */
   legend: CardId | null;
+  /**
+   * R107.4.c makes the Champion Legend a Game Object, and a Legend's abilities
+   * are commonly paid for by exhausting it (Gloomist: "you may exhaust me to
+   * draw 1"). It is not a permanent, so the flag lives on the player.
+   */
+  legendExhausted?: boolean;
   /**
    * R108.3 — the Chosen Champion. It starts here and is *playable from here*
    * (R108.3.d), which makes it a permanently available extra card rather than
@@ -287,6 +306,13 @@ export interface GameState {
    * answers it. Cleared as each turn opens.
    */
   playedThisTurn: Record<PlayerId, CardId[]>;
+  /**
+   * R383.3.e — "Some Triggered Abilities will trigger 'once each turn'."
+   * R383.3.e.1: once it has fired that many times, it does not trigger at all,
+   * so the count has to be kept. Keyed by source and the ability's position in
+   * its own rules text; cleared as each turn opens.
+   */
+  triggeredThisTurn: Record<string, number>;
   showdown: ShowdownState | null;
   winner: PlayerId | null;
   /** R327 — LIFO; last entry resolves first. Empty means an Open State. */

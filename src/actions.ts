@@ -19,12 +19,18 @@ import {
   newestItem,
   sourceLocationOf,
 } from "./chain.js";
-import { abilitiesOf, controllerOf, keywordsOf } from "./layers.js";
+import {
+  abilitiesOf,
+  controllerOf,
+  keywordsOf,
+  movementRestricted,
+} from "./layers.js";
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision, TargetFilter } from "./decisions.js";
 import {
   applyCombatAssignment,
   applyMulligan,
+  applyRevealedDecision,
   applyStagedShowdown,
   beginTurn,
   enqueue,
@@ -85,6 +91,7 @@ export type Action =
     }
   | {
       type: "activateAbility";
+      targets?: CardId[];
       playerId: PlayerId;
       sourceId: CardId;
       abilityIndex: number;
@@ -94,6 +101,7 @@ export type RejectionReason =
   | "cardNotFound"
   | "notHidden"
   | "noAdditionalCost"
+  | "cannotMove"
   | "notOpenState"
   | "battlefieldNotControlled"
   | "facedownZoneOccupied"
@@ -255,6 +263,74 @@ function spellTargeting(
   return ability === undefined ? undefined : ability.targeting?.filters;
 }
 
+/**
+ * R383.3.b.1 — a triggered ability's base cost "must be paid in order to
+ * finalize the Triggered Ability to the Chain". Paid once every choice it owed
+ * has been answered; an unpayable cost takes the item back off the chain.
+ */
+function payTriggerCosts(
+  state: GameState,
+): { state: GameState; events: GameEvent[]; removed: boolean } | null {
+  const chainIndex = state.chain.length - 1;
+  const item = state.chain[chainIndex];
+  if (item === undefined || item.kind !== "trigger") return null;
+  if (item.costsPaid === true) return null;
+
+  const costs = item.ability.costs ?? [];
+  if (costs.length === 0) {
+    return {
+      state: {
+        ...state,
+        chain: state.chain.map((entry, i) =>
+          i === chainIndex ? { ...entry, costsPaid: true as const } : entry,
+        ),
+      },
+      events: [],
+      removed: false,
+    };
+  }
+
+  const context: EffectContext = {
+    controller: item.controller,
+    sourceId: chainItemCardId(item),
+    targets: item.targets,
+  };
+
+  let current = state;
+  const events: GameEvent[] = [];
+  for (const cost of costs) {
+    const paid = payAbilityCost(current, cost, context);
+    if (paid === undefined) {
+      // Unpayable, so it never finalizes: off the chain, like a declined
+      // "you may" (R383.3.a.2).
+      return {
+        state: { ...state, chain: state.chain.slice(0, chainIndex) },
+        events: [
+          {
+            type: "abilityDeclined",
+            playerId: item.controller,
+            cardId: context.sourceId,
+          },
+        ],
+        removed: true,
+      };
+    }
+    current = paid.state;
+    events.push(...paid.events);
+  }
+
+  return {
+    state: {
+      ...current,
+      chain: current.chain.map((entry, i) =>
+        i === chainIndex ? { ...entry, costsPaid: true as const } : entry,
+      ),
+    },
+    events,
+    removed: false,
+  };
+}
+
 /** Attaches any outstanding decision to the state, blocking other actions. */
 function awaitDecisions(result: ActionResult): ActionResult {
   if (!result.ok) return result;
@@ -263,7 +339,26 @@ function awaitDecisions(result: ActionResult): ActionResult {
   // queue has to drain before a chain item may be finalized at all.
   if (result.state.tasks.length > 0) return result;
 
-  const pending = nextDecision(result.state);
+  let current = result.state;
+  const extra: GameEvent[] = [];
+  let pending = nextDecision(current);
+
+  // Finalizing one item can uncover the next: an unpayable cost removes its
+  // trigger, and the item beneath may still owe choices of its own.
+  while (pending === null) {
+    const paid = payTriggerCosts(current);
+    if (paid === null) break;
+    current = paid.state;
+    extra.push(...paid.events);
+    pending = nextDecision(current);
+  }
+
+  if (extra.length > 0) {
+    result = { ...result, state: current, events: [...result.events, ...extra] };
+  } else {
+    result = { ...result, state: current };
+  }
+
   if (pending === null) {
     return { ...result, state: { ...result.state, pending: null } };
   }
@@ -329,6 +424,20 @@ export function decide(
       return rejected("invalidTarget");
     }
     return resumeTasks(state, cardId, playerId);
+  }
+
+  // A choice made mid-resolution belongs to the queue, like combat assignment.
+  if (prompt.kind === "chooseFromRevealed") {
+    const chosen = choice.targets ?? [];
+    if (chosen.length !== Math.max(1, prompt.keep)) {
+      return rejected("wrongTargetCount");
+    }
+    if (!chosen.every((id) => prompt.legal.includes(id))) {
+      return rejected("invalidTarget");
+    }
+    const done = applyRevealedDecision(state, chosen);
+    const worked = runTasks(done.state, done.events);
+    return afterTasks(worked.state, [...done.events, ...worked.events]);
   }
 
   const item = state.chain[prompt.chainIndex];
@@ -441,7 +550,10 @@ export function playUnitFromHand(
   if (card === undefined) {
     return rejected("cardNotFound");
   }
-  if (card.type !== "unit") {
+  // R359.2.d — non-unit Gear "enters the Board Ready at the player's Base",
+  // so it is played through here too, with no location to choose.
+  const isGear = card.type === "gear";
+  if (card.type !== "unit" && !isGear) {
     return rejected("wrongCardType");
   }
 
@@ -507,8 +619,12 @@ export function playUnitFromHand(
     }
     // R355.2 — the chosen location has to be a valid one. R355.2.a's default is
     // "the controller's Base or a Battlefield the controller controls"; anything
-    // beyond that is a permission the card carries (R355.2.b).
-    if (!isValidPlayLocation(state, playerId, cardId, destination)) {
+    // beyond that is a permission the card carries (R355.2.b). R811.1.d.1.a is
+    // the one exception, and it belongs to the facedown branch above.
+    if (!isGear && !isValidPlayLocation(state, playerId, cardId, destination)) {
+      return rejected("invalidDestination");
+    }
+    if (isGear && destination.kind !== "base") {
       return rejected("invalidDestination");
     }
   }
@@ -523,7 +639,7 @@ export function playUnitFromHand(
   });
   const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
-    cardType: "unit",
+    cardType: card.type,
   });
   if (remainingPool === undefined) {
     return rejected("cannotAffordCost");
@@ -555,10 +671,11 @@ export function playUnitFromHand(
           cardId,
           controller: playerId,
           // R359.2.c — a unit enters exhausted, unless R805.1.a's [Accelerate]
-          // cost was paid: "If you do, I enter ready."
-          exhausted: !(
-            payOptional && keywordsOf(state, cardId).includes("accelerate")
-          ),
+          // cost was paid: "If you do, I enter ready." R359.2.d — gear enters
+          // ready.
+          exhausted:
+            !isGear &&
+            !(payOptional && keywordsOf(state, cardId).includes("accelerate")),
           location: destination,
           damage: 0,
           // R205 — a later "if you paid the additional cost" checks whether the
@@ -572,6 +689,8 @@ export function playUnitFromHand(
     },
     events: [
       { type: "costPaid", playerId, cardId, cost },
+      // R383.4.a.4 — a gear's own "when you play this" is a play effect too,
+      // and `unitPlayed`'s subject filters are what tell the two apart.
       { type: "unitPlayed", playerId, cardId },
     ],
   };
@@ -641,6 +760,10 @@ export function standardMove(
   // R144.2 — exhausting the unit is the cost, so it must be ready.
   if (permanent.exhausted) {
     return rejected("alreadyExhausted");
+  }
+  // Vex, Apathetic — "They can't move it this turn."
+  if (movementRestricted(state, cardId)) {
+    return rejected("cannotMove");
   }
   if (sameLocation(permanent.location, destination)) {
     return rejected("alreadyThere");
@@ -1000,6 +1123,26 @@ function payAbilityCost(
   switch (cost.kind) {
     // R414.1.b — an already-exhausted object can't be exhausted again. Runes
     // and permanents both track this, so either can pay it.
+    // R383.3.b — "pay [1]" written into the front of a triggered ability's
+    // effect is that ability's base cost, so it is paid to finalize.
+    case "pay": {
+      const remaining = spend(player.runePool, cost.cost, {
+        kind: "activateAbility",
+      });
+      if (remaining === undefined) return undefined;
+      return {
+        state: withPlayer(state, controller, { ...player, runePool: remaining }),
+        events: [
+          {
+            type: "costPaid",
+            playerId: controller,
+            cardId: sourceId,
+            cost: cost.cost,
+          },
+        ],
+      };
+    }
+
     case "exhaustSelf": {
       if (rune !== undefined) {
         if (rune.exhausted) return undefined;
@@ -1008,6 +1151,18 @@ function payAbilityCost(
             ...state,
             runes: { ...state.runes, [sourceId]: { ...rune, exhausted: true } },
           },
+          events: [],
+        };
+      }
+      // R107.4.c — the Champion Legend has no permanent, so its exhausted
+      // state lives on the player. Gloomist pays with it.
+      if (player.legend === sourceId) {
+        if (player.legendExhausted === true) return undefined;
+        return {
+          state: withPlayer(state, controller, {
+            ...player,
+            legendExhausted: true,
+          }),
           events: [],
         };
       }
@@ -1073,6 +1228,7 @@ export function activateAbility(
   playerId: PlayerId,
   sourceId: CardId,
   abilityIndex: number,
+  targets: CardId[] = [],
 ): ActionResult {
   const card = state.cards[sourceId];
   if (card === undefined) {
@@ -1097,7 +1253,16 @@ export function activateAbility(
     return rejected("notYourTurn");
   }
 
-  const context: EffectContext = { controller: playerId, sourceId, targets: [] };
+  // R355.5 / R818.1.b.1 — an activated ability's choices are made as it is
+  // activated, and Equip's chosen unit is one of them.
+  const filters = ability.targeting?.filters ?? [];
+  if (targets.length !== filters.length) return rejected("wrongTargetCount");
+  for (const [index, filter] of filters.entries()) {
+    const legal = legalTargets(state, playerId, filter, sourceId);
+    if (!legal.includes(targets[index]!)) return rejected("invalidTarget");
+  }
+
+  const context: EffectContext = { controller: playerId, sourceId, targets };
 
   let current = state;
   const events: GameEvent[] = [];
@@ -1175,6 +1340,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
         action.playerId,
         action.sourceId,
         action.abilityIndex,
+        action.targets,
       ));
     default: {
       const unhandled: never = action;

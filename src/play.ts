@@ -17,7 +17,14 @@ export type PlayPermission =
    * R822.1.d — Rengar, Trophy Hunter: "I can [Ambush] to a battlefield where
    * there are enemy units, even if you don't have units there."
    */
-  | { kind: "whereEnemyUnits" };
+  | { kind: "whereEnemyUnits" }
+  /**
+   * Sneaky Deckhand — "You may play me to an open battlefield." The rules
+   * never define "open", so it is read here as one nobody controls, which is
+   * what makes the card do anything: a controlled one is already valid to its
+   * controller under R355.2.a. Recorded as a deviation.
+   */
+  | { kind: "openBattlefield" };
 
 function unitsAt(state: GameState, location: Location) {
   return permanentsAt(state, location).filter(
@@ -70,6 +77,8 @@ function grants(
       return present.some(
         (unit) => controllerOf(state, unit.cardId) !== playerId,
       );
+    case "openBattlefield":
+      return state.battlefields[location.id]?.controller == null;
     default: {
       const unhandled: never = permission;
       return false;
