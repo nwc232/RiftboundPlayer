@@ -25,7 +25,10 @@ Built and tested (174 tests):
 | Triggered abilities (R383) | 8 conditions with subjects; gates (R383.2.a.1) |
 | Playing a card (R355.2) | Valid locations, and permissions that widen them |
 | Facedown Zone (R107.3, R421, R811) | Hide, the free play a turn later, R323.7 sweep |
-| Costs (R812) | Static modification, read outside the layer pipeline |
+| Costs (R356) | Base modification, additional costs, discounts, [Deflect] |
+| Attachments (R434, R718, R818) | Effect Text, Might Bonus, [Equip] |
+| XP (R728–733) | A number on the player |
+| Two real decks | 38 cards, 6 battlefields, played start to finish |
 | Layers (R473–479) | 3 layers, fixpoint, dependency, snapshotting |
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
@@ -51,6 +54,11 @@ Counts are distinct cards in the pool carrying the keyword.
 | **Win/loss beyond points** | Burn Out (R431) — decking out — is not modelled. |
 
 ### Tier 2 — big mechanisms, many cards
+
+Of these, only **replacement effects** remain untouched. Conditionals,
+[Equip], [Hidden] and [Deflect] are built; [Empower] and XP/[Level] have
+their foundations (XP is a number now; [Level] is one Condition away).
+
 
 | Missing | Cards | Notes |
 |---|---|---|
@@ -158,10 +166,10 @@ ready, buff, banish, move, stun, cost modification), then conditionals,
 then [Ambush], then [Hidden]. That takes both decks from 3 authorable
 cards to most of the way there before either of the large keywords.
 
-**Progress:** effect ops, trigger conditions, conditionals, [Ambush],
-[Hidden] and static cost modification are all done. Both large keywords
-are behind us. What is left before authoring is the long tail — XP,
-additional costs, [Equip], Swap, and the deck-manipulation verbs.
+**Progress: done.** All 38 distinct cards and both battlefield sets are
+authored in `src/decks/`, and the CLI opens on the matchup. The three
+places where a card is an approximation rather than the rule are listed in
+`decks.md` and written up in `mechanic-survey.md`.
 
 Building [Ambush] turned up a bigger gap than the keyword: **R355.2 was
 never enforced.** A unit could be played to any location at all. R355.2.a
@@ -244,13 +252,17 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
 
 1. ~~**Tier 1**~~ — done.
 2. ~~**`legalActions`**~~ — done.
-3. **Two decks** of ~15 distinct cards each, on current mechanics. Play
-   them start to finish in the CLI. This will surface bugs no unit test
-   has, because real decks combine things.
-4. **Front-end** over `legalActions` + `pending` + events.
-5. **Tier 2**, driven by which cards the two decks actually want —
-   replacement effects and conditionals first, since they are structural
-   rather than per-keyword.
+3. ~~**Two decks**, played start to finish in the CLI.~~ Done — and it
+   did what it was supposed to. Two bugs no unit test could have found:
+   a trigger with nothing legal to choose deadlocked the game (R355.8),
+   and `legalActions` never offered a two-target spell, so four cards
+   were unreachable. The second is the instructive one — a unit test
+   casting Star-Crossed just passes the targets in; only something that
+   has to *discover* the move could miss it, which is exactly a UI's
+   position.
+4. **Front-end** over `legalActions` + `pending` + events. Next.
+5. **Replacement effects (R369–375)** — the largest unbuilt mechanism,
+   and the only Tier 2 entry neither deck forced.
 6. **Tier 3/4** as card authoring demands them.
 
 The ordering principle throughout has been: build the mechanism when a
