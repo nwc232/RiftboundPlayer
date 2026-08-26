@@ -248,6 +248,7 @@ function emptyBoard(): GameState {
     },
     battlefieldOrder: ["bf-north", "bf-south"],
     facedown: {},
+    playedThisTurn: { p1: [], p2: [] },
     showdown: null,
     winner: null,
     chain: [],

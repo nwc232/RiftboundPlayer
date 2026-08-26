@@ -132,6 +132,7 @@ export function makeState(options: {
     battlefields,
     battlefieldOrder,
     facedown: {},
+    playedThisTurn: { p1: [], p2: [] },
     showdown: null,
     winner: null,
     chain: [],

@@ -245,6 +245,13 @@ export interface GameState {
    * contents are private.
    */
   facedown: Record<CardId, FacedownCard>;
+  /**
+   * R812.1.c — which cards each player has *finalized* this turn. [Legion] asks
+   * whether "a card different than the one with the Legion ability has been
+   * Finalized by you on the same turn", so it is the list, not a count, that
+   * answers it. Cleared as each turn opens.
+   */
+  playedThisTurn: Record<PlayerId, CardId[]>;
   showdown: ShowdownState | null;
   winner: PlayerId | null;
   /** R327 — LIFO; last entry resolves first. Empty means an Open State. */

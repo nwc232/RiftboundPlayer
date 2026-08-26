@@ -178,6 +178,7 @@ export function startGame(setup: GameSetup): SetupResult {
     battlefields,
     battlefieldOrder,
     facedown: {},
+    playedThisTurn: { p1: [], p2: [] },
     showdown: null,
     winner: null,
     chain: [],

@@ -24,6 +24,8 @@ Built and tested (174 tests):
 | The Chain (R327–340) | LIFO, priority, timing from printed keywords |
 | Triggered abilities (R383) | 8 conditions with subjects; gates (R383.2.a.1) |
 | Playing a card (R355.2) | Valid locations, and permissions that widen them |
+| Facedown Zone (R107.3, R421, R811) | Hide, the free play a turn later, R323.7 sweep |
+| Costs (R812) | Static modification, read outside the layer pipeline |
 | Layers (R473–479) | 3 layers, fixpoint, dependency, snapshotting |
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
@@ -132,11 +134,11 @@ Tier 2 list assumed:
 |---|---|---|---|
 | ~~Conditional effects (`if`/`while`)~~ | 7 | R383.2.a.1 | Done — two forms, split by where the clause sits in the text |
 | ~~**[Ambush]**~~ | 6 | R822 | Done — plus R355.2, which was never enforced at all |
-| **[Hidden]** | 5 | R811, R107.3 | large — needs the Facedown Zone |
+| ~~**[Hidden]**~~ | 5 | R811, R107.3 | Done — the zone, Hide, and the free play |
 | ~~New trigger conditions (attack/defend/conquer/hold/move/win-combat/spell-played)~~ | ~8 | R383 | Done — plus the Legend Zone as a trigger source |
 | ~~Return to hand~~ | 4 | R426 | Done |
 | ~~**Buffs**~~ | 2 | R701–705 | Done |
-| Cost modification ("costs 2 less") | 2 | R477.3 | small — the arithmetic layer already covers cost |
+| Cost modification ("costs 2 less") | 2 | R812 | Half done — static reductions work; a one-shot "your next card" does not |
 | ~~Move as an effect~~ | 4 | R454 | Done |
 | Additional costs ("you may pay X as an additional cost") | 2 | R349 | medium |
 | ~~**[Stun]**~~ | 2 | R423 | Done |
@@ -156,10 +158,10 @@ ready, buff, banish, move, stun, cost modification), then conditionals,
 then [Ambush], then [Hidden]. That takes both decks from 3 authorable
 cards to most of the way there before either of the large keywords.
 
-**Progress:** effect ops, trigger conditions, conditionals and [Ambush]
-are done. Cost modification turned out not to belong with the small ops —
-see §3b. Next is [Hidden], the last of the two large keywords, after which
-both decks are mostly authorable.
+**Progress:** effect ops, trigger conditions, conditionals, [Ambush],
+[Hidden] and static cost modification are all done. Both large keywords
+are behind us. What is left before authoring is the long tail — XP,
+additional costs, [Equip], Swap, and the deck-manipulation verbs.
 
 Building [Ambush] turned up a bigger gap than the keyword: **R355.2 was
 never enforced.** A unit could be played to any location at all. R355.2.a
@@ -194,7 +196,22 @@ So neither of the two cards is a layer op away:
   reduction with a lifetime of its own, closer to a delayed effect than to a
   modifier that expires.
 
-Both also want the conditional machinery. Conditionals first, then cost.
+Both also want the conditional machinery.
+
+**Resolved for the static half.** `costOf(state, player, card)` reads a
+card's cost outside the layer pipeline, starting from
+`characteristicsOf(...).cost` so a copy pays what it copied
+(R477.1.b.1.a lists Cost among the copyable traits), then applying
+`costModifier` abilities read off the printed card. [Legion] became a
+Condition — R812.1.c's "a card different than the one with the Legion
+ability has been Finalized by you on the same turn" — which needs
+`playedThisTurn` on the state, cleared as each turn opens.
+
+**Still open: Astral Heron.** "Your *next* card costs [2][A][A] less" is a
+one-shot reduction with a lifetime, not a passive on the card being
+reduced. It is closer to a delayed effect than to a `costModifier`, and it
+also wants a "first card each turn" trigger — both of which the engine can
+now express the pieces of, but neither of which is built.
 
 ---
 

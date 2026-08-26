@@ -1,6 +1,7 @@
 import { execute } from "./abilities.js";
 import type { AbilityCost, EffectContext } from "./abilities.js";
 import { FREE, spend } from "./cost.js";
+import { costOf } from "./costing.js";
 import type { GameEvent } from "./events.js";
 import { permanentsAt, sameLocation } from "./state.js";
 import type {
@@ -126,6 +127,18 @@ export type ActionResult =
 
 function rejected(reason: RejectionReason): ActionResult {
   return { ok: false, reason };
+}
+
+/** R812.1.c — note a card as Finalized by this player on this turn. */
+function recordFinalized(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+): GameState["playedThisTurn"] {
+  return {
+    ...state.playedThisTurn,
+    [playerId]: [...state.playedThisTurn[playerId], cardId],
+  };
 }
 
 /**
@@ -429,6 +442,7 @@ export function playUnitFromHand(
           },
         },
         battlefields: applyContested(state, destination, playerId),
+        playedThisTurn: recordFinalized(state, playerId, cardId),
       },
       events: [{ type: "unitPlayed", playerId, cardId }],
     };
@@ -478,7 +492,9 @@ export function playUnitFromHand(
     return rejected("notInHand");
   }
 
-  const remainingPool = spend(player.runePool, card.cost, {
+  // R355 step 5 — the cost paid is the current one, not the printed one.
+  const cost = costOf(state, playerId, cardId);
+  const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
     cardType: "unit",
   });
@@ -513,9 +529,10 @@ export function playUnitFromHand(
         },
       },
       battlefields: applyContested(state, destination, playerId),
+      playedThisTurn: recordFinalized(state, playerId, cardId),
     },
     events: [
-      { type: "costPaid", playerId, cardId, cost: card.cost },
+      { type: "costPaid", playerId, cardId, cost },
       { type: "unitPlayed", playerId, cardId },
     ],
   };
@@ -690,7 +707,7 @@ export function playSpell(
     return rejected("notYourPriority");
   }
 
-  const cost = hiddenAt === undefined ? card.cost : FREE;
+  const cost = hiddenAt === undefined ? costOf(state, playerId, cardId) : FREE;
   const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
     cardType: "spell",
@@ -731,6 +748,7 @@ export function playSpell(
       // chain only resolves once both players pass in sequence (R339).
       priority: playerId,
       priorityPasses: 0,
+      playedThisTurn: recordFinalized(state, playerId, cardId),
     },
     events: [
       { type: "costPaid", playerId, cardId, cost },

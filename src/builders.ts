@@ -3,6 +3,7 @@ import type {
   AbilityTiming,
   ActivatedAbility,
   Effect,
+  CostModifierAbility,
   PassiveAbility,
   PlayPermissionAbility,
 } from "./abilities.js";
@@ -222,6 +223,15 @@ export function ifThen(
     then,
     ...(otherwise !== undefined ? { otherwise } : {}),
   };
+}
+
+/**
+ * R812 — Noxus Hopeful's "[Legion] — I cost [2] less." The keyword is
+ * shorthand for the condition, so the builder takes the reduction and supplies
+ * it (R812.1.b.1).
+ */
+export function legionCostReduction(reduce: Partial<Cost>): CostModifierAbility {
+  return { kind: "costModifier", reduce, when: { kind: "legion" } };
 }
 
 /** Vex, Apathetic — "while I'm at a battlefield". */

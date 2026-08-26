@@ -22,7 +22,12 @@ export type Condition =
       subject: "source" | "target";
       units: "friendly" | "enemy";
       targetIndex?: number;
-    };
+    }
+  /**
+   * R812.1.c — [Legion]: "as long as a card different than the one with the
+   * Legion ability has been Finalized by you on the same turn". Noxus Hopeful.
+   */
+  | { kind: "legion" };
 
 /**
  * What a condition is asked *about*. `EffectContext` satisfies this
@@ -93,6 +98,13 @@ export function holds(
       });
       return matching.length === 1;
     }
+
+    case "legion":
+      // R812.2 — one other card satisfies every Legion ability at once, which
+      // is exactly "is there any card here that isn't me".
+      return state.playedThisTurn[context.controller].some(
+        (cardId) => cardId !== context.sourceId,
+      );
 
     default: {
       const unhandled: never = condition;

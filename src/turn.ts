@@ -243,6 +243,9 @@ export function openTurn(
         p1: { ...state.players.p1, scoredThisTurn: [] },
         p2: { ...state.players.p2, scoredThisTurn: [] },
       },
+      // R812.1.c's "on the same turn" — both players' lists, since a card can
+      // be finalized on an opponent's turn with [Reaction] timing.
+      playedThisTurn: { p1: [], p2: [] },
     },
     events: [{ type: "turnBegan", playerId: player, turn: number }],
   };

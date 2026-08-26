@@ -23,6 +23,7 @@ import type {
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
 import type { PlayPermission } from "./play.js";
+import type { CostModifier } from "./costing.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 
@@ -154,11 +155,20 @@ export interface PlayPermissionAbility {
   permission: PlayPermission;
 }
 
+/**
+ * R812 — Noxus Hopeful's "[Legion] — I cost [2] less". Like a play permission,
+ * this is read off a card in hand and so never reaches the R477 pipeline.
+ */
+export interface CostModifierAbility extends CostModifier {
+  kind: "costModifier";
+}
+
 export type Ability =
   | ActivatedAbility
   | TriggeredAbility
   | PassiveAbility
-  | PlayPermissionAbility;
+  | PlayPermissionAbility
+  | CostModifierAbility;
 
 export interface EffectContext {
   controller: PlayerId;
