@@ -110,6 +110,50 @@ today, once Tier 1 is done.
 
 ---
 
+## 3a. What two real decks actually demand
+
+Measured against two real constructed lists — **Gloomist (Vex)** and
+**Pridestalker (Rengar)**. Both are fully present in the card pool; the
+Legends are filed under their titles alone (`Gloomist`, `Pridestalker`)
+rather than the deckbuilder convention of "Vex, Gloomist".
+
+**Authorable today: 3 of ~38 distinct cards** — Discipline, Punch First,
+Ferrous Forerunner. That is the honest number, and it is the argument for
+having measured rather than started authoring.
+
+The demand is concentrated, and several of these are far smaller than the
+Tier 2 list assumed:
+
+| Mechanism | Cards | Rule | Size |
+|---|---|---|---|
+| Conditional effects (`if`/`while`) | 7 | — | medium, structural |
+| **[Ambush]** | 6 | R822 | medium — a *play permission*, not combat |
+| **[Hidden]** | 5 | R811, R107.3 | large — needs the Facedown Zone |
+| New trigger conditions (attack/defend/conquer/hold/move/win-combat/spell-played) | ~8 | R383 | small each — the event stream mostly exists |
+| Return to hand | 4 | R426 | small |
+| **Buffs** | 2 | R701–705 | small — counters, +1 Might, one per unit |
+| Cost modification ("costs 2 less") | 2 | R477.3 | small — the arithmetic layer already covers cost |
+| Move as an effect | 4 | R454 | small |
+| Additional costs ("you may pay X as an additional cost") | 2 | R349 | medium |
+| **[Stun]** | 2 | R423 | small — a binary status cleared at R317.2's 3d |
+| Ready a unit | 2 | — | trivial |
+| Banish | 1 | R427 | small — the zone exists |
+| XP | 1 | — | medium — a new per-player resource |
+| Swap Might | 1 | R433 | small |
+| [Equip] / attachments | 1 | R718 | large |
+| [Accelerate], [Legion], reveal-hand, tags | 4 | — | one card each |
+
+**Reading of this:** the two big lifts are [Hidden] and [Equip]. Almost
+everything else is a small effect op or a new trigger condition, and the
+long tail of one-card mechanisms can wait.
+
+Sensible order: trigger conditions and the small effect ops first (return,
+ready, buff, banish, move, stun, cost modification), then conditionals,
+then [Ambush], then [Hidden]. That takes both decks from 3 authorable
+cards to most of the way there before either of the large keywords.
+
+---
+
 ## 4. Front-end
 
 **The engine is already the right shape for one.** It is pure and
