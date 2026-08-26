@@ -213,7 +213,7 @@ describe("trigger gates (R383.2.a.1)", () => {
           trigger: { on: "unitPlayed", subject: "enemy" },
           requires: atBattlefield,
           effect: stun(0),
-          targeting: { count: 1, filter: { type: "unit", controller: "enemy" } },
+          targeting: { filters: [{ type: "unit", controller: "enemy" }] },
         },
       ],
     };

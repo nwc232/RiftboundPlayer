@@ -8,6 +8,7 @@ import type {
   Keyword,
   Location,
   PlayerId,
+  PlaySource,
 } from "./state.js";
 import { killUnits } from "./combat.js";
 import { ownerOf } from "./state.js";
@@ -23,6 +24,7 @@ import type {
   PassiveScope,
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
+import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
 import { holds } from "./conditions.js";
@@ -134,6 +136,12 @@ export interface ActivatedAbility {
   timing: AbilityTiming;
   costs: AbilityCost[];
   effect: Effect;
+  /**
+   * R355.5 — a spell's own choices, made as it is played. Absent means the
+   * ability chooses nothing, which is not the same as choosing zero things:
+   * R355.8 only demands valid choices exist for what is actually asked for.
+   */
+  targeting?: Targeting;
 }
 
 /**
@@ -198,6 +206,8 @@ export interface EffectContext {
   sourceLocation?: Location;
   /** R356.2.b — whether this play's optional additional cost was paid. */
   paidAdditionalCost?: boolean;
+  /** Which zone a resolving spell was played from (R811.3). */
+  playedFrom?: PlaySource;
 }
 
 export interface EffectOutcome {

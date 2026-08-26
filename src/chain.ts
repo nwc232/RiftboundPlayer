@@ -1,6 +1,12 @@
 import { mightOf } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
-import type { CardId, GameState, Location, PlayerId } from "./state.js";
+import type {
+  CardId,
+  GameState,
+  Location,
+  PlayerId,
+  PlaySource,
+} from "./state.js";
 
 /**
  * R327–331. The Chain is a single LIFO zone that exists only while something is
@@ -19,6 +25,8 @@ export type ChainItem =
       targets: CardId[];
       /** R356.2.b — whether the optional additional cost was paid for this play. */
       paidAdditionalCost?: true;
+      /** Which zone the spell was played from — Back Off asks (R811.1.b). */
+      playedFrom?: PlaySource;
     }
   | {
       kind: "trigger";

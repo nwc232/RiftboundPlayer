@@ -16,8 +16,7 @@ const riptideRex: CardInstance = {
       trigger: { on: "unitPlayed", subject: "self" },
       effect: dealDamage(6),
       targeting: {
-        count: 1,
-        filter: { type: "unit", controller: "enemy", location: "battlefield" },
+        filters: [{ type: "unit", controller: "enemy", location: "battlefield" }],
       },
     },
   ],
@@ -100,7 +99,8 @@ describe("choosing targets (R355.5)", () => {
       prompt: {
         kind: "chooseTargets",
         chainIndex: 0,
-        count: 1,
+        index: 0,
+        remaining: 1,
         legal: ["enemyAtBf"],
       },
     });

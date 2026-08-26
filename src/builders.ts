@@ -19,7 +19,13 @@ import type {
 import type { Condition } from "./conditions.js";
 import { FREE } from "./cost.js";
 import type { TokenKind } from "./tokens.js";
-import type { CardInstance, Cost, Domain, Keyword } from "./state.js";
+import type {
+  CardInstance,
+  Cost,
+  Domain,
+  Keyword,
+  PlaySource,
+} from "./state.js";
 
 // Effects. Each of these builds data and does nothing else — addEnergy(1)
 // returns { op: "addEnergy", amount: 1 }, it does not add any energy.
@@ -250,6 +256,14 @@ export function additionalCost(
 ): AdditionalCostAbility {
   return { kind: "additionalCost", cost, ...(optional ? { optional } : {}) };
 }
+
+/** Back Off — "If you played this from your hand, draw 1." */
+export function playedFrom(zone: PlaySource): Condition {
+  return { kind: "playedFrom", zone };
+}
+
+/** Evelynn, Entrancing — "…on your turn". */
+export const onYourTurn: Condition = { kind: "yourTurn" };
 
 /** R205 — "if you paid the additional cost". */
 export const paidAdditionalCost: Condition = { kind: "paidAdditionalCost" };

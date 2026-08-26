@@ -1,3 +1,4 @@
+import { chainItemCardId } from "./chain.js";
 import { controllerOf, mightOf } from "./layers.js";
 import { sameLocation } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
@@ -19,8 +20,19 @@ export type DecisionPrompt =
    * chain entirely (R383.3.a.2); it counts as never having triggered.
    */
   | { kind: "confirmOptional"; chainIndex: number }
-  /** R355.5 / R402.2 — targets are chosen as the item finalizes, not on resolution. */
-  | { kind: "chooseTargets"; chainIndex: number; count: number; legal: CardId[] }
+  /**
+   * R355.5 / R402.2 — targets are chosen as the item finalizes, not on
+   * resolution. Asked one at a time, because R811.1.d.2.a and cards like
+   * Star-Crossed ("a friendly unit *and* an enemy unit") judge each target
+   * separately: `index` says which of the ability's filters is being answered.
+   */
+  | {
+      kind: "chooseTargets";
+      chainIndex: number;
+      index: number;
+      remaining: number;
+      legal: CardId[];
+    }
   /**
    * R117 — the setup Mulligan: set aside up to two cards, draw that many, then
    * recycle the ones set aside. Answering with none is a legal "keep".
@@ -46,9 +58,19 @@ export type DecisionPrompt =
       legal: CardId[];
     };
 
+/**
+ * R355.5 — what an ability chooses as it finalizes. One filter per target, so
+ * "a friendly unit and an enemy unit" is two entries rather than a count: the
+ * two are not interchangeable and R811.1.d.2.a judges each separately.
+ */
+export interface Targeting {
+  filters: TargetFilter[];
+}
+
 /** What a targeted ability will accept. Deliberately small; grows with cards. */
 export interface TargetFilter {
-  type: "unit";
+  /** R355.6 — a permanent on the board, or an item still on the chain. */
+  type: "unit" | "spellOnChain";
   /** Relative to the ability's controller. */
   controller?: "enemy" | "friendly";
   location?: "battlefield";
@@ -70,6 +92,23 @@ export function legalTargets(
   /** The ability's source, for the filters that are relative to it. */
   sourceId?: CardId,
 ): CardId[] {
+  // A spell on the chain is not a permanent, so it is a different search: only
+  // the controller filter means anything for one.
+  if (filter.type === "spellOnChain") {
+    return state.chain
+      .filter((item) => {
+        if (item.kind !== "spell") return false;
+        if (filter.controller === "enemy" && item.controller === controller) {
+          return false;
+        }
+        if (filter.controller === "friendly" && item.controller !== controller) {
+          return false;
+        }
+        return true;
+      })
+      .map((item) => chainItemCardId(item));
+  }
+
   const here =
     sourceId === undefined ? undefined : state.permanents[sourceId]?.location;
 

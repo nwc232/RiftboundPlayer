@@ -28,8 +28,7 @@ const rex: CardInstance = {
       trigger: { on: "unitPlayed", subject: "self" },
       effect: dealDamage(6),
       targeting: {
-        count: 1,
-        filter: { type: "unit", controller: "enemy", location: "battlefield" },
+        filters: [{ type: "unit", controller: "enemy", location: "battlefield" }],
       },
     },
   ],

@@ -11,6 +11,7 @@ import type {
   Location,
   PlayerId,
   PlayerState,
+  PlaySource,
 } from "./state.js";
 import {
   chainExists,
@@ -20,7 +21,7 @@ import {
 } from "./chain.js";
 import { abilitiesOf, controllerOf, keywordsOf } from "./layers.js";
 import { legalTargets } from "./decisions.js";
-import type { PendingDecision } from "./decisions.js";
+import type { PendingDecision, TargetFilter } from "./decisions.js";
 import {
   applyCombatAssignment,
   applyMulligan,
@@ -216,17 +217,24 @@ function nextDecision(state: GameState): PendingDecision | null {
     };
   }
 
-  if (ability.targeting !== undefined && item.targets.length === 0) {
+  // R355.5 — one target at a time, in the order the card names them. Each has
+  // its own filter, so "a friendly unit and an enemy unit" cannot be answered
+  // by two friendly ones.
+  const filters = ability.targeting?.filters ?? [];
+  const index = item.targets.length;
+  const filter = filters[index];
+  if (filter !== undefined) {
     return {
       player: item.controller,
       prompt: {
         kind: "chooseTargets",
         chainIndex,
-        count: ability.targeting.count,
+        index,
+        remaining: filters.length - index,
         legal: legalTargets(
           state,
           item.controller,
-          ability.targeting.filter,
+          filter,
           chainItemCardId(item),
         ),
       },
@@ -234,6 +242,17 @@ function nextDecision(state: GameState): PendingDecision | null {
   }
 
   return null;
+}
+
+/** The filters a spell's own rules text names, if it names any (R355.5). */
+function spellTargeting(
+  state: GameState,
+  cardId: CardId,
+): TargetFilter[] | undefined {
+  const ability = abilitiesOf(state, cardId).find(
+    (each) => each.kind === "activated" || each.kind === "triggered",
+  );
+  return ability === undefined ? undefined : ability.targeting?.filters;
 }
 
 /** Attaches any outstanding decision to the state, blocking other actions. */
@@ -349,8 +368,9 @@ export function decide(
     });
   }
 
+  // One answer per prompt, appended in the order the card asks for them.
   const targets = choice.targets ?? [];
-  if (targets.length !== prompt.count) return rejected("wrongTargetCount");
+  if (targets.length !== 1) return rejected("wrongTargetCount");
   if (!targets.every((id) => prompt.legal.includes(id))) {
     return rejected("invalidTarget");
   }
@@ -360,7 +380,9 @@ export function decide(
     state: {
       ...state,
       chain: state.chain.map((entry, i) =>
-        i === prompt.chainIndex ? { ...entry, targets } : entry,
+        i === prompt.chainIndex
+          ? { ...entry, targets: [...entry.targets, ...targets] }
+          : entry,
       ),
     },
     events: [{ type: "targetsChosen", playerId, targets }],
@@ -507,6 +529,8 @@ export function playUnitFromHand(
     return rejected("cannotAffordCost");
   }
 
+  const playedFrom: PlaySource =
+    hiddenAt !== undefined ? "facedown" : fromChampionZone ? "champion" : "hand";
   const leavingZone =
     hiddenAt === undefined ? state : clearFacedown(state, hiddenAt);
   const newHand =
@@ -540,6 +564,7 @@ export function playUnitFromHand(
           // R205 — a later "if you paid the additional cost" checks whether the
           // game action happened, so it is recorded rather than re-derived.
           ...(payOptional ? { paidAdditionalCost: true as const } : {}),
+          playedFrom,
         },
       },
       battlefields: applyContested(state, destination, playerId),
@@ -740,13 +765,30 @@ export function playSpell(
   });
   if (remainingPool === undefined) return rejected("cannotAffordCost");
 
-  // R355.8 — valid choices must exist for every target before it goes on.
-  for (const targetId of targets) {
-    const isOnBoard = state.permanents[targetId] !== undefined;
-    const isOnChain = state.chain.some(
-      (item) => item.kind === "spell" && item.cardId === targetId,
-    );
-    if (!isOnBoard && !isOnChain) return rejected("invalidTarget");
+  // R355.5/R355.8 — a spell's choices are made as it is played, and each one
+  // has to be valid for the filter the card names in that position.
+  const filters = spellTargeting(state, cardId);
+  if (filters !== undefined) {
+    if (targets.length !== filters.length) return rejected("wrongTargetCount");
+    const chosen: CardId[] = [];
+    for (const [index, filter] of filters.entries()) {
+      const targetId = targets[index]!;
+      const legal = legalTargets(state, playerId, filter, cardId);
+      // R355.5.a-style uniqueness: two filters naming two things cannot both
+      // be answered with the same object.
+      if (!legal.includes(targetId) || chosen.includes(targetId)) {
+        return rejected("invalidTarget");
+      }
+      chosen.push(targetId);
+    }
+  } else {
+    for (const targetId of targets) {
+      const isOnBoard = state.permanents[targetId] !== undefined;
+      const isOnChain = state.chain.some(
+        (item) => item.kind === "spell" && item.cardId === targetId,
+      );
+      if (!isOnBoard && !isOnChain) return rejected("invalidTarget");
+    }
   }
 
   const handIndex = player.hand.indexOf(cardId);
@@ -774,6 +816,7 @@ export function playSpell(
           controller: playerId,
           targets,
           ...(payOptional ? { paidAdditionalCost: true as const } : {}),
+          playedFrom: hiddenAt === undefined ? "hand" : "facedown",
         },
       ],
       // R337.4 — the controller of the newest item receives priority; the
@@ -871,6 +914,9 @@ export function passPriority(
       ...(sourceLocation !== undefined ? { sourceLocation } : {}),
       ...(item.kind === "spell" && item.paidAdditionalCost === true
         ? { paidAdditionalCost: true }
+        : {}),
+      ...(item.kind === "spell" && item.playedFrom !== undefined
+        ? { playedFrom: item.playedFrom }
         : {}),
     });
     current = outcome.state;

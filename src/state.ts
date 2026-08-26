@@ -162,6 +162,13 @@ export interface BattlefieldState {
   contestedBy: PlayerId | null;
 }
 
+/**
+ * The three zones a card can be played from. R811.1.b and R108.3.d add the
+ * last two to the obvious one, and cards ask which it was: Back Off's "if you
+ * played this from your hand", Evelynn's "when you play me from face down".
+ */
+export type PlaySource = "hand" | "champion" | "facedown";
+
 /** R464.2.c.3 — which side of a combat a unit is on. */
 export type Designation = "attacker" | "defender";
 
@@ -191,6 +198,8 @@ export interface PermanentState {
    * the additional cost" clause checks whether the game action happened.
    */
   paidAdditionalCost?: true;
+  /** Which zone this was played from — see `PlaySource`. */
+  playedFrom?: PlaySource;
   /**
    * R426.1.b / R702.3 — a unit has at most one Buff counter, worth +1 Might
    * (R703). Buffing an already-buffed unit does nothing at all (R426.1.c).

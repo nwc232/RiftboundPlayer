@@ -1,6 +1,6 @@
 import type { Ability, Effect } from "./abilities.js";
 import type { ChainItem } from "./chain.js";
-import type { TargetFilter } from "./decisions.js";
+import type { Targeting } from "./decisions.js";
 import { abilitiesOf, controllerOf } from "./layers.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
@@ -90,7 +90,7 @@ export interface TriggeredAbility {
    */
   optional?: boolean;
   /** R355.5 — declared here, chosen by the controller as the trigger finalizes. */
-  targeting?: { count: number; filter: TargetFilter };
+  targeting?: Targeting;
 }
 
 /**

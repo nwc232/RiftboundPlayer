@@ -1,6 +1,12 @@
 import { controllerOf, mightOf } from "./layers.js";
 import { permanentsAt } from "./state.js";
-import type { CardId, GameState, Location, PlayerId } from "./state.js";
+import type {
+  CardId,
+  GameState,
+  Location,
+  PlayerId,
+  PlaySource,
+} from "./state.js";
 
 /**
  * A yes/no question a card asks about the board. Deliberately a short list of
@@ -35,7 +41,16 @@ export type Condition =
    */
   | { kind: "paidAdditionalCost" }
   /** R728 — "[Level N]" and anything else gated on a player's XP. */
-  | { kind: "hasXP"; atLeast: number };
+  | { kind: "hasXP"; atLeast: number }
+  /**
+   * Back Off — "If you played this from your hand, draw 1"; Evelynn,
+   * Entrancing — "When you play me from face down". R811.3 is what makes the
+   * question worth asking: a [Hidden] card may always be played normally
+   * instead, so the same card arrives by two routes.
+   */
+  | { kind: "playedFrom"; zone: PlaySource }
+  /** Evelynn, Entrancing — "…on your turn". */
+  | { kind: "yourTurn" };
 
 /**
  * What a condition is asked *about*. `EffectContext` satisfies this
@@ -54,6 +69,8 @@ export interface ConditionContext {
    * its play effect triggers after the card has already entered.
    */
   paidAdditionalCost?: boolean;
+  /** Which zone a resolving spell was played from; units record it on the permanent. */
+  playedFrom?: PlaySource;
 }
 
 function locationOf(
@@ -118,6 +135,15 @@ export function holds(
         context.paidAdditionalCost ??
         state.permanents[context.sourceId]?.paidAdditionalCost === true
       );
+
+    case "playedFrom": {
+      const zone =
+        context.playedFrom ?? state.permanents[context.sourceId]?.playedFrom;
+      return zone === condition.zone;
+    }
+
+    case "yourTurn":
+      return state.turn.player === context.controller;
 
     case "hasXP":
       return state.players[context.controller].xp >= condition.atLeast;

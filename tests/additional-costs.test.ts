@@ -42,7 +42,7 @@ const pyke: CardInstance = {
       trigger: { on: "unitPlayed", subject: "self" },
       requires: paidAdditionalCost,
       effect: ready(0),
-      targeting: { count: 1, filter: { type: "unit", controller: "friendly" } },
+      targeting: { filters: [{ type: "unit", controller: "friendly" }] },
     },
   ],
 };
