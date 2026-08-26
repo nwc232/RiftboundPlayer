@@ -3,6 +3,7 @@ import { VICTORY_SCORE } from "../scoring.js";
 import type { GameEvent } from "../events.js";
 import { chainItemCardId } from "../chain.js";
 import { characteristicsOf, controllerOf } from "../layers.js";
+import { legalActions } from "../legal.js";
 import { permanentsAt } from "../state.js";
 import type { Cost, GameState, Location, PlayerId } from "../state.js";
 
@@ -294,30 +295,63 @@ export function renderEvent(event: GameEvent): string {
 }
 
 /** Everything the player could legally do right now, as typeable commands. */
+/**
+ * Everything p1 may legally do, as typeable commands. Driven by the engine's
+ * own `legalActions` rather than a second guess at the rules, so the list can
+ * never offer something the dispatcher would then reject.
+ */
 export function renderAvailableAbilities(state: GameState): string[] {
-  const player = state.players.p1;
+  const seen = new Set<string>();
   const lines: string[] = [];
 
-  const sources = [
-    ...player.runes,
-    ...permanentsAt(state, { kind: "base", player: "p1" }).map((p) => p.cardId),
-  ];
-  for (const sourceId of sources) {
-    const card = state.cards[sourceId];
-    if (card === undefined) continue;
-    card.abilities.forEach((ability, index) => {
-      if (ability.kind !== "activated") return;
-      const effect =
-        ability.effect.op === "addEnergy"
-          ? `add ${ability.effect.amount} energy`
-          : ability.effect.op === "addPower"
-            ? `add ${ability.effect.amount} ${ability.effect.domain === "selfDomain" ? card.domain : ability.effect.domain} power`
-            : ability.effect.op;
-      const costs = ability.costs.map((c) => c.kind).join(" + ");
-      lines.push(
-        `  use ${sourceId} ${index}  ${dim("—")} ${card.name}: ${costs} → ${effect}`,
-      );
-    });
+  const label = (cardId: string) => state.cards[cardId]?.name ?? cardId;
+
+  for (const action of legalActions(state, "p1")) {
+    let command: string;
+    let note = "";
+
+    switch (action.type) {
+      case "playUnitFromHand":
+        command = `play ${action.cardId}`;
+        note = label(action.cardId);
+        break;
+      case "playSpell":
+        command =
+          action.targets === undefined || action.targets.length === 0
+            ? `cast ${action.cardId}`
+            : `cast ${action.cardId} ${action.targets.join(" ")}`;
+        note = label(action.cardId);
+        break;
+      case "activateAbility":
+        command = `use ${action.sourceId} ${action.abilityIndex}`;
+        note = label(action.sourceId);
+        break;
+      case "standardMove":
+        command = `move ${action.cardId} ${locationName(action.destination)}`;
+        note = label(action.cardId);
+        break;
+      case "decide":
+        command =
+          action.perform === true
+            ? "yes"
+            : action.perform === false
+              ? "no"
+              : `choose ${(action.targets ?? []).join(" ") || "(keep)"}`;
+        break;
+      case "passPriority":
+      case "passFocus":
+        command = "pass";
+        break;
+      case "endTurn":
+        command = "end";
+        break;
+      default:
+        continue;
+    }
+
+    if (seen.has(command)) continue;
+    seen.add(command);
+    lines.push(`  ${command}${note === "" ? "" : `  ${dim("—")} ${note}`}`);
   }
 
   return lines;

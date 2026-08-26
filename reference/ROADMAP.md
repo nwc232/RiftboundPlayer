@@ -119,7 +119,7 @@ rewriting. What is missing is the seam:
 
 | Needed | Why |
 |---|---|
-| **`legalActions(state, playerId): Action[]`** | The single most important gap. A UI needs to know what is clickable *before* the click. Today legality is discovered by attempting an action and reading the rejection. The demo's `renderAvailableAbilities` is an ad-hoc partial version. |
+| ~~`legalActions(state, playerId)`~~ | Done. Enumerates candidates and filters them through `applyAction`, so it cannot disagree with the dispatcher. The demo's action list is driven by it. |
 | **Serialization** | `GameState` is plain data already, but `Ability` objects contain no functions *by design* — worth an explicit round-trip test so it stays true. |
 | **Client/server boundary** | Even single-machine, deciding now whether the UI holds state or asks an authority avoids a rewrite. Hidden information (hands, [Hidden] cards) makes a per-player *view* of state necessary, not optional. |
 | **Animation-friendly events** | The event stream already exists and is ordered — it is what a UI animates from. |
@@ -137,11 +137,8 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
 
 ## 5. Suggested order
 
-1. **Tier 1** — Legend/Champion zones, deck construction, setup, mulligan.
-   Without these there is no legal game, only a sandbox.
-2. **`legalActions`** — before any UI work, and it sharpens the engine
-   regardless: it forces every legality rule into one queryable place
-   instead of being scattered across rejection paths.
+1. ~~**Tier 1**~~ — done.
+2. ~~**`legalActions`**~~ — done.
 3. **Two decks** of ~15 distinct cards each, on current mechanics. Play
    them start to finish in the CLI. This will surface bugs no unit test
    has, because real decks combine things.
