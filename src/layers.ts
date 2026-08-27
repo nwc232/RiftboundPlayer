@@ -381,6 +381,18 @@ export function expireModifiers(
  * effect applied. For anything not on the board, R711 says printed values
  * stand — a unit in the trash is Mighty on its printed Might alone.
  */
+/**
+ * R819.1.b — "Cards with Quick-Draw have Reaction inherently." Derived rather
+ * than printed, and applied to the printed list as well as the layered one:
+ * the keyword does its work while the card is still in hand, where R711 leaves
+ * nothing but printed values to read.
+ */
+function withDerivedKeywords(keywords: Keyword[]): Keyword[] {
+  return keywords.includes("quickDraw") && !keywords.includes("reaction")
+    ? [...keywords, "reaction"]
+    : keywords;
+}
+
 export function characteristicsOf(
   state: GameState,
   cardId: CardId,
@@ -393,7 +405,7 @@ export function characteristicsOf(
   const printed = (): Characteristics => ({
     might: printedMight,
     baseMight: printedMight,
-    keywords: [...printedKeywords],
+    keywords: withDerivedKeywords([...printedKeywords]),
     assault: 0,
     shield: 0,
     deflect: 0,
@@ -569,7 +581,9 @@ export function characteristicsOf(
   return {
     might: currentMight(),
     baseMight,
-    keywords,
+    // Derived after the fixpoint, so a *granted* Quick-Draw brings its
+    // Reaction with it.
+    keywords: withDerivedKeywords(keywords),
     assault,
     shield,
     deflect,
@@ -611,6 +625,18 @@ const TEMPORARY: Ability = {
  * permanent entering the Board, which is what `unitPlayed` reports for gear as
  * well as units.
  */
+/**
+ * R819.1.d's second half — "When you play this, attach it to a Unit you
+ * control." The first half, [Reaction], is a keyword rather than an ability
+ * and is derived in `characteristicsOf`.
+ */
+const QUICK_DRAW: Ability = {
+  kind: "triggered",
+  trigger: { on: "unitPlayed", subject: "self" },
+  targeting: { filters: [{ type: "unit", controller: "friendly" }] },
+  effect: { op: "attachSelf", targetIndex: 0 },
+};
+
 const VISION: Ability = {
   kind: "triggered",
   trigger: { on: "unitPlayed", subject: "self" },
@@ -626,6 +652,9 @@ export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
   const derived: Ability[] = [];
   if (now.keywords.includes("temporary")) derived.push(TEMPORARY);
   if (now.keywords.includes("vision")) derived.push(VISION);
+  // R819.2 — "Multiple instances of Quick-Draw do not trigger separately", so
+  // asking whether the keyword is present is the whole of it.
+  if (now.keywords.includes("quickDraw")) derived.push(QUICK_DRAW);
   return derived.length === 0 ? now.abilities : [...now.abilities, ...derived];
 }
 

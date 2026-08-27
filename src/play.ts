@@ -121,11 +121,14 @@ export function isValidPlayLocation(
 }
 
 /**
- * R822.1.b's second half — "I have [Reaction] as long as I'm being played to a
- * battlefield where you control Units." The timing grant is tied to *this*
- * play, not to the card, so it is asked about a destination rather than
- * answered once. R822.3 is why: a location that stops qualifying before
- * finalization stops being valid by Ambush's reasoning.
+ * Whether this particular play may use Reaction timing (R813).
+ *
+ * Two shapes reach it. A card that has [Reaction] outright — R819.1.b's
+ * [Quick-Draw] gear — is answered by the keyword alone. R822.1.b's [Ambush] is
+ * conditional: "I have [Reaction] as long as I'm being played to a battlefield
+ * where you control Units", so the grant is tied to *this* play and asked
+ * about a destination rather than answered once. R822.3 is why: a location
+ * that stops qualifying before finalization stops being valid.
  */
 export function playedWithReactionTiming(
   state: GameState,
@@ -133,6 +136,11 @@ export function playedWithReactionTiming(
   cardId: CardId,
   destination: Location,
 ): boolean {
-  if (!keywordsOf(state, cardId).includes("ambush")) return false;
+  const keywords = keywordsOf(state, cardId);
+  // R813 — a permanent that simply *has* [Reaction] may be played at Reaction
+  // timing, with no condition attached. R819.1.b's [Quick-Draw] arrives here
+  // that way, because `characteristicsOf` derives the keyword from it.
+  if (keywords.includes("reaction")) return true;
+  if (!keywords.includes("ambush")) return false;
   return grants(state, playerId, { kind: "whereYouHaveUnits" }, destination);
 }

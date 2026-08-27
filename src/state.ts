@@ -159,6 +159,12 @@ export type Keyword =
   /** R809 — "Deflect [X]": a mandatory additional cost on opposing targeting. */
   | "deflect"
   /**
+   * R819 — on Gear with Equip abilities. R819.1.d makes it short for two
+   * things at once: "[Reaction]", and "when you play this, attach it to a Unit
+   * you control". Both are derived rather than written per card.
+   */
+  | "quickDraw"
+  /**
    * R817 — "When this is played, Predict 1." A Triggered Ability keyword on
    * permanents, expanded in `abilitiesOf` rather than written out per card so
    * that Forecaster's "your Mechs have [Vision]" grants the whole thing.
