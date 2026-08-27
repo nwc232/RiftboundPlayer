@@ -97,6 +97,27 @@ function subsets(ids: CardId[], max: number): CardId[][] {
   return out;
 }
 
+/**
+ * How long a list this will enumerate every ordering of. A prompt answered
+ * with a whole order has n! answers, so it needs a bound; past it the only
+ * candidate offered is the order the prompt already lists them in. The UI
+ * never relies on this — it stages clicks and sends the order the player
+ * built — so the bound only limits what the CLI and the tests can discover.
+ */
+const ORDER_ENUMERATION_MAX = 4;
+
+/** Every ordering of `ids`, or just `ids` itself once that gets too long. */
+function orderings(ids: CardId[]): CardId[][] {
+  if (ids.length > ORDER_ENUMERATION_MAX) return [ids];
+  if (ids.length <= 1) return [ids];
+  return ids.flatMap((id, i) =>
+    orderings([...ids.slice(0, i), ...ids.slice(i + 1)]).map((rest) => [
+      id,
+      ...rest,
+    ]),
+  );
+}
+
 function candidates(state: GameState, playerId: PlayerId): Action[] {
   // R320.1 — while a decision is outstanding, answering it is the only move.
   const pending = state.pending;
@@ -123,7 +144,25 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
           playerId,
           targets: [id],
         }));
+      // R372/R436.1.a — answered with the whole list in the order it should
+      // apply, so a single id is never a legal answer. Enumerating one id at a
+      // time offered nothing `applyAction` would accept, which left the CLI
+      // with no move at all once two damage replacements met on one unit.
       case "orderDamage":
+      case "orderPredicted":
+        return orderings(prompt.legal).map((targets) => ({
+          type: "decide",
+          playerId,
+          targets,
+        }));
+      // R436.1 — "Recycle any number", so every subset is an answer and the
+      // empty one means "keep them all".
+      case "predict":
+        return subsets(prompt.legal, prompt.legal.length).map((targets) => ({
+          type: "decide",
+          playerId,
+          targets,
+        }));
       case "orderReplacements":
       case "chooseFromRevealed":
       case "assignCombatDamage":

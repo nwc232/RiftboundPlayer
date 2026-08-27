@@ -118,6 +118,35 @@ describe("deck construction (R103)", () => {
     ).toContain("tooManyCopies");
   });
 
+  /**
+   * R825.3.a — Unique narrows R103.2.b's three copies to one. A second copy is
+   * illegal even though a third would still be inside the ordinary limit.
+   */
+  it("rejects a second copy of a Unique card", () => {
+    const { deck, cards } = buildDeck("p1");
+    const relic = (id: string): CardInstance => ({
+      ...unit(id, { might: 2 }),
+      name: "Rabadon's Deathcrown",
+      keywords: ["unique"],
+    });
+    const [first, second] = [relic("p1-unique-a"), relic("p1-unique-b")];
+
+    const withOne = validateDeck(
+      { ...deck, mainDeck: [...deck.mainDeck, first.id] },
+      registry([...cards, first]),
+    );
+    const withTwo = validateDeck(
+      { ...deck, mainDeck: [...deck.mainDeck, first.id, second.id] },
+      registry([...cards, first, second]),
+    );
+
+    expect(withOne).not.toContain("tooManyUniqueCopies");
+    expect(withTwo).toContain("tooManyUniqueCopies");
+    // R825.3.a is a narrowing, not a second limit: two copies is still inside
+    // R103.2.b, so the ordinary error must stay silent.
+    expect(withTwo).not.toContain("tooManyCopies");
+  });
+
   it("requires exactly 12 runes (R103.3.a)", () => {
     const { deck, cards } = buildDeck("p1");
 

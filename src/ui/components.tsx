@@ -448,6 +448,14 @@ export function Prompt({ state }: { state: GameState }) {
         return prompt.keep > 0
           ? `keep ${prompt.keep}`
           : "choose a card to recycle";
+      // R436.1 — "any number" includes none, so say so: with nothing clicked
+      // the confirm is a real answer rather than a stuck prompt.
+      case "predict":
+        return prompt.legal.length === 1
+          ? "predict — recycle this card, or confirm to keep it on top"
+          : `predict — click any of the ${prompt.legal.length} to recycle, then confirm`;
+      case "orderPredicted":
+        return "click the rest in the order they go back on top";
       default:
         return "choose";
     }

@@ -157,7 +157,21 @@ export type Keyword =
    */
   | "accelerate"
   /** R809 — "Deflect [X]": a mandatory additional cost on opposing targeting. */
-  | "deflect";
+  | "deflect"
+  /**
+   * R817 — "When this is played, Predict 1." A Triggered Ability keyword on
+   * permanents, expanded in `abilitiesOf` rather than written out per card so
+   * that Forecaster's "your Mechs have [Vision]" grants the whole thing.
+   */
+  | "vision"
+  /**
+   * R825 — a Deck Constraint Permission, and the only keyword here that does
+   * nothing at all during play (R825.4). It narrows R103.2.b's three copies to
+   * one, so it is checked in `validateDeck` and nowhere else. It lives in this
+   * union rather than as a deck-list flag because R825.5 makes having it a
+   * characteristic other cards may check.
+   */
+  | "unique";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =

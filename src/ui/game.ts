@@ -108,9 +108,14 @@ export function describe(state: GameState, action: Action): string {
     case "decide":
       if (action.perform === true) return "yes";
       if (action.perform === false) return "no";
-      return (action.targets ?? []).length === 0
-        ? "keep this hand"
-        : (action.targets ?? []).map(label).join(" + ");
+      if ((action.targets ?? []).length === 0) {
+        // The only two prompts that accept nothing, and they mean opposite
+        // things: R117.1 keeps the opening hand, R436.1 keeps the top card.
+        return state.pending?.prompt.kind === "predict"
+          ? "recycle nothing"
+          : "keep this hand";
+      }
+      return (action.targets ?? []).map(label).join(" + ");
     case "endTurn":
       return "end turn";
     case "passPriority":
@@ -193,8 +198,13 @@ export function promptArity(state: GameState): { min: number; max: number } {
     case "chooseFromRevealed":
       return { min: Math.max(1, prompt.keep), max: Math.max(1, prompt.keep) };
     // R372 wants the whole order, and the staging list keeps click order.
+    // R436.1.a wants the same for the cards a Predict put back on top.
     case "orderDamage":
+    case "orderPredicted":
       return { min: prompt.legal.length, max: prompt.legal.length };
+    // R436.1 — Recycle "any number", so keeping every card is a real answer.
+    case "predict":
+      return { min: 0, max: prompt.legal.length };
     default:
       return { min: 1, max: 1 };
   }

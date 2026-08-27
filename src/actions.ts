@@ -512,6 +512,34 @@ export function decide(
     return afterTasks(worked.state, worked.events);
   }
 
+  // R436.1 — a Predict's Recycle choice. "Any number" includes none, so the
+  // only check is that every named card was one of the revealed ones.
+  if (prompt.kind === "predict") {
+    const chosen = choice.targets ?? [];
+    if (!chosen.every((id) => prompt.legal.includes(id))) {
+      return rejected("invalidTarget");
+    }
+    if (new Set(chosen).size !== chosen.length) return rejected("invalidTarget");
+    const worked = runTasks(applyResumeAnswer(state, chosen));
+    return afterTasks(worked.state, worked.events);
+  }
+
+  // R436.1.a — the order the kept cards go back in. The whole list, top first.
+  if (prompt.kind === "orderPredicted") {
+    const chosen = choice.targets ?? [];
+    if (chosen.length !== prompt.legal.length) {
+      return rejected("wrongTargetCount");
+    }
+    if (
+      new Set(chosen).size !== chosen.length ||
+      !chosen.every((id) => prompt.legal.includes(id))
+    ) {
+      return rejected("invalidTarget");
+    }
+    const worked = runTasks(applyResumeAnswer(state, chosen));
+    return afterTasks(worked.state, worked.events);
+  }
+
   if (prompt.kind === "chooseFromRevealed") {
     const chosen = choice.targets ?? [];
     if (chosen.length !== Math.max(1, prompt.keep)) {

@@ -92,10 +92,12 @@ export function App() {
   const onSelect = useCallback(
     (cardId: CardId) => {
       // Answering a decision is a click on a highlighted card. A prompt that
-      // wants one card answers on that click; one that wants several (the
-      // mulligan, Stacked Deck) collects them and waits for a confirm.
+      // wants exactly one card answers on that click; anything else (the
+      // mulligan, Stacked Deck, a Predict) collects clicks and waits for a
+      // confirm. A prompt that accepts *none* has to wait even when it accepts
+      // at most one, or R436.1's "keep it on top" would be unreachable.
       if (state.pending !== null && legal.has(cardId)) {
-        if (arity.max <= 1) {
+        if (arity.min === 1 && arity.max === 1) {
           play({
             type: "decide",
             playerId: state.pending.player,
@@ -182,7 +184,7 @@ export function App() {
       <div className="banners">
         <Winner state={state} />
         <Prompt state={state} />
-        {arity.max > 1 && state.pending !== null && (
+        {(arity.max > 1 || arity.min === 0) && state.pending !== null && (
           <div className="staging">
             <span>
               {staged.length === 0

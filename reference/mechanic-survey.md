@@ -685,6 +685,19 @@ built when a card asks for it.
   choice is offered per *source card*, so two damage replacements from the
   same source apply in creation order relative to each other. No printed
   card does that.
+- **A second instance of [Vision] does not trigger again (R817.2).** R817.2 is
+  explicit that multiple instances trigger separately — a Mech with printed
+  [Vision] under Forecaster's "your Mechs have [Vision]" should Predict twice.
+  The keyword list is a *set*: `characteristicsOf` skips a keyword it already
+  has, which is right for R819.2 ([Quick-Draw]) and R816.2 ([Temporary]) and
+  wrong only here. Expressing it needs keyword *multiplicity*, which nothing
+  else in the pool wants.
+- **`legalActions` enumerates orderings only up to four cards.** A prompt
+  answered with a whole order — R372's damage ordering, R436.1.a's "put the
+  rest back in any order" — has n! answers. Past four the only candidate
+  offered is the order the prompt already lists. The UI is unaffected: it
+  stages clicks and sends the order the player built. This bounds what the CLI
+  and `legalActions`-driven tests can *discover*, not what the engine accepts.
 - **Burn Out still does not route through a chokepoint.** R369.2 names it a
   replacement effect, and it remains inside `drawCards`. A draw chokepoint
   would let a card order against it (R372), but no card in the pool

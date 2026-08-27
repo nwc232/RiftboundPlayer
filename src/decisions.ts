@@ -57,6 +57,17 @@ export type DecisionPrompt =
    */
   | { kind: "chooseFromRevealed"; legal: CardId[]; keep: number }
   /**
+   * R436.1 — a Predict: which of the revealed cards to Recycle. Unlike
+   * `chooseFromRevealed` the count is not fixed — "any number" includes none,
+   * so an empty answer means "keep them all on top".
+   */
+  | { kind: "predict"; legal: CardId[] }
+  /**
+   * R436.1.a — the cards a Predict kept go back on top "in any order".
+   * Answered with all of them, top first, because the order is the answer.
+   */
+  | { kind: "orderPredicted"; legal: CardId[] }
+  /**
    * R372 — several replacement effects apply to one event, and "the controller
    * of the object being acted on determines the order the Replacement Effects
    * will apply". `subject` is what was about to happen to; `legal` is the

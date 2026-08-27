@@ -23,6 +23,7 @@ export type DeckError =
   | "championNotInMainDeck"
   | "mainDeckTooSmall"
   | "tooManyCopies"
+  | "tooManyUniqueCopies"
   | "wrongRuneCount"
   | "notARune"
   | "wrongBattlefieldCount"
@@ -70,6 +71,18 @@ export function validateDeck(
   }
   if ([...byName.values()].some((n) => n > MAX_COPIES)) {
     errors.push("tooManyCopies");
+  }
+
+  // R825.3.a — "A deck can contain only one card of a given name if the card
+  // has Unique". A narrowing of R103.2.b rather than a separate limit, so it is
+  // counted off the same tally. R825.4: that is the whole of what Unique does.
+  const uniqueNames = new Set(
+    deck.mainDeck
+      .filter((id) => cards[id]?.keywords.includes("unique"))
+      .map((id) => nameOf(id) ?? id),
+  );
+  if ([...uniqueNames].some((name) => (byName.get(name) ?? 0) > 1)) {
+    errors.push("tooManyUniqueCopies");
   }
 
   if (deck.runeDeck.length !== RUNE_DECK_SIZE) errors.push("wrongRuneCount");

@@ -160,6 +160,24 @@ export type Effect =
    */
   | { op: "lookAtTop"; count: number; keep: number }
   /**
+   * R436 — "Predict X". Look at X from the top of your Main Deck, Recycle any
+   * number of them, and put the rest back on top in any order. Distinct from
+   * `lookAtTop`: nothing is drawn, the count kept is the player's choice
+   * rather than fixed, and R436.4.a exempts it from Burn Out when the deck is
+   * short. [Vision] (R817) is this with X = 1.
+   */
+  | { op: "predict"; count: number }
+  /**
+   * A continuation, not card vocabulary: `predict` once the player has said
+   * which of the revealed cards to Recycle. They arrive on `context.answer`.
+   */
+  | { op: "takePredicted"; revealed: CardId[] }
+  /**
+   * A continuation: R436.1.a's "in any order" for the cards a Predict did not
+   * Recycle. `context.answer` is the order, top first.
+   */
+  | { op: "orderPredicted"; cards: CardId[] }
+  /**
    * Sabotage — "Choose an opponent. They reveal their hand. Choose a non-unit
    * card from it, and recycle that card." Same shape: the choice comes after
    * the reveal.
@@ -1294,6 +1312,101 @@ export function execute(
           resume: rest,
           context,
         },
+      };
+    }
+
+    case "predict": {
+      const player = state.players[context.controller];
+      // R436.4 — "If a player attempts to Predict more cards than are
+      // available, they will Predict as many as possible instead", and
+      // R436.4.a is explicit that this never causes a Burn Out.
+      const revealed = player.mainDeck.slice(0, effect.count);
+      if (revealed.length === 0) return { state, events: [] };
+
+      // Always asked, even for one card: R436.1's choice is whether to Recycle
+      // it, so a single revealed card is still a genuine decision.
+      return {
+        state,
+        events: [],
+        pause: {
+          decision: {
+            player: context.controller,
+            prompt: { kind: "predict", legal: revealed },
+          },
+          resume: { op: "takePredicted", revealed },
+          context,
+        },
+      };
+    }
+
+    case "takePredicted": {
+      const recycled = context.answer ?? [];
+      const player = state.players[context.controller];
+      const kept = effect.revealed.filter((id) => !recycled.includes(id));
+
+      // R416.1 — Recycling puts a card on the *bottom*. The kept cards go back
+      // on top, ahead of everything the Predict never looked at.
+      const next: GameState = {
+        ...state,
+        players: {
+          ...state.players,
+          [context.controller]: {
+            ...player,
+            mainDeck: [
+              ...kept,
+              ...player.mainDeck.slice(effect.revealed.length),
+              ...recycled,
+            ],
+          },
+        },
+      };
+      const events: GameEvent[] = recycled.map((cardId) => ({
+        type: "cardRecycled" as const,
+        playerId: context.controller,
+        cardId,
+      }));
+
+      // R436.1.a — the rest go back "in any order", which is only a choice
+      // when more than one survived.
+      if (kept.length < 2) return { state: next, events };
+
+      return {
+        state: next,
+        events,
+        pause: {
+          decision: {
+            player: context.controller,
+            prompt: { kind: "orderPredicted", legal: kept },
+          },
+          resume: { op: "orderPredicted", cards: kept },
+          context,
+        },
+      };
+    }
+
+    case "orderPredicted": {
+      const order = context.answer ?? [];
+      // `takePredicted` already left these on top in their revealed order, so
+      // an answer that is not a permutation of them simply leaves that order.
+      if (
+        order.length !== effect.cards.length ||
+        !order.every((id) => effect.cards.includes(id))
+      ) {
+        return { state, events: [] };
+      }
+      const player = state.players[context.controller];
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [context.controller]: {
+              ...player,
+              mainDeck: [...order, ...player.mainDeck.slice(order.length)],
+            },
+          },
+        },
+        events: [],
       };
     }
 

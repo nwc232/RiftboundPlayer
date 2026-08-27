@@ -607,14 +607,26 @@ const TEMPORARY: Ability = {
 };
 
 /**
+ * R817.1.b — "When this is played, Predict 1." R817.1.c makes the trigger the
+ * permanent entering the Board, which is what `unitPlayed` reports for gear as
+ * well as units.
+ */
+const VISION: Ability = {
+  kind: "triggered",
+  trigger: { on: "unitPlayed", subject: "self" },
+  effect: { op: "predict", count: 1 },
+};
+
+/**
  * A permanent's rules text as it currently stands: copied text rather than
  * printed where a copy applies, plus the abilities that keywords stand for.
  */
 export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
   const now = characteristicsOf(state, cardId);
-  return now.keywords.includes("temporary")
-    ? [...now.abilities, TEMPORARY]
-    : now.abilities;
+  const derived: Ability[] = [];
+  if (now.keywords.includes("temporary")) derived.push(TEMPORARY);
+  if (now.keywords.includes("vision")) derived.push(VISION);
+  return derived.length === 0 ? now.abilities : [...now.abilities, ...derived];
 }
 
 /** A unit's keywords right now, printed plus granted (R477.2). */
