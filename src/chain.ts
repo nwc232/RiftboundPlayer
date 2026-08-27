@@ -32,6 +32,14 @@ export type ChainItem =
        * never of the play.
        */
       repeats?: number;
+      /**
+       * R829.1.b.1 — [Flow]'s delayed replacement: "if the spell would leave
+       * the chain after becoming a finalized chain item, and leaving the chain
+       * wasn't instructed by its own execution, banish it instead". Recorded
+       * on the item rather than derived from the card, because it belongs to
+       * *this* play: the same spell played from hand does no such thing.
+       */
+      banishOnLeave?: true;
       /** Which zone the spell was played from — Back Off asks (R811.1.b). */
       playedFrom?: PlaySource;
     }

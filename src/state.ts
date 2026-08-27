@@ -213,7 +213,7 @@ export interface BattlefieldState {
  * last two to the obvious one, and cards ask which it was: Back Off's "if you
  * played this from your hand", Evelynn's "when you play me from face down".
  */
-export type PlaySource = "hand" | "champion" | "facedown";
+export type PlaySource = "hand" | "champion" | "facedown" | "trash";
 
 /**
  * R369 — a replacement waiting to intercede in damage. R437.1.b describes the

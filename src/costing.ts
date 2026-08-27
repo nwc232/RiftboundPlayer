@@ -157,6 +157,12 @@ export interface CostOptions {
   targets?: CardId[];
   /** R356.1.b — "ignoring its cost" sets the base cost to zero. */
   ignoreBaseCost?: boolean;
+  /**
+   * R829.1.c.1 — an Alternate Cost, which "replaces the base cost of the spell
+   * to be paid during finalization". Distinct from `ignoreBaseCost`, which
+   * zeroes it, and from an additional cost, which adds to it.
+   */
+  alternateCost?: Cost;
   /** R356.2.b.1 — whether the player chose to pay the optional additional cost. */
   payOptional?: boolean;
   /**
@@ -180,9 +186,11 @@ export function totalCostOf(
 ): Cost {
   // 1. Base cost, possibly set to zero (R356.1.b).
   let total: Cost =
-    options.ignoreBaseCost === true
-      ? { energy: 0, power: {}, anyPower: 0 }
-      : characteristicsOf(state, cardId).cost;
+    options.alternateCost !== undefined
+      ? options.alternateCost
+      : options.ignoreBaseCost === true
+        ? { energy: 0, power: {}, anyPower: 0 }
+        : characteristicsOf(state, cardId).cost;
 
   // 2. Additional costs (R356.2).
   for (const additional of additionalCostsOf(state, cardId)) {

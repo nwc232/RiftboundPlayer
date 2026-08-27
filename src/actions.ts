@@ -31,6 +31,7 @@ import {
   keywordsOf,
   movementRestricted,
 } from "./layers.js";
+import { leaveZone, playZonesFor } from "./zones.js";
 import { entersReady } from "./replacements.js";
 import { legalTargets } from "./decisions.js";
 import type { PendingDecision, TargetFilter } from "./decisions.js";
@@ -50,10 +51,7 @@ import {
 import { passFocus as runPassFocus } from "./showdown.js";
 import { isValidPlayLocation, playedWithReactionTiming } from "./play.js";
 import {
-  clearFacedown,
-  forcedDestination,
   hide as runHide,
-  playableFromFacedown,
 } from "./hidden.js";
 
 
@@ -664,6 +662,7 @@ export function playUnitFromHand(
   cardId: CardId,
   destination: Location = { kind: "base", player: playerId },
   payOptional = false,
+  playFrom = 0,
 ): ActionResult {
   const player = state.players[playerId];
   const card = state.cards[cardId];
@@ -687,12 +686,18 @@ export function playUnitFromHand(
     return rejected("noAdditionalCost");
   }
 
-  // R811.1.b — a card played from its Facedown Zone gains [Reaction], ignores
-  // its base cost, and must go to the battlefield it was hidden at (R811.1.d.1).
-  const hiddenAt = playableFromFacedown(state, playerId, cardId);
+  // R354.1 and the rules that widen it: hand, Champion Zone (R108.3.d) and
+  // Facedown Zone (R811.1.b) are one shape, so what the zone changes about the
+  // play is read off it rather than branched on here.
+  const zone = playZonesFor(state, playerId, cardId)[playFrom];
 
-  if (hiddenAt !== undefined) {
-    if (!sameLocation(destination, forcedDestination(hiddenAt))) {
+  if (zone?.grantsReaction === true) {
+    // R811.1.d.1 — a hidden permanent must go back to the battlefield it was
+    // hidden at, and nowhere else.
+    if (
+      zone.destination !== undefined &&
+      !sameLocation(destination, zone.destination)
+    ) {
       return rejected("invalidDestination");
     }
     if (!canPlayAtThisTiming(state, playerId, ["reaction"])) {
@@ -729,19 +734,14 @@ export function playUnitFromHand(
     }
   }
 
-  // R108.3.d — the Chosen Champion is played from the Champion Zone, following
-  // the same rules as any other card. It is an always-available extra card, not
-  // an inert marker, so hand, Champion Zone and Facedown Zone are the three.
-  const fromChampionZone = player.champion === cardId;
-  const handIndex = player.hand.indexOf(cardId);
-  if (hiddenAt === undefined) {
-    if (handIndex === -1 && !fromChampionZone) {
-      return rejected("notInHand");
-    }
+  if (zone === undefined) {
+    return rejected("notInHand");
+  }
+  if (zone.destination === undefined) {
     // R355.2 — the chosen location has to be a valid one. R355.2.a's default is
     // "the controller's Base or a Battlefield the controller controls"; anything
     // beyond that is a permission the card carries (R355.2.b). R811.1.d.1.a is
-    // the one exception, and it belongs to the facedown branch above.
+    // the one exception, and the zone answers for it above.
     if (!isGear && !isValidPlayLocation(state, playerId, cardId, destination)) {
       return rejected("invalidDestination");
     }
@@ -756,7 +756,10 @@ export function playUnitFromHand(
   // cost of zero back above it.
   const cost = totalCostOf(state, playerId, cardId, {
     payOptional,
-    ignoreBaseCost: hiddenAt !== undefined,
+    ignoreBaseCost: zone.ignoreBaseCost === true,
+    ...(zone.alternateCost !== undefined
+      ? { alternateCost: zone.alternateCost }
+      : {}),
   });
   const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
@@ -766,27 +769,21 @@ export function playUnitFromHand(
     return rejected("cannotAffordCost");
   }
 
-  const playedFrom: PlaySource =
-    hiddenAt !== undefined ? "facedown" : fromChampionZone ? "champion" : "hand";
+  const playedFrom: PlaySource = zone.source;
   // Whatever a waiting "your next card costs less" gave, it gave it to this
-  // card and is spent.
-  const afterDiscount = consumeDiscount(state, playerId);
-  const leavingZone =
-    hiddenAt === undefined ? afterDiscount : clearFacedown(afterDiscount, hiddenAt);
-  const newHand =
-    hiddenAt !== undefined || fromChampionZone
-      ? player.hand
-      : [...player.hand.slice(0, handIndex), ...player.hand.slice(handIndex + 1)];
+  // card and is spent. R359.1 then takes the card out of wherever it came from.
+  const leftZone = leaveZone(
+    consumeDiscount(state, playerId),
+    playerId,
+    cardId,
+    zone,
+  );
 
   return {
     ok: true,
     state: {
-      ...withPlayer(leavingZone, playerId, {
-        ...player,
-        hand: newHand,
-        // R108.3.c — it cannot be returned here by normal means, so the zone
-        // empties for good once the champion is played.
-        ...(fromChampionZone && hiddenAt === undefined ? { champion: null } : {}),
+      ...withPlayer(leftZone, playerId, {
+        ...leftZone.players[playerId],
         runePool: remainingPool,
       }),
       permanents: {
@@ -978,6 +975,7 @@ export function playSpell(
   targets: CardId[] = [],
   payOptional = false,
   payRepeats: number[] = [],
+  playFrom = 0,
 ): ActionResult {
   const player = state.players[playerId];
   const card = state.cards[cardId];
@@ -985,15 +983,18 @@ export function playSpell(
   if (card === undefined) return rejected("cardNotFound");
   if (card.type !== "spell") return rejected("wrongCardType");
 
-  // R811.1.b — from its Facedown Zone a card gains [Reaction] and is played
-  // "ignoring its base cost", so it needs neither a hand nor a payment.
-  const hiddenAt = playableFromFacedown(state, playerId, cardId);
-  if (hiddenAt === undefined && !player.hand.includes(cardId)) {
-    return rejected("notInHand");
-  }
+  // R354.1 and the rules that widen it — see `playZonesFor`. What the zone
+  // changes about this play is read off it rather than branched on here.
+  const zone = playZonesFor(state, playerId, cardId)[playFrom];
+  if (zone === undefined) return rejected("notInHand");
 
+  // R811.1.b — the Facedown Zone grants [Reaction] on top of the card's own
+  // keywords. R829.1.b.2 is the contrast: [Flow] changes the zone a spell can
+  // be played from and nothing else about its timing.
   const timingKeywords =
-    hiddenAt === undefined ? card.keywords : ["reaction", ...card.keywords];
+    zone.grantsReaction === true
+      ? ["reaction", ...card.keywords]
+      : card.keywords;
   if (!canPlayAtThisTiming(state, playerId, timingKeywords)) {
     return rejected("wrongTiming");
   }
@@ -1024,7 +1025,10 @@ export function playSpell(
   const cost = totalCostOf(state, playerId, cardId, {
     payOptional,
     payRepeats,
-    ignoreBaseCost: hiddenAt !== undefined,
+    ignoreBaseCost: zone.ignoreBaseCost === true,
+    ...(zone.alternateCost !== undefined
+      ? { alternateCost: zone.alternateCost }
+      : {}),
     // R809.1.d — Deflect prices the targets, so they are part of the cost.
     targets,
   });
@@ -1068,24 +1072,17 @@ export function playSpell(
     }
   }
 
-  const handIndex = player.hand.indexOf(cardId);
-  const spentDiscount = consumeDiscount(state, playerId);
-  const withoutSource =
-    hiddenAt === undefined
-      ? spentDiscount
-      : clearFacedown(spentDiscount, hiddenAt);
+  const leftZone = leaveZone(
+    consumeDiscount(state, playerId),
+    playerId,
+    cardId,
+    zone,
+  );
   return {
     ok: true,
     state: {
-      ...withPlayer(withoutSource, playerId, {
-        ...player,
-        hand:
-          hiddenAt === undefined
-            ? [
-                ...player.hand.slice(0, handIndex),
-                ...player.hand.slice(handIndex + 1),
-              ]
-            : player.hand,
+      ...withPlayer(leftZone, playerId, {
+        ...leftZone.players[playerId],
         runePool: remainingPool,
       }),
       chain: [
@@ -1098,7 +1095,10 @@ export function playSpell(
           ...(payOptional ? { paidAdditionalCost: true as const } : {}),
           // R820.3 — how many *additional* times the instructions run.
           ...(payRepeats.length > 0 ? { repeats: payRepeats.length } : {}),
-          playedFrom: hiddenAt === undefined ? "hand" : "facedown",
+          // R829.1.b.1 — the replacement belongs to this play, so the chain
+          // item is what carries it off the chain.
+          ...(zone.banishOnLeave === true ? { banishOnLeave: true as const } : {}),
+          playedFrom: zone.source,
         },
       ],
       // R337.4 — the controller of the newest item receives priority; the
