@@ -12,7 +12,7 @@ rather than what is subtly wrong.
 
 ## 1. Where the engine stands
 
-Built and tested (174 tests):
+Built and tested (573 tests):
 
 | Area | State |
 |---|---|
@@ -38,6 +38,10 @@ Built and tested (174 tests):
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
 | Decisions | Engine suspends and asks; nothing proceeds until answered |
+| Predict (R436) + [Vision] | Look at the top X, recycle any, order the rest |
+| [Quick-Draw] (R819) | [Reaction] plus an attach-on-play, both derived |
+| [Repeat] (R820) | Several costs, independent choices per execution |
+| [Unique] (R825) | Deck construction only, which is all R825.4 asks |
 
 The decision mechanism matters more than its size suggests: **it is the
 same shape a UI needs.** "Engine stops, offers a legal set, waits" maps
@@ -77,9 +81,13 @@ their foundations (XP is a number now; [Level] is one Condition away).
 
 ### Tier 3 — smaller keywords
 
-[Ganking] 34 (partly present), [Accelerate] 26, [Repeat] 24, [Flow] 17,
-[Ambush] 14, [Weaponmaster] 12, [Legion] 10, [Vision] 9, [Quick-Draw] 5,
-[Unique] 3.
+~~[Accelerate] 26~~, ~~[Repeat] 24~~, ~~[Ambush] 14~~, ~~[Legion] 10~~,
+~~[Vision] 9~~, ~~[Quick-Draw] 5~~, ~~[Unique] 3~~ — all built.
+
+Left: **[Flow] 17** (R829 — play from the trash for an alternate cost, then
+a delayed replacement banishes it), **[Weaponmaster] 12** (R821 — a play
+effect that pays an Equipment's Equip cost at a discount, ignoring its
+timing), and **[Ganking] 34**, which is partly present already.
 
 ### Tier 4 — card vocabulary
 
@@ -282,7 +290,15 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
    ordering for damage, and a `seq` step running before a resolution-time
    choice was answered.
 
-8. **Tier 3/4** as card authoring demands them.
+8. **Tier 3** — [Vision], [Quick-Draw], [Repeat] and [Unique] are built;
+   [Flow] and [Weaponmaster] are what is left, and both are real
+   mechanisms rather than one-liners. [Repeat] paid for itself twice over:
+   it turned up a queue bug where a task's own enqueued work was discarded,
+   which silently truncated *any* effect that had to stop and ask twice —
+   R372's death ordering and delayed effects included.
+
+9. **Tier 4** — the effect ops the card vocabulary still wants: `choose`
+   (modes, which two Repeat cards need), `spend`, `recycle`, `use`.
 
 **Deferred by decision, not dropped:** replacement-effect Tier C
 (R373.2's sequences across simultaneous events). Written up at the end of
