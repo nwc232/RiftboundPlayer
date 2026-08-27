@@ -229,7 +229,10 @@ export function passFocus(state: GameState, playerId: PlayerId): Progress {
  *
  * Combat staging (R323.9) is absent until combat exists.
  */
-export function runCleanup(state: GameState): Progress {
+export function runCleanup(
+  state: GameState,
+  chosen: Record<CardId, CardId> = {},
+): Progress {
   let current = state;
   const events: GameEvent[] = [];
 
@@ -240,8 +243,10 @@ export function runCleanup(state: GameState): Progress {
     return { state: current, events };
   }
 
-  // R428.1.a.2 — lethal damage from any source resolves into deaths here.
-  const dead = killLethalUnits(current);
+  // R428.1.a.2 — lethal damage from any source resolves into deaths here,
+  // unless a replacement intercedes (R369). `chosen` carries R372's ordering
+  // answer when the task had to stop and ask for one.
+  const dead = killLethalUnits(current, chosen);
   current = dead.state;
   events.push(...dead.events);
 

@@ -8,6 +8,7 @@ import type {
   EntryReplacementAbility,
   PassiveAbility,
   PlayPermissionAbility,
+  ReplacementAbility,
 } from "./abilities.js";
 import type { PlayPermission } from "./play.js";
 import type {
@@ -208,6 +209,37 @@ export function entersReady(when?: Condition): EntryReplacementAbility {
 /** Xin Zhao, Vigilant — "if you have two or more other units in your base". */
 export function controlsOtherUnits(atLeast: number): Condition {
   return { kind: "controlsOtherUnits", atLeast };
+}
+
+/** R142 — Soraka's "instead **heal it**". */
+export function heal(targetIndex = 0): Effect {
+  return { op: "heal", targetIndex };
+}
+
+/** R414 — "heal it, **exhaust it**, and recall it". */
+export function exhaust(targetIndex = 0): Effect {
+  return { op: "exhaust", targetIndex };
+}
+
+/**
+ * R369 — a replacement effect that intercedes in a death. Soraka, Wanderer:
+ * "If another unit you control here would die … instead heal it, exhaust it,
+ * and recall it." The dying unit is target 0 of `instead`.
+ */
+export function replacesDeath(
+  scope: PassiveScope,
+  instead: Effect,
+  options: { oncePerTurn?: true } = {},
+): ReplacementAbility {
+  return {
+    kind: "replacement",
+    on: "dies",
+    scope,
+    instead,
+    ...(options.oncePerTurn !== undefined
+      ? { oncePerTurn: options.oncePerTurn }
+      : {}),
+  };
 }
 
 /** R730.1 — Kha'Zix, Mutating Horror's "gain 2 XP". */

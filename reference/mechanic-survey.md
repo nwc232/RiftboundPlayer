@@ -670,3 +670,15 @@ genuinely intricate: each replacement may be applied in only one
 uninterrupted sequence, to any number of qualifying simultaneous events.
 No card in either target deck reaches it. It is on the list, and it gets
 built when a card asks for it.
+- **Chained replacements (R370.2, R373.2).** A replacement applying to what
+  another replacement produced — the rules' worked example is two copies of
+  Zhonya's Hourglass, where the first kills itself and that death is a new
+  event the second can apply to. The engine applies exactly one replacement
+  per event and stops. R372's *ordering* choice is built; R373.2's
+  *sequences* are Tier C and stay deferred.
+- **Combat deaths ask about ordering before the Combat Cleanup.** R372's
+  question is raised by the `combatResolution` task before
+  `resolveCombatAftermath` runs, rather than at the moment inside it where
+  the kill happens. Same answer, asked slightly early; only observable if
+  something changed the board between the two points, which nothing can,
+  since the task holds priority throughout.

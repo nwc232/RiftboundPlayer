@@ -28,7 +28,7 @@ import type { ResolutionChoice } from "./tasks.js";
 import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
-import type { EntryReplacement } from "./replacements.js";
+import type { DeathReplacement, EntryReplacement } from "./replacements.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 
@@ -166,6 +166,10 @@ export type Effect =
   | { op: "recycleFromOpponentHand"; exclude?: "unit" }
   /** Astral Heron — "your next card costs [2][A][A] less". */
   | { op: "discountNextCard"; reduce: Cost }
+  /** R142 — clear marked damage. Soraka's "instead heal it". */
+  | { op: "heal"; targetIndex: number }
+  /** R414 — the other half of "heal it, **exhaust it**, and recall it". */
+  | { op: "exhaust"; targetIndex: number }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost =
@@ -241,9 +245,21 @@ export interface EntryReplacementAbility extends EntryReplacement {
   kind: "entryReplacement";
 }
 
+/**
+ * R369 — a replacement effect that intercedes in another object's event.
+ * Soraka, Wanderer: "If another unit you control here would die, if it has
+ * less Might than me, instead heal it, exhaust it, and recall it."
+ */
+export interface ReplacementAbility extends DeathReplacement {
+  kind: "replacement";
+  /** Only deaths so far; damage is the next chokepoint. */
+  on: "dies";
+}
+
 export type Ability =
   | ActivatedAbility
   | EntryReplacementAbility
+  | ReplacementAbility
   | AdditionalCostAbility
   | TriggeredAbility
   | PassiveAbility
@@ -1032,6 +1048,49 @@ export function execute(
           ],
         },
         events: [],
+      };
+    }
+
+    case "heal": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      const permanent = state.permanents[targetId];
+      if (permanent === undefined || permanent.damage === 0) {
+        return { state, events: [] };
+      }
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            [targetId]: { ...permanent, damage: 0 },
+          },
+        },
+        events: [
+          { type: "healed", playerId: context.controller, cardId: targetId },
+        ],
+      };
+    }
+
+    case "exhaust": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      const permanent = state.permanents[targetId];
+      // R414.1.b — exhausting something already exhausted does nothing.
+      if (permanent === undefined || permanent.exhausted) {
+        return { state, events: [] };
+      }
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            [targetId]: { ...permanent, exhausted: true },
+          },
+        },
+        events: [
+          { type: "objectExhausted", playerId: context.controller, cardId: targetId },
+        ],
       };
     }
 

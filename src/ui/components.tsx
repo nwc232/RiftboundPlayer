@@ -437,6 +437,8 @@ export function Prompt({ state }: { state: GameState }) {
         return "which battlefield opens?";
       case "assignCombatDamage":
         return `assign ${prompt.remaining} damage`;
+      case "orderReplacements":
+        return `which replacement applies to ${nameOf(state, prompt.subject)}?`;
       case "chooseFromRevealed":
         return prompt.keep > 0
           ? `keep ${prompt.keep}`

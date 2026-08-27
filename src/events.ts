@@ -27,6 +27,23 @@ export type GameEvent =
   | { type: "turnBegan"; playerId: PlayerId; turn: number }
   | { type: "phaseBegan"; playerId: PlayerId; phase: Phase }
   | { type: "objectReadied"; playerId: PlayerId; cardId: CardId }
+  | { type: "objectExhausted"; playerId: PlayerId; cardId: CardId }
+  /** R142 — marked damage cleared. */
+  | { type: "healed"; playerId: PlayerId; cardId: CardId }
+  /**
+   * R369 — a replacement effect interceded, so the event it replaced never
+   * happened (R370.1.a.1). Logged because "the unit did not die" is otherwise
+   * invisible: there is no event for a thing that was prevented.
+   */
+  | {
+      type: "eventReplaced";
+      playerId: PlayerId;
+      /** The replacement's source. */
+      cardId: CardId;
+      /** What it was going to happen to. */
+      subject: CardId;
+      replaced: "death";
+    }
   | { type: "poolEmptied"; playerId: PlayerId }
   | {
       type: "unitMoved";

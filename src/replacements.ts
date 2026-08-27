@@ -1,7 +1,15 @@
 import { holds } from "./conditions.js";
 import type { Condition, ConditionContext } from "./conditions.js";
-import { keywordsOf } from "./layers.js";
-import type { CardId, GameState, PlayerId } from "./state.js";
+import { controllerOf, keywordsOf, mightOf } from "./layers.js";
+import type { PassiveScope } from "./layers.js";
+import type { Effect } from "./abilities.js";
+import { sameLocation } from "./state.js";
+import type {
+  CardId,
+  GameState,
+  PermanentState,
+  PlayerId,
+} from "./state.js";
 
 /**
  * R369 — a replacement effect "intercedes during the execution of a Game
@@ -75,4 +83,125 @@ export function entersReady(
       replacement.ready === true &&
       (replacement.when === undefined || holds(state, replacement.when, asked)),
   );
+}
+
+/**
+ * R369, the general form — a replacement that intercedes in an event happening
+ * to some *other* object rather than describing how its own source arrives.
+ *
+ * Only deaths so far, which is where the cards are: Soraka, Wanderer, Zhonya's
+ * Hourglass, Guardian Angel, Altar of Blood. Damage is the next chokepoint.
+ */
+export interface DeathReplacement {
+  /** Which dying units this can intercede for, relative to its source. */
+  scope: PassiveScope;
+  /**
+   * What happens instead. Resolved with the dying unit as target 0, so
+   * "instead heal it, exhaust it, and recall it" is `seq(heal(0), exhaust(0),
+   * recall(0))`.
+   */
+  instead: Effect;
+  /** Zhonya's Hourglass — "the **next time** a friendly unit would die". */
+  oncePerTurn?: true;
+}
+
+/** One replacement, matched to the death it would intercede in. */
+export interface ApplicableReplacement {
+  sourceId: CardId;
+  controller: PlayerId;
+  instead: Effect;
+  /** Where its `oncePerTurn` allowance is tallied. */
+  tally: string;
+}
+
+/**
+ * Every replacement that could apply to `cardId` dying. R374 — a replacement's
+ * controller is the controller of its source, which is who R372 may have to
+ * ask about ordering.
+ */
+export function deathReplacementsFor(
+  state: GameState,
+  cardId: CardId,
+): ApplicableReplacement[] {
+  const dying = state.permanents[cardId];
+  if (dying === undefined) return [];
+
+  const found: ApplicableReplacement[] = [];
+
+  for (const source of Object.values(state.permanents)) {
+    const abilities = state.cards[source.cardId]?.abilities ?? [];
+    abilities.forEach((ability, index) => {
+      if (ability.kind !== "replacement") return;
+      if (!replacementCovers(state, ability.scope, source, dying)) return;
+
+      // R371.1 — "may only be applied to the specified number of events each
+      // turn. Once they have been applied to that many, they cannot be applied
+      // to a later event in the same turn."
+      const tally = `replace:${source.cardId}#${index}`;
+      if (ability.oncePerTurn === true && (state.triggeredThisTurn[tally] ?? 0) >= 1) {
+        return;
+      }
+
+      found.push({
+        sourceId: source.cardId,
+        controller: controllerOf(state, source.cardId),
+        instead: ability.instead,
+        tally,
+      });
+    });
+  }
+
+  return found;
+}
+
+/**
+ * Whether a replacement's scope covers this dying unit. The same shapes a
+ * passive uses, because they ask the same question — "is this one of mine,
+ * here, weaker than me".
+ */
+function replacementCovers(
+  state: GameState,
+  scope: PassiveScope,
+  source: PermanentState,
+  dying: PermanentState,
+): boolean {
+  switch (scope.target) {
+    case "self":
+      return source.cardId === dying.cardId;
+
+    case "otherFriendlyUnits": {
+      if (source.cardId === dying.cardId) return false;
+      if (
+        controllerOf(state, source.cardId) !== controllerOf(state, dying.cardId)
+      ) {
+        return false;
+      }
+      if (state.cards[dying.cardId]?.type !== "unit") return false;
+      if (scope.here === true && !sameLocation(source.location, dying.location)) {
+        return false;
+      }
+      return true;
+    }
+
+    case "enemyUnits": {
+      if (
+        controllerOf(state, source.cardId) === controllerOf(state, dying.cardId)
+      ) {
+        return false;
+      }
+      if (state.cards[dying.cardId]?.type !== "unit") return false;
+      if (scope.here === true && !sameLocation(source.location, dying.location)) {
+        return false;
+      }
+      if (scope.weakerThanSource === true) {
+        return mightOf(state, dying.cardId) < mightOf(state, source.cardId);
+      }
+      return true;
+    }
+
+    default: {
+      const unhandled: never = scope;
+      return false;
+    }
+  }
 }

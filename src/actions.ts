@@ -35,6 +35,7 @@ import type { PendingDecision, TargetFilter } from "./decisions.js";
 import {
   applyCombatAssignment,
   applyMulligan,
+  applyReplacementOrder,
   applyRevealedDecision,
   applyStagedShowdown,
   beginTurn,
@@ -470,6 +471,21 @@ export function decide(
       return rejected("invalidTarget");
     }
     return resumeTasks(state, cardId, playerId);
+  }
+
+  // R372 — which replacement applies to a death. Belongs to the queue: the
+  // cleanup stopped half-way to ask and resumes with the answer recorded.
+  if (prompt.kind === "orderReplacements") {
+    const chosen = choice.targets ?? [];
+    const sourceId = chosen[0];
+    if (chosen.length !== 1) return rejected("wrongTargetCount");
+    if (sourceId === undefined || !prompt.legal.includes(sourceId)) {
+      return rejected("invalidTarget");
+    }
+    const worked = runTasks(
+      applyReplacementOrder(state, prompt.subject, sourceId),
+    );
+    return afterTasks(worked.state, worked.events);
   }
 
   // A choice made mid-resolution belongs to the queue, like combat assignment.

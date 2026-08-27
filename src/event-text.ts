@@ -45,6 +45,12 @@ export function renderEvent(event: GameEvent): string {
       return (`— turn ${event.turn}: ${event.playerId} —`);
     case "phaseBegan":
       return (`  ${event.phase} phase`);
+    case "objectExhausted":
+      return `${event.cardId} exhausts`;
+    case "healed":
+      return `${event.cardId} is healed`;
+    case "eventReplaced":
+      return `${event.cardId} replaces ${event.subject}'s ${event.replaced}`;
     case "objectReadied":
       return `${event.playerId} readied ${event.cardId}`;
     case "poolEmptied":

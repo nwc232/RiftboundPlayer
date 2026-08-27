@@ -1,5 +1,6 @@
 import {
   amountFor,
+  ambiguousDeath,
   combatSides,
   dealAssigned,
   nextAssignable,
@@ -9,6 +10,7 @@ import type { Assignment } from "./combat.js";
 import type { PendingDecision } from "./decisions.js";
 import type { GameEvent, Progress } from "./events.js";
 import { drawCards } from "./draw.js";
+import { controllerOf } from "./layers.js";
 import { openShowdown, runCleanup, stagedBattlefields } from "./showdown.js";
 import { harvestTriggers } from "./triggers.js";
 import { chainItemCardId } from "./chain.js";
@@ -32,7 +34,12 @@ import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
 export const MULLIGAN_MAX = 2;
 
 export type Task =
-  | { kind: "cleanup" }
+  /**
+   * `chosen` is R372's answer: which replacement to apply to a given death,
+   * once the controller has been asked. Carried on the task because the
+   * cleanup has to stop half-way to ask, then pick up where it left off.
+   */
+  | { kind: "cleanup"; chosen?: Record<CardId, CardId> }
   /**
    * R465 — the Combat Damage Step. Both players assign against the same
    * pre-damage board, attacker first (R465.2.c), and only when both are done is
@@ -50,7 +57,12 @@ export type Task =
       assigned: Assignment[];
     }
   /** R466 — the Resolution Step, once all combat damage has been dealt. */
-  | { kind: "combatResolution"; battlefieldId: CardId; attacker: PlayerId }
+  | {
+      kind: "combatResolution";
+      battlefieldId: CardId;
+      attacker: PlayerId;
+      chosen?: Record<CardId, CardId>;
+    }
   /** R314–317 — one step of the turn. See `TurnStep`. */
   | { kind: "turnStep"; player: PlayerId; step: TurnStep; number: number }
   /** R323.12 — open a showdown at one of the staged battlefields. */
@@ -72,6 +84,38 @@ export interface ResolutionChoice {
   /** How many of `legal` go to hand; the rest are recycled (R416.1). */
   keep: number;
   source: "mainDeck" | "opponentHand";
+}
+
+/**
+ * R372's ordering question, if this task's kills raise one. Returns a suspend
+ * for the task to hand straight back, or undefined when there is nothing to
+ * ask — the usual case, since one replacement needs no ordering.
+ */
+function askAboutReplacement(
+  state: GameState,
+  chosen: Record<CardId, CardId>,
+  task: Extract<Task, { kind: "cleanup" | "combatResolution" }>,
+): TaskOutcome | undefined {
+  const choice = ambiguousDeath(state, chosen);
+  if (choice === undefined) return undefined;
+
+  return {
+    state,
+    events: [],
+    suspend: {
+      task,
+      decision: {
+        // R372 — the controller of the object being *acted on*, not of the
+        // replacements.
+        player: controllerOf(state, choice.cardId),
+        prompt: {
+          kind: "orderReplacements",
+          subject: choice.cardId,
+          legal: choice.options.map((option) => option.sourceId),
+        },
+      },
+    },
+  };
 }
 
 interface TaskOutcome {
@@ -98,7 +142,14 @@ function unassigned(
 function runTask(state: GameState, task: Task): TaskOutcome {
   switch (task.kind) {
     case "cleanup": {
-      const cleaned = runCleanup(state);
+      const chosen = task.chosen ?? {};
+      // R372 — "the controller of the object being acted on determines the
+      // order the Replacement Effects will apply." Asked before anything dies,
+      // because R370.1.c applies replacements before the event occurs.
+      const asking = askAboutReplacement(state, chosen, task);
+      if (asking !== undefined) return asking;
+
+      const cleaned = runCleanup(state, chosen);
       // R323.8 stages a showdown at each contested battlefield; R323.12 opens
       // one of them, and that is a separate step because it may need an answer.
       const push =
@@ -268,10 +319,15 @@ function runTask(state: GameState, task: Task): TaskOutcome {
     }
 
     case "combatResolution": {
+      const chosen = task.chosen ?? {};
+      const asking = askAboutReplacement(state, chosen, task);
+      if (asking !== undefined) return asking;
+
       const resolved = resolveCombatAftermath(
         state,
         task.battlefieldId,
         task.attacker,
+        chosen,
       );
       return { state: resolved.state, events: resolved.events };
     }
@@ -457,6 +513,33 @@ export function applyRevealedDecision(
     return { state, events: [] };
   }
   return applyRevealedChoice({ ...state, pending: null, tasks: rest }, head, chosen);
+}
+
+/**
+ * Records R372's answer on the suspended task and clears the decision, so the
+ * cleanup or combat resolution picks up with the ordering settled.
+ */
+export function applyReplacementOrder(
+  state: GameState,
+  subject: CardId,
+  sourceId: CardId,
+): GameState {
+  const [head, ...rest] = state.tasks;
+  if (
+    head === undefined ||
+    (head.kind !== "cleanup" && head.kind !== "combatResolution")
+  ) {
+    return state;
+  }
+
+  return {
+    ...state,
+    pending: null,
+    tasks: [
+      { ...head, chosen: { ...(head.chosen ?? {}), [subject]: sourceId } },
+      ...rest,
+    ],
+  };
 }
 
 export function enqueue(state: GameState, ...tasks: Task[]): GameState {

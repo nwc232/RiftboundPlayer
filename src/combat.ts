@@ -7,6 +7,9 @@ import {
   keywordsOf,
   mightOf,
 } from "./layers.js";
+import { execute } from "./abilities.js";
+import { deathReplacementsFor } from "./replacements.js";
+import type { ApplicableReplacement } from "./replacements.js";
 import { score } from "./scoring.js";
 import { ownerOf, permanentsAt } from "./state.js";
 import type {
@@ -242,9 +245,114 @@ export function dealAssigned(state: GameState, assigned: Assignment[]): Progress
 }
 
 /** R428 — killed permanents go straight to the trash from the board. */
-export function killUnits(state: GameState, cardIds: CardId[]): Progress {
+export interface KillOutcome extends Progress {
+  /**
+   * R372 — more than one replacement applies to this death and "the controller
+   * of the object being acted on determines the order". Nothing has been
+   * killed yet; the caller asks, then calls back with the answer.
+   */
+  choice?: { cardId: CardId; options: ApplicableReplacement[] };
+}
+
+/**
+ * R428 — killed permanents go straight to the trash from the board, unless a
+ * replacement effect intercedes first (R369). R370.1.c applies replacements
+ * "before any qualifying event has actually occurred", so this checks *before*
+ * the loop below moves anything.
+ *
+ * R373 treats each simultaneous death separately, which is why the check is
+ * per card rather than for the batch.
+ */
+export function killUnits(
+  state: GameState,
+  cardIds: CardId[],
+  /** Replacements already chosen for a death, by card id (R372's answer). */
+  chosen: Record<CardId, CardId> = {},
+): KillOutcome {
   if (cardIds.length === 0) return { state, events: [] };
 
+  for (const cardId of cardIds) {
+    if (state.permanents[cardId] === undefined) continue;
+    const options = deathReplacementsFor(state, cardId);
+    if (options.length === 0) continue;
+
+    const pick =
+      options.length === 1
+        ? options[0]!
+        : options.find((option) => option.sourceId === chosen[cardId]);
+
+    // R372 — a genuine choice of order, so the controller of the dying unit is
+    // asked. Only raised when the answer could differ.
+    if (pick === undefined) {
+      return {
+        state,
+        events: [],
+        choice: { cardId, options },
+      };
+    }
+
+    return applyDeathReplacement(state, cardId, pick, cardIds, chosen);
+  }
+
+  return killOutright(state, cardIds);
+}
+
+/**
+ * R370.1.b — the qualifying event is replaced by the game actions the
+ * replacement describes. The unit does not die: R370.1.a.1 makes that the same
+ * as the kill never having happened, so no death trigger fires for it.
+ *
+ * Chained replacements — one applying to what another replaced — are R370.2
+ * and R373.2's territory and are deferred; see the survey.
+ */
+function applyDeathReplacement(
+  state: GameState,
+  cardId: CardId,
+  pick: ApplicableReplacement,
+  batch: CardId[],
+  chosen: Record<CardId, CardId>,
+): KillOutcome {
+  const outcome = execute(state, pick.instead, {
+    controller: pick.controller,
+    sourceId: pick.sourceId,
+    // "it" — the unit whose death was replaced.
+    targets: [cardId],
+  });
+
+  const tallied: GameState = {
+    ...outcome.state,
+    // R371.1 — the allowance is spent whether or not anything visible changed.
+    triggeredThisTurn: {
+      ...outcome.state.triggeredThisTurn,
+      [pick.tally]: (outcome.state.triggeredThisTurn[pick.tally] ?? 0) + 1,
+    },
+  };
+
+  const events: GameEvent[] = [
+    {
+      type: "eventReplaced",
+      playerId: pick.controller,
+      cardId: pick.sourceId,
+      subject: cardId,
+      replaced: "death",
+    },
+    ...outcome.events,
+  ];
+
+  // The rest of the batch still dies (R373 — each event is separate).
+  const rest = killUnits(
+    tallied,
+    batch.filter((id) => id !== cardId),
+    chosen,
+  );
+  return {
+    ...rest,
+    state: rest.state,
+    events: [...events, ...rest.events],
+  };
+}
+
+function killOutright(state: GameState, cardIds: CardId[]): Progress {
   const permanents = { ...state.permanents };
   const players = { ...state.players };
   const events: GameEvent[] = [];
@@ -293,15 +401,39 @@ export function killUnits(state: GameState, cardIds: CardId[]): Progress {
  * R428.1.a.2 — a unit with lethal damage marked on it dies in the cleanup,
  * whether the damage came from combat or from a spell.
  */
-export function killLethalUnits(state: GameState): Progress {
-  const dying = Object.values(state.permanents)
+export function killLethalUnits(
+  state: GameState,
+  chosen: Record<CardId, CardId> = {},
+): KillOutcome {
+  return killUnits(state, lethallyDamaged(state), chosen);
+}
+
+/** R428.1.a.2's list — everything currently carrying lethal damage. */
+function lethallyDamaged(state: GameState): CardId[] {
+  return Object.values(state.permanents)
     .filter(
       (permanent) =>
         permanent.damage > 0 &&
         permanent.damage >= mightOf(state, permanent.cardId),
     )
     .map((permanent) => permanent.cardId);
-  return killUnits(state, dying);
+}
+
+/**
+ * R372's question, asked before anything is killed: is there a death that more
+ * than one replacement could intercede in, which the controller has not yet
+ * ordered? Tasks call this so they can suspend and ask — `execute` cannot.
+ */
+export function ambiguousDeath(
+  state: GameState,
+  chosen: Record<CardId, CardId>,
+): { cardId: CardId; options: ApplicableReplacement[] } | undefined {
+  for (const cardId of lethallyDamaged(state)) {
+    if (chosen[cardId] !== undefined) continue;
+    const options = deathReplacementsFor(state, cardId);
+    if (options.length > 1) return { cardId, options };
+  }
+  return undefined;
 }
 
 /** R466.1.a.1 — the combat cleanup heals every unit. */
@@ -324,6 +456,7 @@ export function resolveCombatAftermath(
   state: GameState,
   battlefieldId: CardId,
   attacker: PlayerId,
+  chosen: Record<CardId, CardId> = {},
 ): Progress {
   const defender: PlayerId = attacker === "p1" ? "p2" : "p1";
   const events: GameEvent[] = [];
@@ -331,7 +464,7 @@ export function resolveCombatAftermath(
 
   // Units with lethal damage die in the cleanup that follows. Designations are
   // still in place here, so a Shielded defender's Might counts for survival.
-  const killed = killLethalUnits(current);
+  const killed = killLethalUnits(current, chosen);
   current = killed.state;
   events.push(...killed.events);
 

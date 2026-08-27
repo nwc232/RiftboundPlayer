@@ -56,6 +56,13 @@ export type DecisionPrompt =
    * `keep` is how many of `legal` are being asked for.
    */
   | { kind: "chooseFromRevealed"; legal: CardId[]; keep: number }
+  /**
+   * R372 — several replacement effects apply to one event, and "the controller
+   * of the object being acted on determines the order the Replacement Effects
+   * will apply". `subject` is what was about to happen to; `legal` is the
+   * sources to pick from.
+   */
+  | { kind: "orderReplacements"; subject: CardId; legal: CardId[] }
   | {
       kind: "assignCombatDamage";
       battlefieldId: CardId;
