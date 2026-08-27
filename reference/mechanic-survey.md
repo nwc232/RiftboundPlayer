@@ -685,6 +685,23 @@ built when a card asks for it.
   choice is offered per *source card*, so two damage replacements from the
   same source apply in creation order relative to each other. No printed
   card does that.
+- **[Weaponmaster] reads "Equipment tag" as "any gear".** R821.1.c chooses "a
+  Card you control with the Equipment tag" and the engine has no tags — the
+  same gap R103.2.a.2's Champion/Legend tag match sits behind. The
+  approximation is invisible in play: R821.1.c.1 lets Weaponmaster choose an
+  Equipment with no Equip ability, and R821.1.c.4 then makes that do nothing,
+  which is exactly what a non-Equipment gear does here. What is *not* covered
+  is tag-scoped granting — Emperor of the Sands' "your Sand Soldiers have
+  [Weaponmaster]".
+- **A non-resource Equip cost cannot be paid by [Weaponmaster].** Three
+  Equipment in the pool print compound Equip costs — "[Chaos], Recycle 2 cards",
+  "[Order], Kill a friendly unit", "Spend 1 XP". None of those are ability costs
+  the engine has, so `equipChosen` treats them as unpayable, which R821.1.c.5
+  already covers: the card stays where it was. The resource-only Equip costs,
+  which is every other Equipment, work.
+- **Multiple instances of [Weaponmaster] trigger once (R821.1.c.7/R821.1.d).**
+  The same keyword-set deduplication as [Vision] below, and the same fix would
+  close both.
 - **[Repeat] is on printed spells only.** R820.1.a puts it on "Spells and
   Abilities", and three cards *grant* it: Syndra, Transcendent ("your spells
   have [Repeat] [2][Chaos]"), Temporal Portal and The Academy ("give your next

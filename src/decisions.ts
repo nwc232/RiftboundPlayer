@@ -103,7 +103,14 @@ export interface TargetFilter {
    * R355.6 — a permanent on the board, an item still on the chain, or a
    * battlefield (Thrill of the Hunt names one as a destination).
    */
-  type: "unit" | "spellOnChain" | "battlefield";
+  /**
+   * A card type, matched against the permanent's own — except `spellOnChain`,
+   * which is a different search entirely. `gear` is R821's "a Card you control
+   * with the Equipment tag", approximated: the engine has no tags, so it reads
+   * as any gear. R821.1.c.4 makes the difference invisible, since a gear with
+   * no Equip cost cannot pay one anyway.
+   */
+  type: "unit" | "gear" | "spellOnChain" | "battlefield";
   /** Relative to the ability's controller. */
   controller?: "enemy" | "friendly";
   location?: "battlefield";

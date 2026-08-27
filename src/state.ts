@@ -159,6 +159,12 @@ export type Keyword =
   /** R809 — "Deflect [X]": a mandatory additional cost on opposing targeting. */
   | "deflect"
   /**
+   * R821 — a Triggered Ability keyword on units. A Play Effect that equips one
+   * of your Equipment to the unit for [A] less, ignoring the Equip ability's
+   * usual timing. R821.2: it does nothing at all once the unit is on the board.
+   */
+  | "weaponmaster"
+  /**
    * R819 — on Gear with Equip abilities. R819.1.d makes it short for two
    * things at once: "[Reaction]", and "when you play this, attach it to a Unit
    * you control". Both are derived rather than written per card.

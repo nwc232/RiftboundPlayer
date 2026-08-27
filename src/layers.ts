@@ -637,6 +637,27 @@ const QUICK_DRAW: Ability = {
   effect: { op: "attachSelf", targetIndex: 0 },
 };
 
+/**
+ * R821.1.c — "When you play me, you may choose a Card you control with the
+ * Equipment tag … Pay the cost of its Equip ability, reduced by [A], to attach
+ * it to this unit."
+ *
+ * `optional` is the "you may" (R383.3.a), asked before targets. The [A] is
+ * R821.1.c's flat reduction, floored at zero by R821.1.c.3 for an Equip cost
+ * that has no [A] in it.
+ */
+const WEAPONMASTER: Ability = {
+  kind: "triggered",
+  trigger: { on: "unitPlayed", subject: "self" },
+  optional: true,
+  targeting: { filters: [{ type: "gear", controller: "friendly" }] },
+  effect: {
+    op: "equipChosen",
+    targetIndex: 0,
+    reduce: { energy: 0, power: {}, anyPower: 1 },
+  },
+};
+
 const VISION: Ability = {
   kind: "triggered",
   trigger: { on: "unitPlayed", subject: "self" },
@@ -655,6 +676,7 @@ export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
   // R819.2 — "Multiple instances of Quick-Draw do not trigger separately", so
   // asking whether the keyword is present is the whole of it.
   if (now.keywords.includes("quickDraw")) derived.push(QUICK_DRAW);
+  if (now.keywords.includes("weaponmaster")) derived.push(WEAPONMASTER);
   return derived.length === 0 ? now.abilities : [...now.abilities, ...derived];
 }
 

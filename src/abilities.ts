@@ -1,4 +1,9 @@
-import { addEnergy as creditEnergy, addPower as creditPower } from "./cost.js";
+import {
+  addCosts,
+  addEnergy as creditEnergy,
+  addPower as creditPower,
+  spend,
+} from "./cost.js";
 import type { GameEvent } from "./events.js";
 import type {
   CardId,
@@ -9,6 +14,7 @@ import type {
   Location,
   PlayerId,
   PlaySource,
+  PowerCount,
 } from "./state.js";
 import { killUnits } from "./combat.js";
 import { ownerOf } from "./state.js";
@@ -153,6 +159,16 @@ export type Effect =
   | { op: "banishThenPlay"; targetIndex: number; destinationIndex: number }
   /** R434 / R818.1.c.2 — "[Cost]: Attach this gear to a unit you control." */
   | { op: "attachSelf"; targetIndex: number }
+  /**
+   * R821 — [Weaponmaster]'s "you may [Equip] one of your Equipment to me for
+   * [A] less, even if it's already attached". The mirror of `attachSelf`: the
+   * chosen card attaches to the *source*, not the other way round.
+   *
+   * R821.1.c.6 — "The Equip ability is not activated this way", so this pays
+   * that ability's cost directly rather than going through the chain, and the
+   * unit being equipped is not *chosen* (no Deflect tax, R809).
+   */
+  | { op: "equipChosen"; targetIndex: number; reduce: Cost }
   /**
    * Stacked Deck — "Look at the top 3 cards of your Main Deck. Put 1 into your
    * hand and recycle the rest." The choice is made on resolution, not at
@@ -1578,6 +1594,101 @@ export function execute(
           },
         },
         events: [{ type: "attached", playerId: context.controller, cardId: context.sourceId, to: targetId }],
+      };
+    }
+
+    case "equipChosen": {
+      const gearId = context.targets[effect.targetIndex];
+      const host = state.permanents[context.sourceId];
+      if (gearId === undefined || host === undefined) {
+        return { state, events: [] };
+      }
+      const gear = state.permanents[gearId];
+      if (gear === undefined) return { state, events: [] };
+
+      // R821.1.c.2 — the cost is the Equip ability's, "determined as though
+      // that Equip ability was being activated". An Equip ability is the one
+      // that attaches its own card (R818.1.b).
+      const equip = (state.cards[gearId]?.abilities ?? []).find(
+        (ability) =>
+          ability.kind === "activated" && ability.effect.op === "attachSelf",
+      );
+      // R821.1.c.4 — "If the chosen card doesn't have an Equip cost, it can't
+      // be paid", so nothing happens.
+      if (equip === undefined || equip.kind !== "activated") {
+        return { state, events: [] };
+      }
+      const resourceCosts = equip.costs.filter((cost) => cost.kind === "pay");
+      if (resourceCosts.length !== equip.costs.length) {
+        // A non-resource Equip cost (a few print "Recycle 2 cards", "Kill a
+        // friendly unit", "Spend 1 XP"). Nothing here can pay one; R821.1.c.5
+        // then leaves the card exactly where it was.
+        return { state, events: [] };
+      }
+
+      let cost = resourceCosts.reduce(
+        (total, each) => addCosts(total, each.cost),
+        { energy: 0, power: {}, anyPower: 0 } as Cost,
+      );
+      // R821.1.c.3 — "If the chosen card's Equip cost does not contain [A], it
+      // can still be paid, but will not be reduced." So this takes what is
+      // there rather than going negative.
+      const reducedPower: PowerCount = { ...cost.power };
+      for (const [domain, amount] of Object.entries(effect.reduce.power)) {
+        const key = domain as keyof PowerCount;
+        reducedPower[key] = Math.max(0, (reducedPower[key] ?? 0) - amount);
+      }
+      cost = {
+        energy: Math.max(0, cost.energy - effect.reduce.energy),
+        power: reducedPower,
+        anyPower: Math.max(0, cost.anyPower - effect.reduce.anyPower),
+      };
+
+      const player = state.players[context.controller];
+      const remaining = spend(player.runePool, cost, {
+        kind: "activateAbility",
+      });
+      // R821.1.c.5 — "If the chosen card's Equip cost can't be paid … it stays
+      // in its current location, Attached to anything it was already Attached
+      // to." Not an error: the ability simply does nothing.
+      if (remaining === undefined) return { state, events: [] };
+
+      // R434.1.g/h — re-attaching to the same Top-Most Card does nothing, and
+      // R821.1.c.5's "stays where it was" covers it, so the cost is not spent.
+      if (gear.attachedTo === context.sourceId) return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [context.controller]: { ...player, runePool: remaining },
+          },
+          permanents: {
+            ...state.permanents,
+            // R434.1.f/R434.4 — attaching elsewhere detaches it from wherever
+            // it was, and its location becomes its new host's.
+            [gearId]: {
+              ...gear,
+              attachedTo: context.sourceId,
+              location: host.location,
+            },
+          },
+        },
+        events: [
+          {
+            type: "costPaid",
+            playerId: context.controller,
+            cardId: gearId,
+            cost,
+          },
+          {
+            type: "attached",
+            playerId: context.controller,
+            cardId: gearId,
+            to: context.sourceId,
+          },
+        ],
       };
     }
 

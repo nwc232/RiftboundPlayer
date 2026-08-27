@@ -1,3 +1,4 @@
+import { addCosts } from "./cost.js";
 import { characteristicsOf, controllerOf, keywordsOf } from "./layers.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
@@ -107,19 +108,6 @@ function ownDomainPower(state: GameState, cardId: CardId, amount: number): Cost 
   return only === undefined
     ? { energy: 0, power: {}, anyPower: amount }
     : { energy: 0, power: { [only]: amount }, anyPower: 0 };
-}
-
-function addCosts(a: Cost, b: Cost): Cost {
-  const power: PowerCount = { ...a.power };
-  for (const [domain, amount] of Object.entries(b.power)) {
-    const key = domain as keyof PowerCount;
-    power[key] = (power[key] ?? 0) + amount;
-  }
-  return {
-    energy: a.energy + b.energy,
-    power,
-    anyPower: a.anyPower + b.anyPower,
-  };
 }
 
 /** Every additional cost attached to playing `cardId`, in no particular order. */

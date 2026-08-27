@@ -62,6 +62,24 @@ function addToBucket(
   };
 }
 
+/**
+ * Two costs summed component-wise. R356.2 stacks additional costs onto a base
+ * cost this way, and a compound ability cost ("[1][Fury], exhaust me") is the
+ * same sum.
+ */
+export function addCosts(a: Cost, b: Cost): Cost {
+  const power: PowerCount = { ...a.power };
+  for (const [domain, amount] of Object.entries(b.power)) {
+    const key = domain as keyof PowerCount;
+    power[key] = (power[key] ?? 0) + amount;
+  }
+  return {
+    energy: a.energy + b.energy,
+    power,
+    anyPower: a.anyPower + b.anyPower,
+  };
+}
+
 export function addEnergy(
   pool: RunePool,
   amount: number,
