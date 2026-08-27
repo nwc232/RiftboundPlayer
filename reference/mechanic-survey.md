@@ -538,9 +538,12 @@ Recorded as they're found, so they don't get lost between slices.
   permanent being played to the board*. Once tokens can genuinely be
   played, the Reflection's "I don't get that card's play effects" becomes
   something to enforce rather than something that falls out.
-- **Tags.** R187 gives every token a tag (Recruit, Fae, Mech, Bird…) and
-  R477.1.b.1.a makes tags copyable, but there is no tag system, so they
-  live in the token's name only. Nothing reads tags yet.
+- ~~**Tags.**~~ Built. R133.8's tags are a string list on the card, copyable
+  through the layer pipeline (R477.1.b.1.a), narrowing both target filters
+  and passive scopes. R187's token tags are transcribed, and R103.2.a.2's
+  Champion/Legend link is checked. Two of R187's keywords were transcribed
+  as unmodelled at the same time and are modelled now: the Sprite's
+  [Temporary] (R187.2) and the Bird's [Deflect] (R187.7).
 - **Temporary runs off the chain (R816.1).** The rules make Temporary a
   *triggered* ability, which would put it on the chain and let a [Reaction]
   answer it. The engine kills directly in the Beginning Step instead,
@@ -647,11 +650,12 @@ never see them or order against them (R372).
 | **B** | The general mechanism: deaths, damage, draws, token creation | ~12 | Burn Out's and prevention's |
 | **C** | R373.2 — sequences across simultaneous events | 0 today | — |
 
-Two shapes inside Tier A were deliberately left out, because nothing they
-depend on exists yet: **"I enter there"** (Baron Nashor, 3 cards) needs
-battlefield tokens, and **"as you play me, <choose a tag>"** needs the tag
-system. The additional-cost half of the "as you play me" family is already
-built separately (R356.2).
+One shape inside Tier A is still left out: **"I enter there"** (Baron
+Nashor, 3 cards) needs battlefield tokens. **"As you play me, <choose a
+tag>"** was waiting on the tag system, which now exists — it needs an
+entry replacement that takes a choice, not a new vocabulary. The
+additional-cost half of the "as you play me" family is already built
+separately (R356.2).
 
 **Tier B is the structural one.** Events are currently *reports* — a
 `GameEvent[]` recording what happened. A replacement needs them to be
@@ -692,14 +696,19 @@ built when a card asks for it.
   keyword whose value is a Cost, and a cost modifier that can name a Flow cost
   specifically. R829.1.c.2 also allows non-resource Flow costs; none is
   printed. The 14 cards with a plain printed Flow cost work.
-- **[Weaponmaster] reads "Equipment tag" as "any gear".** R821.1.c chooses "a
-  Card you control with the Equipment tag" and the engine has no tags — the
-  same gap R103.2.a.2's Champion/Legend tag match sits behind. The
-  approximation is invisible in play: R821.1.c.1 lets Weaponmaster choose an
-  Equipment with no Equip ability, and R821.1.c.4 then makes that do nothing,
-  which is exactly what a non-Equipment gear does here. What is *not* covered
-  is tag-scoped granting — Emperor of the Sands' "your Sand Soldiers have
-  [Weaponmaster]".
+- **R103.2.a.2 is checked by tag but not by category.** "Must be a champion
+  unit with a champion tag that matches the tag on your Champion Legend" has
+  two halves. The tag half is enforced. The first half is not: the community
+  card data carries no champion-unit/signature-unit distinction, so Tibbers —
+  the rules' own counter-example, a signature unit with the Annie tag — would
+  pass. Not a modelling shortcut but a gap in the source data; see
+  `CARD-DATA-SOURCE.md`.
+- **"Your Sand Soldiers" is read as the Shurima tag.** Emperor of the Sands
+  says "your Sand Soldiers have [Weaponmaster]", and R187.3 gives the Sand
+  Soldier token the Shurima tag — but a *card* with the Shurima tag is not a
+  Sand Soldier. Scoping by name rather than tag is the honest reading for that
+  one card; Forecaster's "your Mechs" genuinely is the tag (R187.4). Neither
+  card is authored, so nothing depends on the choice yet.
 - **A non-resource Equip cost cannot be paid by [Weaponmaster].** Three
   Equipment in the pool print compound Equip costs — "[Chaos], Recycle 2 cards",
   "[Order], Kill a friendly unit", "Spend 1 XP". None of those are ability costs

@@ -16,12 +16,16 @@ import { VICTORY_SCORE, checkForWinner } from "../src/scoring.js";
 import type { CardId, CardInstance, GameState } from "../src/state.js";
 import { makeState, unit } from "./fixtures.js";
 
+/** R133.8.b — the tag is what links a Legend to its Champion Unit (R103.2.a.2). */
+const CHAMPION_TAG = "Testman";
+
 const legend: CardInstance = {
   id: "legend-p1",
   name: "Chosen Legend",
   type: "legend",
   cost: FREE,
   keywords: [],
+  tags: [CHAMPION_TAG],
   abilities: [],
 };
 
@@ -32,7 +36,16 @@ function battlefield(id: string, name: string): CardInstance {
 /** 14 distinct names at 3 copies each is 42 — comfortably over R103.2's 40. */
 function mainDeckCards(prefix: string): CardInstance[] {
   return Array.from({ length: 14 }, (_, i) =>
-    copies({ ...unit(`${prefix}-u${i}`, { might: 2 }), name: `${prefix} Unit ${i}` }, 3),
+    copies(
+      {
+        ...unit(`${prefix}-u${i}`, { might: 2 }),
+        name: `${prefix} Unit ${i}`,
+        // R103.2.a.2 — `buildDeck` chooses the first of these as the Chosen
+        // Champion, so it has to share the Legend's tag.
+        tags: [CHAMPION_TAG],
+      },
+      3,
+    ),
   ).flat();
 }
 

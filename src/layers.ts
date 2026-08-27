@@ -43,6 +43,11 @@ export interface Characteristics {
   type: CardType;
   cost: Cost;
   domain: Domain | undefined;
+  /**
+   * R133.8 — the card's tags. Copyable: a Reflection that becomes a copy of a
+   * Mech is a Mech, and anything watching for the tag sees it.
+   */
+  tags: string[];
   /** "Rules Text" in R477.1.b.1.a's list. */
   abilities: Ability[];
   /**
@@ -132,16 +137,30 @@ export interface DelayedEffect {
   targets: CardId[];
 }
 
-/** Who a passive ability modifies, relative to its source. */
+/**
+ * Who a passive ability modifies, relative to its source. `tag` narrows any of
+ * them to R133.8's categories — Forecaster's "your Mechs have [Vision]".
+ */
 export type PassiveScope =
   | { target: "self" }
-  | { target: "otherFriendlyUnits"; here?: boolean }
+  | { target: "otherFriendlyUnits"; here?: boolean; tag?: string }
+  /**
+   * "*Your* Mechs" and "your Sand Soldiers" include the source when the source
+   * is one of them, which is what separates this from `otherFriendlyUnits` —
+   * Forecaster is itself a Mech, and does have [Vision].
+   */
+  | { target: "friendlyUnits"; here?: boolean; tag?: string }
   /**
    * Vilemaw — "Enemy units here with less Might than me…". The Might
    * comparison lives in the scope rather than in a PassiveCondition because it
    * is relative to the *source*, and a condition only ever sees the subject.
    */
-  | { target: "enemyUnits"; here?: boolean; weakerThanSource?: true };
+  | {
+      target: "enemyUnits";
+      here?: boolean;
+      tag?: string;
+      weakerThanSource?: true;
+    };
 
 /**
  * When a passive applies. Absent means always. `mighty` is R708 (Might 5+) and
@@ -199,6 +218,17 @@ function inScope(
   subject: PermanentState,
   seen: ReadonlySet<CardId>,
 ): boolean {
+  // R133.8 — every unit scope may be narrowed to a tag, and `seen` keeps the
+  // read safe inside the recursion the copy layer runs.
+  const scope = ability.scope;
+  if (
+    scope.target !== "self" &&
+    scope.tag !== undefined &&
+    !characteristicsOf(state, subject.cardId, seen).tags.includes(scope.tag)
+  ) {
+    return false;
+  }
+
   switch (ability.scope.target) {
     case "self":
       return source.cardId === subject.cardId;
@@ -227,8 +257,16 @@ function inScope(
       return true;
     }
 
-    case "otherFriendlyUnits": {
-      if (source.cardId === subject.cardId) return false;
+    case "otherFriendlyUnits":
+    case "friendlyUnits": {
+      // The only difference between the two: "*other* friendly units" excludes
+      // the source, "your Mechs" does not.
+      if (
+        ability.scope.target === "otherFriendlyUnits" &&
+        source.cardId === subject.cardId
+      ) {
+        return false;
+      }
       if (
         controllerOf(state, source.cardId) !==
         controllerOf(state, subject.cardId)
@@ -413,6 +451,7 @@ export function characteristicsOf(
     type: card?.type ?? "unit",
     cost: card?.cost ?? { energy: 0, power: {}, anyPower: 0 },
     domain: card?.domain,
+    tags: [...(card?.tags ?? [])],
     abilities: card?.abilities ?? [],
     silenced: false,
   });
@@ -471,6 +510,7 @@ export function characteristicsOf(
     type: card.type,
     cost: card.cost,
     domain: card.domain,
+    tags: [...(card.tags ?? [])],
     abilities: card.abilities,
   };
   // Printed Assault/Shield seed the totals that granted copies add to (R807.2).
@@ -526,6 +566,7 @@ export function characteristicsOf(
               type: source.type,
               cost: source.cost,
               domain: source.domain,
+              tags: source.tags,
               abilities: source.abilities,
             };
             // Printed-or-copied Might, not the source's current Might: a copy
@@ -650,7 +691,10 @@ const WEAPONMASTER: Ability = {
   kind: "triggered",
   trigger: { on: "unitPlayed", subject: "self" },
   optional: true,
-  targeting: { filters: [{ type: "gear", controller: "friendly" }] },
+  // R150 — "Gear can have the Equipment tag", and R821.1.c chooses by it.
+  targeting: {
+    filters: [{ type: "gear", controller: "friendly", tag: "Equipment" }],
+  },
   effect: {
     op: "equipChosen",
     targetIndex: 0,
@@ -678,6 +722,11 @@ export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
   if (now.keywords.includes("quickDraw")) derived.push(QUICK_DRAW);
   if (now.keywords.includes("weaponmaster")) derived.push(WEAPONMASTER);
   return derived.length === 0 ? now.abilities : [...now.abilities, ...derived];
+}
+
+/** A card's tags right now — printed, or the ones it is currently copying. */
+export function tagsOf(state: GameState, cardId: CardId): string[] {
+  return characteristicsOf(state, cardId).tags;
 }
 
 /** A unit's keywords right now, printed plus granted (R477.2). */

@@ -39,6 +39,7 @@ const cost = (energy: number, domain?: Domain, power = 0): Cost => ({
 export const gloomist: CardInstance = {
   id: "gloomist",
   name: "Gloomist",
+  tags: ["Vex"],
   text: "When you or an ally hold, you may exhaust me to draw 1.",
   type: "legend",
   cost: FREE,
@@ -61,6 +62,7 @@ export const gloomist: CardInstance = {
 export const vexApathetic: CardInstance = {
   id: "vex-apathetic",
   name: "Vex, Apathetic",
+  tags: ["Yordle", "Vex", "Shadow Isles"],
   text: "[Deflect] When an opponent plays a unit while I'm at a battlefield, [Stun] it. They can't move it this turn.",
   type: "unit",
   cost: cost(4),
@@ -84,6 +86,7 @@ export const vexApathetic: CardInstance = {
 export const evelynn: CardInstance = {
   id: "evelynn",
   name: "Evelynn, Entrancing",
+  tags: ["Evelynn", "Demon"],
   text: "[Hidden] [Backline] When you play me from face down on your turn, you may move an enemy unit at a different location to my battlefield.",
   type: "unit",
   cost: cost(2),
@@ -207,6 +210,7 @@ export const discipline: CardInstance = {
 export const tideturner: CardInstance = {
   id: "tideturner",
   name: "Tideturner",
+  tags: ["Bilgewater"],
   text: "[Hidden] When you play me, you may choose a friendly unit. Move me to its location and it to my original location.",
   type: "unit",
   cost: cost(2),
@@ -295,6 +299,7 @@ export const backOff: CardInstance = {
 export const bootsOfSwiftness: CardInstance = {
   id: "boots",
   name: "Boots of Swiftness",
+  tags: ["Equipment"],
   text: "[Equip] [Chaos] [Ganking]",
   type: "gear",
   cost: cost(3),
@@ -317,6 +322,7 @@ export const bootsOfSwiftness: CardInstance = {
 export const sneakyDeckhand: CardInstance = {
   id: "sneaky-deckhand",
   name: "Sneaky Deckhand",
+  tags: ["Pirate", "Bilgewater"],
   text: "You may play me to an open battlefield.",
   type: "unit",
   cost: cost(3),
@@ -353,6 +359,7 @@ export const starCrossed: CardInstance = {
 export const khazix: CardInstance = {
   id: "khazix",
   name: "Kha'Zix, Mutating Horror",
+  tags: ["Kha'Zix", "The Void"],
   text: "[Ambush] When I attack or defend, if an enemy unit is alone here, give me +2 [M] this turn and gain 2 XP.",
   type: "unit",
   cost: cost(4, "chaos", 1),
@@ -374,6 +381,7 @@ export const khazix: CardInstance = {
 export const astralHeron: CardInstance = {
   id: "astral-heron",
   name: "Astral Heron",
+  tags: ["Bird", "Mount Targon"],
   text: "When you play your first card each turn, if I'm at a battlefield, your next card costs [2][A][A] less.",
   type: "unit",
   cost: cost(7),
@@ -396,6 +404,7 @@ export const astralHeron: CardInstance = {
 export const vilemaw: CardInstance = {
   id: "vilemaw",
   name: "Vilemaw",
+  tags: ["Shadow Isles", "Spider"],
   text: "[Ambush] Enemy units here with less Might than me don't deal combat damage. When I hold, draw 1.",
   type: "unit",
   cost: cost(8, "calm", 2),

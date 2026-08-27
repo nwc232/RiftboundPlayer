@@ -16,6 +16,8 @@ export interface TokenDefinition {
   type: CardInstance["type"];
   might?: number;
   keywords: Keyword[];
+  /** R185.2.c — "Tokens may have one or more tags", and R187 names each one's. */
+  tags: string[];
   abilities: Ability[];
 }
 
@@ -29,25 +31,43 @@ export type TokenKind =
   | "bird"
   | "tentacle";
 
-/**
- * Tags (Recruit, Fae, Mech, Bird…) are listed by R187 but the engine has no
- * tag system yet, so they are recorded in the name only. Nothing reads tags.
- */
 export const TOKEN_DEFINITIONS: Record<TokenKind, TokenDefinition> = {
-  // R187.1
-  recruit: { name: "Recruit", type: "unit", might: 1, keywords: [], abilities: [] },
-  // R187.2 — Temporary is a keyword the engine does not model yet.
-  sprite: { name: "Sprite", type: "unit", might: 3, keywords: [], abilities: [] },
-  // R187.3
+  // R187.1 — "a domainless unit token with 1 Might and the Recruit tag."
+  recruit: {
+    name: "Recruit",
+    type: "unit",
+    might: 1,
+    keywords: [],
+    tags: ["Recruit"],
+    abilities: [],
+  },
+  // R187.2
+  sprite: {
+    name: "Sprite",
+    type: "unit",
+    might: 3,
+    keywords: ["temporary"],
+    tags: ["Fae"],
+    abilities: [],
+  },
+  // R187.3 — the Shurima tag is what "your Sand Soldiers" reaches for.
   sandSoldier: {
     name: "Sand Soldier",
     type: "unit",
     might: 2,
     keywords: [],
+    tags: ["Shurima"],
     abilities: [],
   },
-  // R187.4
-  mech: { name: "Mech", type: "unit", might: 3, keywords: [], abilities: [] },
+  // R187.4 — and the Mech tag is what Forecaster's "your Mechs" reaches for.
+  mech: {
+    name: "Mech",
+    type: "unit",
+    might: 3,
+    keywords: [],
+    tags: ["Mech"],
+    abilities: [],
+  },
   // R187.5 — "[Reaction] Kill this, [E]: [Add] [A]." Modelled as a recycle
   // cost because the engine has no kill-self ability cost; both remove it
   // from the board and yield one Power of any domain.
@@ -55,6 +75,7 @@ export const TOKEN_DEFINITIONS: Record<TokenKind, TokenDefinition> = {
     name: "Gold",
     type: "gear",
     keywords: [],
+    tags: [],
     abilities: [activated([recycleSelf], addPower("selfDomain", 1), "reaction")],
   },
   // R187.6
@@ -63,16 +84,25 @@ export const TOKEN_DEFINITIONS: Record<TokenKind, TokenDefinition> = {
     type: "unit",
     might: 0,
     keywords: [],
+    tags: [],
     abilities: [],
   },
-  // R187.7 — Deflect is not modelled yet.
-  bird: { name: "Bird", type: "unit", might: 1, keywords: [], abilities: [] },
+  // R187.7
+  bird: {
+    name: "Bird",
+    type: "unit",
+    might: 1,
+    keywords: ["deflect"],
+    tags: ["Bird"],
+    abilities: [],
+  },
   // R187.10
   tentacle: {
     name: "Tentacle",
     type: "unit",
     might: 1,
     keywords: [],
+    tags: ["Bilgewater"],
     abilities: [],
   },
 };
@@ -90,6 +120,7 @@ export function tokenCard(kind: TokenKind, id: string): CardInstance {
     type: definition.type,
     cost: FREE,
     keywords: [...definition.keywords],
+    tags: [...definition.tags],
     abilities: [...definition.abilities],
     isToken: true,
     ...(definition.might !== undefined ? { might: definition.might } : {}),

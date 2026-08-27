@@ -78,6 +78,17 @@ export interface CardInstance {
    * about what a rune *produces*.
    */
   domains?: Domain[];
+  /**
+   * R133.8 — "Categories that may apply to game objects of multiple types.
+   * They are listed after a card's type." R133.8.a: they have no innate rules
+   * meaning at all; they exist to be *referenced* — by R103.2.a.2's
+   * Champion/Legend link (R133.8.b calls those Champion Tags), by R150's
+   * Equipment tag, and by any card that says "your Mechs".
+   *
+   * Plain strings, because the set is open: 40-odd of them across regions,
+   * species, factions and champion names.
+   */
+  tags?: string[];
   abilities: Ability[];
   /**
    * The card's printed rules text, verbatim. The engine never reads it — the

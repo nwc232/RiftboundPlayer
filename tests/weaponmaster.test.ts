@@ -16,6 +16,8 @@ function gear(id: string, equipCost: Partial<Cost>): CardInstance {
     type: "gear",
     cost: { ...FREE, energy: 1 },
     keywords: [],
+    // R150 — "Gear can have the Equipment tag", and R821.1.c chooses by it.
+    tags: ["Equipment"],
     abilities: [
       {
         kind: "activated",
@@ -96,7 +98,9 @@ describe("[Weaponmaster] (R821)", () => {
         kind: "triggered",
         trigger: { on: "unitPlayed", subject: "self" },
         optional: true,
-        targeting: { filters: [{ type: "gear", controller: "friendly" }] },
+        targeting: {
+          filters: [{ type: "gear", controller: "friendly", tag: "Equipment" }],
+        },
         effect: {
           op: "equipChosen",
           targetIndex: 0,
@@ -157,6 +161,7 @@ describe("[Weaponmaster] (R821)", () => {
       type: "gear",
       cost: { ...FREE, energy: 1 },
       keywords: [],
+      tags: ["Equipment"],
       abilities: [
         { kind: "activated", timing: "default", costs: [], effect: dealDamage(1) },
       ],

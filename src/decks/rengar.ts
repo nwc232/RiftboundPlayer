@@ -36,6 +36,7 @@ const cost = (energy: number, domain?: Domain, power = 0): Cost => ({
 export const pridestalker: CardInstance = {
   id: "pridestalker",
   name: "Pridestalker",
+  tags: ["Rengar"],
   text: "When you play a unit, give a unit +1 [M] this turn.",
   type: "legend",
   cost: FREE,
@@ -54,6 +55,7 @@ export const pridestalker: CardInstance = {
 export const rengarTrophyHunter: CardInstance = {
   id: "rengar-trophy-hunter",
   name: "Rengar, Trophy Hunter",
+  tags: ["Cat", "Rengar", "Ixtal"],
   text: "[Ambush] I can be played to a battlefield where there are enemy units.",
   type: "unit",
   cost: cost(5, "body", 1),
@@ -104,6 +106,7 @@ export const punchFirst: CardInstance = {
 export const inferna: CardInstance = {
   id: "inferna",
   name: "Inferna",
+  tags: ["Bilgewater"],
   text: "[Ambush] [Assault 2]",
   type: "unit",
   cost: cost(2),
@@ -117,6 +120,7 @@ export const inferna: CardInstance = {
 export const irresistibleFaefolk: CardInstance = {
   id: "irresistible-faefolk",
   name: "Irresistible Faefolk",
+  tags: ["Fae", "Ionia"],
   text: "When I move to a battlefield, you may move an enemy unit to that battlefield.",
   type: "unit",
   cost: cost(2),
@@ -138,6 +142,7 @@ export const irresistibleFaefolk: CardInstance = {
 export const pitRookie: CardInstance = {
   id: "pit-rookie",
   name: "Pit Rookie",
+  tags: ["Bilgewater"],
   text: "When you play me, buff another friendly unit.",
   type: "unit",
   cost: cost(2),
@@ -159,6 +164,7 @@ export const pitRookie: CardInstance = {
 export const thrillOfTheHunt: CardInstance = {
   id: "thrill-of-the-hunt",
   name: "Thrill of the Hunt",
+  tags: ["Rengar"],
   text: "[Reaction] Banish a friendly unit, then its owner plays it to any battlefield, ignoring its cost.",
   type: "spell",
   cost: cost(2, "body", 1),
@@ -185,6 +191,7 @@ export const thrillOfTheHunt: CardInstance = {
 export const firstMate: CardInstance = {
   id: "first-mate",
   name: "First Mate",
+  tags: ["Pirate", "Bilgewater"],
   text: "When you play me, ready another unit.",
   type: "unit",
   cost: cost(3),
@@ -204,6 +211,7 @@ export const firstMate: CardInstance = {
 export const grimApothecary: CardInstance = {
   id: "grim-apothecary",
   name: "Grim Apothecary",
+  tags: ["Noxus"],
   text: "[Ambush] When you play me, you may return a friendly unit at a battlefield to its owner's hand.",
   type: "unit",
   cost: cost(3),
@@ -228,6 +236,7 @@ export const grimApothecary: CardInstance = {
 export const kinkouInitiate: CardInstance = {
   id: "kinkou-initiate",
   name: "Kinkou Initiate",
+  tags: ["Ionia"],
   text: "When you play me, draw 1 if your other units have total Might 5 or more.",
   type: "unit",
   cost: cost(3),
@@ -248,6 +257,7 @@ export const kinkouInitiate: CardInstance = {
 export const pyke: CardInstance = {
   id: "pyke",
   name: "Pyke, Dockside Butcher",
+  tags: ["Pyke", "Bilgewater"],
   text: "[Hidden] [Ganking] You may pay [Fury] as an additional cost to play me. When you play me, if you paid the additional cost, ready me and give me +2 [M] this turn.",
   type: "unit",
   cost: cost(3),
@@ -298,6 +308,7 @@ export const rampage: CardInstance = {
 export const nidalee: CardInstance = {
   id: "nidalee",
   name: "Nidalee, Cat Form",
+  tags: ["Cat", "Ixtal", "Nidalee"],
   text: "[Ambush] When I win a combat, draw 1.",
   type: "unit",
   cost: cost(3, "body", 1),
@@ -316,6 +327,7 @@ export const nidalee: CardInstance = {
 export const kaisa: CardInstance = {
   id: "kaisa",
   name: "Kai'Sa, Survivor",
+  tags: ["Kai'Sa"],
   text: "[Accelerate] When I conquer, draw 1.",
   type: "unit",
   cost: cost(4),
@@ -336,6 +348,7 @@ export const kaisa: CardInstance = {
 export const noxusHopeful: CardInstance = {
   id: "noxus-hopeful",
   name: "Noxus Hopeful",
+  tags: ["Trifarian", "Noxus"],
   text: "[Legion] — I cost [2] less.",
   type: "unit",
   cost: cost(4),
@@ -348,6 +361,7 @@ export const noxusHopeful: CardInstance = {
 export const ferrousForerunner: CardInstance = {
   id: "ferrous-forerunner",
   name: "Ferrous Forerunner",
+  tags: ["Mech", "Yordle", "Bandle City"],
   text: "[Deathknell] — Play two 3 [M] Mech unit tokens to your base.",
   type: "unit",
   cost: cost(6, "fury", 1),

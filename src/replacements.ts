@@ -1,6 +1,6 @@
 import { holds } from "./conditions.js";
 import type { Condition, ConditionContext } from "./conditions.js";
-import { controllerOf, keywordsOf, mightOf } from "./layers.js";
+import { controllerOf, keywordsOf, mightOf, tagsOf } from "./layers.js";
 import type { PassiveScope } from "./layers.js";
 import type { Effect } from "./abilities.js";
 import type { GameEvent } from "./events.js";
@@ -168,12 +168,25 @@ function replacementCovers(
   source: PermanentState,
   dying: PermanentState,
 ): boolean {
+  // R133.8 — a tag narrows any of the unit scopes, the same way it does for a
+  // passive. Read through the layers so a copy is covered by what it copied.
+  if (
+    scope.target !== "self" &&
+    scope.tag !== undefined &&
+    !tagsOf(state, dying.cardId).includes(scope.tag)
+  ) {
+    return false;
+  }
+
   switch (scope.target) {
     case "self":
       return source.cardId === dying.cardId;
 
-    case "otherFriendlyUnits": {
-      if (source.cardId === dying.cardId) return false;
+    case "otherFriendlyUnits":
+    case "friendlyUnits": {
+      if (scope.target === "otherFriendlyUnits" && source.cardId === dying.cardId) {
+        return false;
+      }
       if (
         controllerOf(state, source.cardId) !== controllerOf(state, dying.cardId)
       ) {

@@ -1,5 +1,5 @@
 import { chainItemCardId } from "./chain.js";
-import { characteristicsOf, controllerOf, mightOf } from "./layers.js";
+import { characteristicsOf, controllerOf, mightOf, tagsOf } from "./layers.js";
 import { sameLocation } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
@@ -105,12 +105,15 @@ export interface TargetFilter {
    */
   /**
    * A card type, matched against the permanent's own — except `spellOnChain`,
-   * which is a different search entirely. `gear` is R821's "a Card you control
-   * with the Equipment tag", approximated: the engine has no tags, so it reads
-   * as any gear. R821.1.c.4 makes the difference invisible, since a gear with
-   * no Equip cost cannot pay one anyway.
+   * which is a different search entirely.
    */
   type: "unit" | "gear" | "spellOnChain" | "battlefield";
+  /**
+   * R133.8 — one of the subject's tags. R150's Equipment tag is what
+   * [Weaponmaster] chooses by (R821.1.c); "a friendly Mech" is the other
+   * shape. Read through the layers, so a copy is chosen by what it copied.
+   */
+  tag?: string;
   /** Relative to the ability's controller. */
   controller?: "enemy" | "friendly";
   location?: "battlefield";
@@ -184,6 +187,13 @@ export function legalTargets(
   return Object.values(state.permanents)
     .filter((permanent) => {
       if (state.cards[permanent.cardId]?.type !== filter.type) return false;
+      // R133.8 — a tag the card carries, or currently copies.
+      if (
+        filter.tag !== undefined &&
+        !tagsOf(state, permanent.cardId).includes(filter.tag)
+      ) {
+        return false;
+      }
       if (filter.excludeSource === true && permanent.cardId === sourceId) {
         return false;
       }

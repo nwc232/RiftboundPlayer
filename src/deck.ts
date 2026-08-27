@@ -21,6 +21,7 @@ export interface Deck {
 export type DeckError =
   | "legendNotALegend"
   | "championNotInMainDeck"
+  | "championTagMismatch"
   | "mainDeckTooSmall"
   | "tooManyCopies"
   | "tooManyUniqueCopies"
@@ -38,9 +39,12 @@ export const MAX_COPIES = 3;
 export const OPENING_HAND = 4;
 
 /**
- * R103's countable requirements. Domain Identity (R103.1.b) and the Chosen
- * Champion's tag matching the Legend's (R103.2.a.2) are *not* checked: both
- * need the tag system, which the engine does not have. See the survey.
+ * R103's countable requirements. Domain Identity (R103.1.b) is *not* checked.
+ *
+ * R103.2.a.2 is checked by tag but not by category: "must be a champion unit
+ * with a champion tag that matches the tag on your Champion Legend" has two
+ * halves, and the community card data carries no champion-unit/signature-unit
+ * distinction to check the first with. Tibbers would pass here. See the survey.
  */
 export function validateDeck(
   deck: Deck,
@@ -60,6 +64,19 @@ export function validateDeck(
   if (cards[deck.legend]?.type !== "legend") errors.push("legendNotALegend");
   if (!deck.mainDeck.includes(deck.champion)) {
     errors.push("championNotInMainDeck");
+  }
+
+  // R103.2.a.2 — the Chosen Champion "must be a champion unit with a champion
+  // tag that matches the tag on your Champion Legend". R133.8.b is what makes
+  // the Legend's own tags the champion tags: they are the ones that link a
+  // Legend to its Champion Units and Signature cards.
+  const legendTags = cards[deck.legend]?.tags ?? [];
+  const championTags = cards[deck.champion]?.tags ?? [];
+  if (
+    cards[deck.champion] !== undefined &&
+    !championTags.some((tag) => legendTags.includes(tag))
+  ) {
+    errors.push("championTagMismatch");
   }
   if (deck.mainDeck.length < MAIN_DECK_MINIMUM) errors.push("mainDeckTooSmall");
 
