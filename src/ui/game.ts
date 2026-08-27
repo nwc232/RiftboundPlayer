@@ -92,7 +92,13 @@ export function describe(state: GameState, action: Action): string {
         (action.targets && action.targets.length > 0
           ? ` at ${action.targets.map(label).join(" + ")}`
           : "") +
-        (action.payOptional === true ? " · pay the extra cost" : "")
+        (action.payOptional === true ? " · pay the extra cost" : "") +
+        // R820 — the targets above already read as one list per execution, so
+        // this says how many times the card's text runs rather than repeating
+        // them. R820.3: one more execution per Repeat cost paid.
+        ((action.payRepeats ?? []).length > 0
+          ? ` · repeat ×${(action.payRepeats ?? []).length}`
+          : "")
       );
     case "hide":
       return `hide at ${label(action.battlefieldId)}`;

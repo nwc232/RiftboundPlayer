@@ -685,6 +685,29 @@ built when a card asks for it.
   choice is offered per *source card*, so two damage replacements from the
   same source apply in creation order relative to each other. No printed
   card does that.
+- **[Repeat] is on printed spells only.** R820.1.a puts it on "Spells and
+  Abilities", and three cards *grant* it: Syndra, Transcendent ("your spells
+  have [Repeat] [2][Chaos]"), Temporal Portal and The Academy ("give your next
+  spell [Repeat] equal to its cost"). Repeat is an ability carrying a `Cost`,
+  and the layer system grants *keywords*, whose values are numbers — so
+  granting one needs either ability-granting or keywords with richer values.
+  R820.4 says Repeat is a characteristic, so the second is probably the honest
+  shape; neither is built. The 21 cards that print their own work.
+- **A Repeat cost is resources only.** Square Up prints "[Repeat] — Discard 1",
+  and R820.1.c.2 allows non-resource costs. Discarding is not an ability cost
+  the engine has. Marai Spire's "friendly [Repeat] costs cost [1] less" wants a
+  cost modifier aimed at Repeat costs specifically, which `costModifier`
+  abilities cannot name.
+- **Modal effects are absent, which two Repeat cards lean on.** Rocket Barrage
+  ("Choose one —") and Curtain Call ("Choose one you haven't already chosen")
+  are what R820.2.a's example is about. The independent *targets* per execution
+  are built; independent *modes* need modes to exist first.
+- **`legalActions` stops enumerating a repeat's choices past 64 combinations.**
+  R820.2.a lets every execution choose freely, so k executions over n target
+  tuples is n^k answers. Past the bound each execution is offered the same
+  choice as the first, which keeps the play discoverable where the full space
+  is not. `applyAction` still accepts any legal combination the UI builds. Same
+  reasoning, and the same limitation, as the ordering bound below.
 - **A second instance of [Vision] does not trigger again (R817.2).** R817.2 is
   explicit that multiple instances trigger separately — a Mech with printed
   [Vision] under Forecaster's "your Mechs have [Vision]" should Predict twice.

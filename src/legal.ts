@@ -1,5 +1,6 @@
 import { applyAction } from "./actions.js";
 import type { Action } from "./actions.js";
+import { repeatCostsOf } from "./costing.js";
 import { legalTargets } from "./decisions.js";
 import type { TargetFilter } from "./decisions.js";
 import { MULLIGAN_MAX } from "./tasks.js";
@@ -82,9 +83,46 @@ function targetTuples(
   return tuples;
 }
 
+/**
+ * How many target tuples a repeated spell will have its executions enumerated
+ * independently for. R820.2.a lets each execution choose freely, so k
+ * executions over n tuples is n^k answers. Past the bound every execution is
+ * offered the same choice as the first, which keeps the *spell* discoverable
+ * even where the full space of choices is not. Nothing stops `applyAction`
+ * accepting any legal combination the UI builds.
+ */
+const REPEAT_TUPLE_MAX = 64;
+
+/**
+ * R820.2 — with [Repeat] paid, the choices for every execution are made as the
+ * spell is played, so one action carries them all: one tuple per execution,
+ * laid end to end.
+ */
+function repeatedTargetTuples(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+  executions: number,
+): CardId[][] {
+  const single = targetTuples(state, playerId, cardId);
+  if (executions <= 1) return single;
+
+  if (Math.pow(single.length, executions) > REPEAT_TUPLE_MAX) {
+    return single.map((tuple) =>
+      Array.from({ length: executions }, () => tuple).flat(),
+    );
+  }
+
+  let out = single;
+  for (let run = 1; run < executions; run += 1) {
+    out = out.flatMap((prefix) => single.map((next) => [...prefix, ...next]));
+  }
+  return out;
+}
+
 /** Every subset of `ids` up to `max` in size, including the empty one. */
-function subsets(ids: CardId[], max: number): CardId[][] {
-  let out: CardId[][] = [[]];
+function subsets<T>(ids: T[], max: number): T[][] {
+  let out: T[][] = [[]];
   for (let size = 1; size <= max; size += 1) {
     const previous = out.filter((s) => s.length === size - 1);
     for (const base of previous) {
@@ -220,14 +258,25 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
           payOptional,
         });
       }
-      for (const chosen of targetTuples(state, playerId, cardId)) {
-        out.push({
-          type: "playSpell",
+      // R820.1.c.2 — each [Repeat] cost is paid or not on its own, so every
+      // subset of them is a different play at a different price.
+      const repeats = repeatCostsOf(state, cardId).map((_, index) => index);
+      for (const payRepeats of subsets(repeats, repeats.length)) {
+        for (const chosen of repeatedTargetTuples(
+          state,
           playerId,
           cardId,
-          targets: chosen,
-          payOptional,
-        });
+          1 + payRepeats.length,
+        )) {
+          out.push({
+            type: "playSpell",
+            playerId,
+            cardId,
+            targets: chosen,
+            payOptional,
+            payRepeats,
+          });
+        }
       }
     }
   }

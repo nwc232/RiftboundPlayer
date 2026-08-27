@@ -25,6 +25,13 @@ export type ChainItem =
       targets: CardId[];
       /** R356.2.b — whether the optional additional cost was paid for this play. */
       paidAdditionalCost?: true;
+      /**
+       * R820.3 — how many *additional* times this item's instructions run,
+       * one per [Repeat] cost paid. R820.3.a: however many times it executes,
+       * the spell was Played once, so this is a property of the chain item and
+       * never of the play.
+       */
+      repeats?: number;
       /** Which zone the spell was played from — Back Off asks (R811.1.b). */
       playedFrom?: PlaySource;
     }

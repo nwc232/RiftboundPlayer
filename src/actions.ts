@@ -1,8 +1,9 @@
-import { execute } from "./abilities.js";
+import { execute, shiftTargets } from "./abilities.js";
 import type { AbilityCost, EffectContext } from "./abilities.js";
 import { FREE, spend } from "./cost.js";
 import {
   additionalCostsOf,
+  repeatCostsOf,
   consumeDiscount,
   totalCostOf,
 } from "./costing.js";
@@ -86,9 +87,16 @@ export type Action =
       type: "playSpell";
       playerId: PlayerId;
       cardId: CardId;
+      /**
+       * R355.5 — one per filter the card names. With [Repeat] paid, one set
+       * per execution, laid end to end: R820.2 has every choice made at the
+       * usual time, so the second execution's targets are chosen here too.
+       */
       targets?: CardId[];
       /** R355.1.a — the choice of whether to pay an optional additional cost. */
       payOptional?: boolean;
+      /** R820.1.c.2 — which of the card's [Repeat] costs to pay, by index. */
+      payRepeats?: number[];
     }
   /** R421 — the Hide discretionary action, granted by [Hidden] (R811.1.c). */
   | {
@@ -964,6 +972,7 @@ export function playSpell(
   cardId: CardId,
   targets: CardId[] = [],
   payOptional = false,
+  payRepeats: number[] = [],
 ): ActionResult {
   const player = state.players[playerId];
   const card = state.cards[cardId];
@@ -993,10 +1002,23 @@ export function playSpell(
   );
   if (payOptional && !hasOptional) return rejected("noAdditionalCost");
 
+  // R820.1.c.3 — "Each Repeat Cost can be paid only a single time", so a
+  // repeated index is not a second payment but a malformed action.
+  const repeats = repeatCostsOf(state, cardId);
+  if (new Set(payRepeats).size !== payRepeats.length) {
+    return rejected("noAdditionalCost");
+  }
+  if (payRepeats.some((index) => repeats[index] === undefined)) {
+    return rejected("noAdditionalCost");
+  }
+  // R820.3 — one additional execution for each instance paid for.
+  const executions = 1 + payRepeats.length;
+
   // R356.1.b — a hidden card is played "ignoring its base cost", which
   // R356.1.b.3 still lets an additional cost raise back above zero.
   const cost = totalCostOf(state, playerId, cardId, {
     payOptional,
+    payRepeats,
     ignoreBaseCost: hiddenAt !== undefined,
     // R809.1.d — Deflect prices the targets, so they are part of the cost.
     targets,
@@ -1012,17 +1034,24 @@ export function playSpell(
   // has to be valid for the filter the card names in that position.
   const filters = spellTargeting(state, cardId);
   if (filters !== undefined) {
-    if (targets.length !== filters.length) return rejected("wrongTargetCount");
-    const chosen: CardId[] = [];
-    for (const [index, filter] of filters.entries()) {
-      const targetId = targets[index]!;
-      const legal = legalTargets(state, playerId, filter, cardId);
-      // R355.5.a-style uniqueness: two filters naming two things cannot both
-      // be answered with the same object.
-      if (!legal.includes(targetId) || chosen.includes(targetId)) {
-        return rejected("invalidTarget");
+    if (targets.length !== filters.length * executions) {
+      return rejected("wrongTargetCount");
+    }
+    // Each execution's choices are judged on their own. R820.2.a is explicit
+    // that a repeat "may choose the same target or a different one", so the
+    // no-reusing-an-object rule binds inside one execution and not across two.
+    for (let run = 0; run < executions; run += 1) {
+      const chosen: CardId[] = [];
+      for (const [index, filter] of filters.entries()) {
+        const targetId = targets[run * filters.length + index]!;
+        const legal = legalTargets(state, playerId, filter, cardId);
+        // R355.5.a-style uniqueness: two filters naming two things cannot both
+        // be answered with the same object.
+        if (!legal.includes(targetId) || chosen.includes(targetId)) {
+          return rejected("invalidTarget");
+        }
+        chosen.push(targetId);
       }
-      chosen.push(targetId);
     }
   } else {
     for (const targetId of targets) {
@@ -1062,6 +1091,8 @@ export function playSpell(
           controller: playerId,
           targets,
           ...(payOptional ? { paidAdditionalCost: true as const } : {}),
+          // R820.3 — how many *additional* times the instructions run.
+          ...(payRepeats.length > 0 ? { repeats: payRepeats.length } : {}),
           playedFrom: hiddenAt === undefined ? "hand" : "facedown",
         },
       ],
@@ -1145,11 +1176,33 @@ export function passPriority(
     // Neither a passive (read live by the layer pipeline) nor a play permission
     // (read off a card in hand) ever resolves, so both contribute nothing here
     // even if one is somehow reached.
-    const effect =
+    const printed =
       ability !== undefined &&
       (ability.kind === "activated" || ability.kind === "triggered")
         ? ability.effect
         : { op: "seq" as const, steps: [] };
+
+    // R820.1.d — "execute the instructions of this chain item one additional
+    // time during resolution", once per [Repeat] cost paid. Expressed as a
+    // `seq` rather than a loop because an execution can stop mid-way to ask
+    // (R321): `seq` folds its remaining steps into the paused effect, so the
+    // second execution waits for the first to finish answering.
+    //
+    // R820.2.a lets each execution choose for itself, so the later copies read
+    // later slices of the same flat `targets` list.
+    const executions =
+      1 + (item.kind === "spell" ? (item.repeats ?? 0) : 0);
+    const stride =
+      executions > 1 ? item.targets.length / executions : item.targets.length;
+    const effect =
+      executions === 1
+        ? printed
+        : {
+            op: "seq" as const,
+            steps: Array.from({ length: executions }, (_, run) =>
+              shiftTargets(printed, run * stride),
+            ),
+          };
 
     const sourceLocation = sourceLocationOf(current, item);
 
@@ -1459,6 +1512,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
           action.cardId,
           action.targets,
           action.payOptional,
+          action.payRepeats,
         ),
       );
     case "endTurn":

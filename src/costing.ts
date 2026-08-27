@@ -150,6 +150,17 @@ export function additionalCostsOf(
   return costs;
 }
 
+/**
+ * R820.1.c — every [Repeat] cost printed on a card, in the order it prints
+ * them, which is what `payRepeats` indexes into. R820.1.c.2 makes them
+ * independent: Curtain Call's three are paid or not paid one at a time.
+ */
+export function repeatCostsOf(state: GameState, cardId: CardId): Cost[] {
+  return (state.cards[cardId]?.abilities ?? [])
+    .filter((ability) => ability.kind === "repeat")
+    .map((ability) => ability.cost);
+}
+
 export interface CostOptions {
   /**
    * R809.1.d — what this play chooses. Deflect imposes a Mandatory Additional
@@ -160,6 +171,12 @@ export interface CostOptions {
   ignoreBaseCost?: boolean;
   /** R356.2.b.1 — whether the player chose to pay the optional additional cost. */
   payOptional?: boolean;
+  /**
+   * R820.1.c.2 — which of the card's [Repeat] costs this play pays, by index.
+   * A list rather than a count because the costs differ from each other, and
+   * R820.1.c.3 allows each at most once.
+   */
+  payRepeats?: number[];
 }
 
 /**
@@ -184,6 +201,14 @@ export function totalCostOf(
     if (additional.optional && options.payOptional !== true) continue;
     total = addCosts(total, additional.cost);
   }
+  // R820.1.c.1 — a Repeat cost is "an Additional Cost to be paid during the
+  // steps of playing the spell", so it lands in step 2 beside the others.
+  const repeats = repeatCostsOf(state, cardId);
+  for (const index of new Set(options.payRepeats ?? [])) {
+    const repeat = repeats[index];
+    if (repeat !== undefined) total = addCosts(total, repeat);
+  }
+
   // R356.2.a.2 / R809 — Deflect is a Mandatory Additional Cost, once per time
   // this play chooses a Deflecting object an opponent controls. R809.1.c.1:
   // "The Power used to pay this cost may always be of any Domain."

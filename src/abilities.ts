@@ -286,6 +286,21 @@ export interface AdditionalCostAbility {
 }
 
 /**
+ * R820 — "[Repeat] [Cost]". R820.1.d makes it short for "You may pay [Cost] as
+ * an additional cost as you play this. If you do, execute the instructions of
+ * this chain item one additional time during resolution."
+ *
+ * Its own ability kind rather than an `additionalCost` with a flag, because
+ * R820.1.c.2 makes several of them independent of each other: Curtain Call
+ * prints three, each payable on its own, and R820.1.c.3 caps each at one
+ * payment. Which subset was paid is therefore the answer, not a count.
+ */
+export interface RepeatAbility {
+  kind: "repeat";
+  cost: Cost;
+}
+
+/**
  * R369.3 — "I enter ready", and the conditional forms of it. Read off a card
  * in hand like the other non-resolving kinds, because it has to be known
  * before the permanent exists.
@@ -310,10 +325,47 @@ export type Ability =
   | EntryReplacementAbility
   | ReplacementAbility
   | AdditionalCostAbility
+  | RepeatAbility
   | TriggeredAbility
   | PassiveAbility
   | PlayPermissionAbility
   | CostModifierAbility;
+
+/**
+ * The property names an `Effect` uses to point into `context.targets`. Every op
+ * that chooses something indexes it by one of these, which is what lets
+ * `shiftTargets` be written once instead of as a case per op — and what keeps
+ * it correct as ops are added. A new op that indexes targets under some other
+ * name would silently escape it, so the convention is the contract.
+ */
+const TARGET_INDEX_FIELDS = ["targetIndex", "otherIndex", "destinationIndex"];
+
+/**
+ * The same effect, reading a later slice of `context.targets`.
+ *
+ * R820.2.a — "Choices made for the additional execution do not have to be the
+ * same as the choices made for the initial execution." A repeated effect is
+ * therefore not the same effect run twice: it is the same instructions aimed
+ * at a second set of choices. Since abilities are data, that is a rewrite of
+ * the indices rather than a second context, which is what lets the whole
+ * repeat be expressed as one `seq` — pauses and all.
+ */
+export function shiftTargets<T>(effect: T, offset: number): T {
+  if (offset === 0 || effect === null || typeof effect !== "object") {
+    return effect;
+  }
+  if (Array.isArray(effect)) {
+    return effect.map((each) => shiftTargets(each, offset)) as T;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(effect)) {
+    out[key] =
+      TARGET_INDEX_FIELDS.includes(key) && typeof value === "number"
+        ? value + offset
+        : shiftTargets(value, offset);
+  }
+  return out as T;
+}
 
 export interface EffectContext {
   controller: PlayerId;

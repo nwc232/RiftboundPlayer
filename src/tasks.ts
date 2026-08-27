@@ -579,20 +579,29 @@ export function runTasks(
     const [head, ...rest] = current.tasks;
     if (head === undefined) break;
 
-    const outcome = runTask(current, head);
+    // The head comes off *before* it runs, so a handler that enqueues work —
+    // `park` does, when a resumed effect stops to ask a second time — is
+    // enqueueing ahead of the rest of the queue rather than ahead of itself.
+    // Reading the remainder back off the outcome is what keeps that work: a
+    // queue rebuilt from `rest` alone silently dropped it, which stranded the
+    // tail of any effect that had to ask twice.
+    const outcome = runTask({ ...current, tasks: rest }, head);
     events.push(...outcome.events);
     unscanned.push(...outcome.events);
 
     if (outcome.suspend !== undefined) {
       current = {
         ...outcome.state,
-        tasks: [outcome.suspend.task, ...rest],
+        tasks: [outcome.suspend.task, ...outcome.state.tasks],
         pending: outcome.suspend.decision,
       };
       break;
     }
 
-    current = { ...outcome.state, tasks: [...(outcome.push ?? []), ...rest] };
+    current = {
+      ...outcome.state,
+      tasks: [...(outcome.push ?? []), ...outcome.state.tasks],
+    };
 
     const harvest = harvestTriggers(current, unscanned);
     const triggered = harvest.items;

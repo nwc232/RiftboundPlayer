@@ -3,6 +3,7 @@ import type {
   AbilityTiming,
   ActivatedAbility,
   AdditionalCostAbility,
+  RepeatAbility,
   Effect,
   CostModifierAbility,
   EntryReplacementAbility,
@@ -403,6 +404,14 @@ export function legionCostReduction(reduce: Partial<Cost>): CostModifierAbility 
  * R356.2.b — Pyke, Dockside Butcher's "You may pay [Fury] as an additional
  * cost to play me". Omit `optional` for R356.2.a's mandatory kind.
  */
+/**
+ * R820 — "[Repeat] [Cost]". Several on one card are independent of each other
+ * (R820.1.c.2), so a card that prints three carries three of these.
+ */
+export function repeat(cost: Partial<Cost>): RepeatAbility {
+  return { kind: "repeat", cost: { ...FREE, ...cost } };
+}
+
 export function additionalCost(
   cost: Cost,
   optional: true | undefined = true,
