@@ -361,8 +361,19 @@ export function expireModifiers(
   const modifiers = state.modifiers.filter(
     (modifier) => modifier.duration !== duration,
   );
-  if (modifiers.length === state.modifiers.length) return state;
-  return { ...state, modifiers };
+  // R369's damage replacements carry the same lifetimes, so they end here too
+  // — Lotus Trap's doubling and Unyielding Spirit's prevention are both
+  // "this turn".
+  const replacements = state.damageReplacements.filter(
+    (entry) => entry.duration !== duration,
+  );
+  if (
+    modifiers.length === state.modifiers.length &&
+    replacements.length === state.damageReplacements.length
+  ) {
+    return state;
+  }
+  return { ...state, modifiers, damageReplacements: replacements };
 }
 
 /**

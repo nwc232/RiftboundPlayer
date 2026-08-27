@@ -3,9 +3,12 @@ import type { Condition, ConditionContext } from "./conditions.js";
 import { controllerOf, keywordsOf, mightOf } from "./layers.js";
 import type { PassiveScope } from "./layers.js";
 import type { Effect } from "./abilities.js";
+import type { GameEvent } from "./events.js";
+import type { Duration } from "./layers.js";
 import { sameLocation } from "./state.js";
 import type {
   CardId,
+  DamageReplacement,
   GameState,
   PermanentState,
   PlayerId,
@@ -204,4 +207,75 @@ function replacementCovers(
       return false;
     }
   }
+}
+
+/**
+ * R369.2 / R437 — damage on its way to a unit, after every replacement that
+ * applies has had its say. Returns the amount actually dealt, which R437.2.a
+ * allows to be 0 ("equivalent to not dealing damage").
+ *
+ * R372 gives the controller of the damaged unit a choice of order when more
+ * than one applies, and the order matters — the rules' own example has prevent
+ * -then-double landing on a different number than double-then-prevent. That
+ * choice is not asked here: `execute` deals damage and cannot suspend to ask.
+ * Applied in creation order instead, and written up in the survey.
+ */
+export function replaceDamage(
+  state: GameState,
+  cardId: CardId,
+  amount: number,
+  from: "combat" | "spellOrAbility",
+): { state: GameState; amount: number; events: GameEvent[] } {
+  const applicable = state.damageReplacements.filter(
+    (entry) =>
+      (entry.targetId === undefined || entry.targetId === cardId) &&
+      (entry.from === "any" || entry.from === from),
+  );
+  if (applicable.length === 0) return { state, amount, events: [] };
+
+  let running = amount;
+  const events: GameEvent[] = [];
+  const spent = new Map<string, DamageReplacement>();
+
+  for (const entry of applicable) {
+    if (running === 0 && entry.op.kind === "prevent") continue;
+
+    if (entry.op.kind === "scale") {
+      running = running * entry.op.factor;
+    } else {
+      // R437.2 — the damage is replaced with that much less, floored at zero.
+      const shield = entry.op.amount === "all" ? running : entry.op.amount;
+      const stopped = Math.min(shield, running);
+      running -= stopped;
+      // R437.3 — "reduce the Prevent Value ... by the prevented amount."
+      if (entry.op.amount !== "all") {
+        spent.set(entry.id, {
+          ...entry,
+          op: { kind: "prevent", amount: entry.op.amount - stopped },
+        });
+      }
+    }
+  }
+
+  if (running !== amount) {
+    events.push({
+      type: "damageReplaced",
+      cardId,
+      from: amount,
+      to: running,
+    });
+  }
+
+  // R437.3.a — a Prevent Value down to zero stops being tracked.
+  const remaining = state.damageReplacements
+    .map((entry) => spent.get(entry.id) ?? entry)
+    .filter(
+      (entry) => entry.op.kind !== "prevent" || entry.op.amount !== 0,
+    );
+
+  return {
+    state: { ...state, damageReplacements: remaining },
+    amount: running,
+    events,
+  };
 }

@@ -47,6 +47,8 @@ export function renderEvent(event: GameEvent): string {
       return (`  ${event.phase} phase`);
     case "objectExhausted":
       return `${event.cardId} exhausts`;
+    case "damageReplaced":
+      return `damage to ${event.cardId} becomes ${event.to} (was ${event.from})`;
     case "healed":
       return `${event.cardId} is healed`;
     case "eventReplaced":

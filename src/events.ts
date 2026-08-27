@@ -156,6 +156,8 @@ export type GameEvent =
   | { type: "buffed"; playerId: PlayerId; cardId: CardId }
   | { type: "stunned"; playerId: PlayerId; cardId: CardId }
   | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }
+  /** R369.2 — damage altered on its way in: doubled, or prevented (R437). */
+  | { type: "damageReplaced"; cardId: CardId; from: number; to: number }
   | { type: "spellPlayed"; playerId: PlayerId; cardId: CardId }
   | { type: "spellResolved"; playerId: PlayerId; cardId: CardId }
   | { type: "spellCountered"; playerId: PlayerId; cardId: CardId }

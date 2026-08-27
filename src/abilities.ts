@@ -25,6 +25,7 @@ import type {
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
 import type { ResolutionChoice } from "./tasks.js";
+import { replaceDamage } from "./replacements.js";
 import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
@@ -166,6 +167,21 @@ export type Effect =
   | { op: "recycleFromOpponentHand"; exclude?: "unit" }
   /** Astral Heron — "your next card costs [2][A][A] less". */
   | { op: "discountNextCard"; reduce: Cost }
+  /** Lotus Trap — "Double all damage that would be dealt to it this turn." */
+  | { op: "scaleDamage"; targetIndex: number; factor: number; duration: Duration }
+  /**
+   * R437 — "Prevent the next X [source] damage that would be dealt to a
+   * [unit] this turn." Unyielding Spirit prevents all of it, from spells and
+   * abilities, for everyone.
+   */
+  | {
+      op: "preventDamage";
+      amount: number | "all";
+      from: "any" | "spellOrAbility";
+      duration: Duration;
+      /** Absent means every unit, which is R437.1.b.1.b's "All". */
+      targetIndex?: number;
+    }
   /** R142 — clear marked damage. Soraka's "instead heal it". */
   | { op: "heal"; targetIndex: number }
   /** R414 — the other half of "heal it, **exhaust it**, and recall it". */
@@ -378,23 +394,31 @@ export function execute(
       const permanent = state.permanents[targetId];
       if (permanent === undefined) return { state, events: [] };
 
+      // R369.2 — a replacement intercedes before the damage lands.
+      const replaced = replaceDamage(
+        state,
+        targetId,
+        effect.amount,
+        "spellOrAbility",
+      );
       return {
         state: {
-          ...state,
+          ...replaced.state,
           permanents: {
-            ...state.permanents,
+            ...replaced.state.permanents,
             [targetId]: {
               ...permanent,
-              damage: permanent.damage + effect.amount,
+              damage: permanent.damage + replaced.amount,
             },
           },
         },
         events: [
+          ...replaced.events,
           {
             type: "damageDealt",
             playerId: context.controller,
             cardId: targetId,
-            amount: effect.amount,
+            amount: replaced.amount,
           },
         ],
       };
@@ -972,24 +996,32 @@ export function execute(
       // a unit that dies still dealt its Might.
       const damageFromA = mightOf(state, a);
       const damageFromB = mightOf(state, b);
-      const permanents = { ...state.permanents };
-      permanents[a] = { ...permanents[a]!, damage: permanents[a]!.damage + damageFromB };
-      permanents[b] = { ...permanents[b]!, damage: permanents[b]!.damage + damageFromA };
+
+      // Both amounts were read above, before either lands; each is then put
+      // through R369.2's replacements on its own way in.
+      const toA = replaceDamage(state, a, damageFromB, "spellOrAbility");
+      const toB = replaceDamage(toA.state, b, damageFromA, "spellOrAbility");
+
+      const permanents = { ...toB.state.permanents };
+      permanents[a] = { ...permanents[a]!, damage: permanents[a]!.damage + toA.amount };
+      permanents[b] = { ...permanents[b]!, damage: permanents[b]!.damage + toB.amount };
 
       return {
-        state: { ...state, permanents },
+        state: { ...toB.state, permanents },
         events: [
+          ...toA.events,
+          ...toB.events,
           {
             type: "damageDealt",
             playerId: controllerOf(state, a),
             cardId: a,
-            amount: damageFromB,
+            amount: toA.amount,
           },
           {
             type: "damageDealt",
             playerId: controllerOf(state, b),
             cardId: b,
-            amount: damageFromA,
+            amount: toB.amount,
           },
         ],
       };
@@ -1043,6 +1075,53 @@ export function execute(
               id: `noMove-${state.modifiers.length}-${targetId}`,
               targetId,
               modification: { layer: "ability", op: "restrictMovement" },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [],
+      };
+    }
+
+    case "scaleDamage": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      return {
+        state: {
+          ...state,
+          damageReplacements: [
+            ...state.damageReplacements,
+            {
+              id: `scale-${state.damageReplacements.length}-${targetId}`,
+              targetId,
+              from: "any",
+              op: { kind: "scale", factor: effect.factor },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [],
+      };
+    }
+
+    case "preventDamage": {
+      const targetId =
+        effect.targetIndex === undefined
+          ? undefined
+          : context.targets[effect.targetIndex];
+      if (effect.targetIndex !== undefined && targetId === undefined) {
+        return { state, events: [] };
+      }
+      return {
+        state: {
+          ...state,
+          damageReplacements: [
+            ...state.damageReplacements,
+            {
+              id: `prevent-${state.damageReplacements.length}-${targetId ?? "all"}`,
+              ...(targetId !== undefined ? { targetId } : {}),
+              from: effect.from,
+              op: { kind: "prevent", amount: effect.amount },
               duration: effect.duration,
             },
           ],

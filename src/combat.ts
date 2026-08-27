@@ -11,7 +11,7 @@ import {
 // because neither side calls the other during module initialization, and
 // tests/combat.test.ts imports both orders to keep that true.
 import { execute } from "./abilities.js";
-import { deathReplacementsFor } from "./replacements.js";
+import { deathReplacementsFor, replaceDamage } from "./replacements.js";
 import type { ApplicableReplacement } from "./replacements.js";
 import { score } from "./scoring.js";
 import { ownerOf, permanentsAt } from "./state.js";
@@ -232,19 +232,30 @@ export function dealAssigned(state: GameState, assigned: Assignment[]): Progress
   const permanents = { ...state.permanents };
   const events: GameEvent[] = [];
 
+  let current = state;
   for (const { cardId, amount } of assigned) {
     const permanent = permanents[cardId];
     if (permanent === undefined) continue;
-    permanents[cardId] = { ...permanent, damage: permanent.damage + amount };
+
+    // R369.2 — prevention and any other replacement intercede here, before the
+    // damage lands. R437.2.a allows the result to be 0.
+    const replaced = replaceDamage(current, cardId, amount, "combat");
+    current = replaced.state;
+    events.push(...replaced.events);
+
+    permanents[cardId] = {
+      ...permanent,
+      damage: permanent.damage + replaced.amount,
+    };
     events.push({
       type: "damageDealt",
       playerId: permanent.controller,
       cardId,
-      amount,
+      amount: replaced.amount,
     });
   }
 
-  return { state: { ...state, permanents }, events };
+  return { state: { ...current, permanents }, events };
 }
 
 /** R428 — killed permanents go straight to the trash from the board. */

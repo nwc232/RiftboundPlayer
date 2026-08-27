@@ -136,6 +136,7 @@ export function makeState(options: {
     playedThisTurn: { p1: [], p2: [] },
     triggeredThisTurn: {},
     pendingDiscounts: [],
+    damageReplacements: [],
     showdown: null,
     winner: null,
     chain: [],

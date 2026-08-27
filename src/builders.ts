@@ -211,6 +211,36 @@ export function controlsOtherUnits(atLeast: number): Condition {
   return { kind: "controlsOtherUnits", atLeast };
 }
 
+/** Lotus Trap — "Double all damage that would be dealt to it this turn." */
+export function scaleDamage(
+  factor: number,
+  duration: Duration,
+  targetIndex = 0,
+): Effect {
+  return { op: "scaleDamage", targetIndex, factor, duration };
+}
+
+/**
+ * R437 — "Prevent the next X [source] damage…". Omit `targetIndex` for
+ * Unyielding Spirit's "prevent all spell and ability damage this turn", which
+ * names no unit.
+ */
+export function preventDamage(
+  amount: number | "all",
+  duration: Duration,
+  options: { from?: "any" | "spellOrAbility"; targetIndex?: number } = {},
+): Effect {
+  return {
+    op: "preventDamage",
+    amount,
+    from: options.from ?? "any",
+    duration,
+    ...(options.targetIndex !== undefined
+      ? { targetIndex: options.targetIndex }
+      : {}),
+  };
+}
+
 /** R142 — Soraka's "instead **heal it**". */
 export function heal(targetIndex = 0): Effect {
   return { op: "heal", targetIndex };

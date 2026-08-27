@@ -3,7 +3,7 @@ import { controllerOf } from "./layers.js";
 import type { ChainItem } from "./chain.js";
 import type { PendingDecision } from "./decisions.js";
 import type { ShowdownState } from "./showdown.js";
-import type { DelayedEffect, Modifier } from "./layers.js";
+import type { DelayedEffect, Duration, Modifier } from "./layers.js";
 import type { Task } from "./tasks.js";
 import type { TurnState } from "./turn.js";
 
@@ -189,6 +189,24 @@ export interface BattlefieldState {
  */
 export type PlaySource = "hand" | "champion" | "facedown";
 
+/**
+ * R369 — a replacement waiting to intercede in damage. R437.1.b describes the
+ * shape: "an amount of damage and the source of the damage it will affect, as
+ * well as the timespan it will be relevant for."
+ */
+export interface DamageReplacement {
+  id: string;
+  /** The unit it watches. Absent means every unit (Unyielding Spirit's "all"). */
+  targetId?: CardId;
+  /** R437.1.b.1's "[source]" — which damage qualifies. */
+  from: "any" | "spellOrAbility";
+  op:
+    | { kind: "scale"; factor: number }
+    /** R437.1.b.1.a's Prevent Value; "all" is R437.1.b.1.b's infinite. */
+    | { kind: "prevent"; amount: number | "all" };
+  duration: Duration;
+}
+
 /** R464.2.c.3 — which side of a combat a unit is on. */
 export type Designation = "attacker" | "defender";
 
@@ -328,6 +346,13 @@ export interface GameState {
    * it waits here until the next card that player plays consumes it.
    */
   pendingDiscounts: { player: PlayerId; reduce: Cost }[];
+  /**
+   * R369.2 — "Preventing Damage is a replacement effect." These are the ones
+   * with a lifetime, made by a spell rather than printed on a permanent:
+   * Lotus Trap's "double all damage that would be dealt to it this turn",
+   * Unyielding Spirit's "prevent all spell and ability damage this turn".
+   */
+  damageReplacements: DamageReplacement[];
   showdown: ShowdownState | null;
   winner: PlayerId | null;
   /** R327 — LIFO; last entry resolves first. Empty means an Open State. */
