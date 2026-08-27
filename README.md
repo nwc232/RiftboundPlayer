@@ -1,11 +1,17 @@
 # Riftbound Engine
 
-A rules-enforced, headless 1v1 engine for the Riftbound TCG (Riot Games).
+A rules-enforced 1v1 engine for the Riftbound TCG (Riot Games), with a
+React front-end over it.
 Solo portfolio project. TypeScript on Node, test-driven.
 
-## Scope (current phase)
+## Scope
 
-Headless engine only — no UI, no networking, no deckbuilder.
+Engine first, and it stays the point: pure, immutable, rules-enforced, with
+the Core Rules cited throughout. A React front-end runs over the same
+`applyAction` without the engine knowing about it.
+
+Two real constructed decks (38 distinct cards) are authored and playable
+end to end.
 
 ## Data source
 
@@ -15,6 +21,7 @@ See `/reference` for provenance notes.
 
 ## Scripts
 
+- `npm run ui` — React front-end; click to play the two real decks
 - `npm run demo` — interactive CLI to drive the engine by hand
 - `npm test` — run the test suite once
 - `npm run test:watch` — run tests in watch mode
