@@ -4,12 +4,15 @@ import { renderEvent } from "../src/event-text.js";
 import {
   actingPlayer,
   describe as describeAction,
+  groupMoves,
   movesFor,
   newGame,
   promptArity,
   subjectOf,
+  whyNotPlayable,
 } from "../src/ui/game.js";
 import type { GameState } from "../src/state.js";
+import { pool } from "./fixtures.js";
 
 /**
  * The UI's own logic, tested without a DOM. Everything the browser does that
@@ -123,5 +126,83 @@ describe("event wording is shared", () => {
 
     expect(line).toBe("— turn 1: p1 —");
     expect(ANSI.test(line)).toBe(false);
+  });
+});
+
+/**
+ * The two questions a player actually has at the board — "what can I do?" and
+ * "why can't I play this?" — which the first version of the UI answered with
+ * an empty list and nothing else.
+ */
+describe("telling the player what is going on", () => {
+  /** Past both mulligans, turn 1's Main Phase, pool empty (R316.3). */
+  function opening(): GameState {
+    return settle(opened());
+  }
+
+  it("groups every legal move under the card it acts on", () => {
+    const state = opening();
+    const groups = groupMoves(state, movesFor(state, actingPlayer(state)));
+
+    // The runes are the only thing to do with an empty pool, and they must be
+    // findable without knowing to click them first.
+    const headings = groups.map((group) => group.heading);
+    expect(headings).toContain("chaos rune");
+    expect(groups.at(-1)?.cardId).toBeNull();
+    expect(groups.at(-1)?.moves.map((m) => m.label)).toEqual(["end turn"]);
+  });
+
+  it("says what an unaffordable card costs and what you hold", () => {
+    const state = opening();
+    const player = state.players[state.turn.player];
+    const expensive = player.hand.find(
+      (id) => (state.cards[id]?.cost.energy ?? 0) >= 3,
+    );
+    expect(expensive).toBeDefined();
+
+    const why = whyNotPlayable(state, state.turn.player, expensive!);
+
+    expect(why).toMatch(/^costs /);
+    expect(why).toContain("your pool holds nothing");
+    expect(why).toContain("rune");
+  });
+
+  /** R355.8 — "valid choices must be made for all targets." */
+  it("says when there is nothing legal to target", () => {
+    const state = opening();
+    const rich: GameState = {
+      ...state,
+      players: {
+        ...state.players,
+        [state.turn.player]: {
+          ...state.players[state.turn.player],
+          runePool: pool({
+            energy: 20,
+            power: { chaos: 5, calm: 5, body: 5, fury: 5 },
+          }),
+        },
+      },
+    };
+    const player = rich.players[rich.turn.player];
+    const targeted = player.hand.find((id) => {
+      const ability = rich.cards[id]?.abilities.find(
+        (each) => each.kind === "activated",
+      );
+      return (ability?.targeting?.filters.length ?? 0) > 0;
+    });
+    expect(targeted).toBeDefined();
+
+    // The board is empty, so nothing satisfies any unit filter.
+    expect(whyNotPlayable(rich, rich.turn.player, targeted!)).toContain(
+      "R355.8",
+    );
+  });
+
+  it("has nothing to explain about a card that can be played", () => {
+    const state = opening();
+    const runeId = state.players[state.turn.player].runes[0];
+
+    // A rune is not in hand, so there is no "why not" to give.
+    expect(whyNotPlayable(state, state.turn.player, runeId!)).toBeNull();
   });
 });

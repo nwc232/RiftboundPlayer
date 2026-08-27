@@ -3,6 +3,10 @@ import type { Action, RejectionReason } from "../actions.js";
 import { startGame } from "../deck.js";
 import type { GameEvent } from "../events.js";
 import { legalActions } from "../legal.js";
+import { legalTargets } from "../decisions.js";
+import type { TargetFilter } from "../decisions.js";
+import { canPay, totals } from "../cost.js";
+import { totalCostOf } from "../costing.js";
 import { characteristicsOf, controllerOf } from "../layers.js";
 import { matchup } from "../decks/index.js";
 import { permanentsAt } from "../state.js";
@@ -196,6 +200,8 @@ export function promptArity(state: GameState): { min: number; max: number } {
 export interface Move {
   action: Action;
   label: string;
+  /** The card the move is about, if any — what it gets grouped under. */
+  subject: CardId | undefined;
 }
 
 /** Every legal move for the acting player, already labelled. */
@@ -203,7 +209,132 @@ export function movesFor(state: GameState, playerId: PlayerId): Move[] {
   return legalActions(state, playerId).map((action) => ({
     action,
     label: describe(state, action),
+    subject: subjectOf(action),
   }));
+}
+
+export interface MoveGroup {
+  /** Null for moves that belong to no card — end turn, pass. */
+  cardId: CardId | null;
+  heading: string;
+  moves: Move[];
+}
+
+/**
+ * Moves grouped by the card they act on. Grouping rather than requiring a
+ * selection first: a player who cannot see what any card does has no way to
+ * discover that runes are what fills the pool.
+ */
+export function groupMoves(state: GameState, moves: Move[]): MoveGroup[] {
+  const groups: MoveGroup[] = [];
+  const index = new Map<string, MoveGroup>();
+
+  for (const move of moves) {
+    const key = move.subject ?? "";
+    let group = index.get(key);
+    if (group === undefined) {
+      group = {
+        cardId: move.subject ?? null,
+        heading: move.subject === undefined ? "anytime" : nameOf(state, move.subject),
+        moves: [],
+      };
+      index.set(key, group);
+      groups.push(group);
+    }
+    group.moves.push(move);
+  }
+
+  // Card moves first; the always-available ones sit at the bottom out of the way.
+  return [
+    ...groups.filter((group) => group.cardId !== null),
+    ...groups.filter((group) => group.cardId === null),
+  ];
+}
+
+/** A target filter in words, for explaining what a card is looking for. */
+function describeFilter(filter: TargetFilter): string {
+  const parts = [
+    filter.controller === "friendly"
+      ? "friendly"
+      : filter.controller === "enemy"
+        ? "enemy"
+        : "",
+    filter.type === "spellOnChain"
+      ? "spell on the chain"
+      : filter.type === "battlefield"
+        ? "battlefield"
+        : "unit",
+    filter.location === "battlefield" ? "at a battlefield" : "",
+    filter.atSource === true ? "here" : "",
+    filter.awayFromSource === true ? "somewhere else" : "",
+    filter.excludeSource === true ? "other than itself" : "",
+    filter.maxMight !== undefined ? `with ${filter.maxMight} Might or less` : "",
+  ].filter(Boolean);
+  return parts.join(" ");
+}
+
+/**
+ * Why a card in hand cannot be played right now. Two answers cover almost
+ * every case: you cannot pay for it, or R355.8's "valid choices must be made
+ * for all targets" cannot be satisfied. Anything else is visible on the board.
+ */
+export function whyNotPlayable(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+): string | null {
+  const player = state.players[playerId];
+  if (!player.hand.includes(cardId) && player.champion !== cardId) return null;
+
+  const card = state.cards[cardId];
+  if (card === undefined) return null;
+
+  const cost = totalCostOf(state, playerId, cardId);
+  if (!canPay(player.runePool, cost, { kind: "playCard", cardType: card.type })) {
+    const pool = totals(player.runePool);
+    const held = [
+      pool.energy > 0 ? `${pool.energy} energy` : "",
+      ...Object.entries(pool.power).map(([domain, n]) => `${n} ${domain}`),
+      pool.universalPower > 0 ? `${pool.universalPower} any` : "",
+    ].filter(Boolean);
+
+    return (
+      `costs ${describeCost(cost)} — your pool holds ` +
+      (held.length === 0 ? "nothing" : held.join(" + ")) +
+      ". Exhaust or recycle a rune to fill it."
+    );
+  }
+
+  // R355.8 — "In order to put a spell or ability on the chain, valid choices
+  // must be made for all targets."
+  const ability = card.abilities.find(
+    (each) => each.kind === "activated" || each.kind === "triggered",
+  );
+  for (const filter of ability?.targeting?.filters ?? []) {
+    if (legalTargets(state, playerId, filter, cardId).length === 0) {
+      return `needs a ${describeFilter(filter)} to choose, and there is none (R355.8).`;
+    }
+  }
+
+  return null;
+}
+
+/** What a card costs right now, for showing on the card itself. */
+export function costLabel(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+): string | undefined {
+  const card = state.cards[cardId];
+  if (card === undefined || card.type === "rune" || card.type === "legend") {
+    return undefined;
+  }
+  const cost = totalCostOf(state, playerId, cardId);
+  return cost.energy === 0 &&
+    cost.anyPower === 0 &&
+    Object.keys(cost.power).length === 0
+    ? undefined
+    : describeCost(cost);
 }
 
 export interface Dispatch {

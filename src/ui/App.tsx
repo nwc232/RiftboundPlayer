@@ -14,10 +14,11 @@ import {
 import {
   actingPlayer,
   dispatch,
+  groupMoves,
   movesFor,
   newGame,
   promptArity,
-  subjectOf,
+  whyNotPlayable,
 } from "./game.js";
 import type { Move } from "./game.js";
 
@@ -56,8 +57,7 @@ export function App() {
   const actionable = useMemo(() => {
     const ids = new Set<CardId>();
     for (const move of moves) {
-      const subject = subjectOf(move.action);
-      if (subject !== undefined) ids.add(subject);
+      if (move.subject !== undefined) ids.add(move.subject);
     }
     return ids;
   }, [moves]);
@@ -116,10 +116,23 @@ export function App() {
     [state, legal, play, arity.max],
   );
 
-  const shown =
-    selected === null
-      ? moves.filter((move) => subjectOf(move.action) === undefined)
-      : moves.filter((move) => subjectOf(move.action) === selected);
+  // Every legal move is listed, grouped by the card it acts on. Selecting a
+  // card narrows to it, but nothing is hidden until you do — a player who
+  // cannot see what any card offers has no way to find out that runes are
+  // what fills the pool.
+  const groups = useMemo(
+    () =>
+      groupMoves(
+        state,
+        selected === null
+          ? moves
+          : moves.filter((move) => move.subject === selected),
+      ),
+    [state, moves, selected],
+  );
+
+  const blocked =
+    selected === null ? null : whyNotPlayable(state, acting, selected);
 
   const pick = {
     selected,
@@ -218,15 +231,21 @@ export function App() {
         <section className="actions">
           <h3>
             {selected === null
-              ? `${acting} — general moves`
+              ? `${acting} — everything you can do`
               : `${acting} — ${state.cards[selected]?.name ?? selected}`}
           </h3>
           {selected !== null && (
             <button className="clear" onClick={() => setSelected(null)}>
-              back to general moves
+              show every move
             </button>
           )}
-          <MoveList moves={shown} onPlay={(move: Move) => play(move.action)} />
+          {blocked !== null && <p className="blocked">{blocked}</p>}
+          <MoveList
+            groups={groups}
+            selected={selected}
+            onPlay={(move: Move) => play(move.action)}
+            onFocus={(cardId) => setSelected(cardId)}
+          />
         </section>
         <section className="log">
           <h3>log</h3>

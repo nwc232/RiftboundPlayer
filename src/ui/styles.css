@@ -114,25 +114,28 @@ button:disabled { opacity: 0.4; cursor: default; }
 .muted { color: var(--muted); }
 
 .card {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
+  display: inline-grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 8px;
   text-align: left;
   border-radius: 5px;
   padding: 3px 7px;
   background: var(--panel-2);
-  max-width: 230px;
+  max-width: 260px;
 }
 .card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-might { color: var(--warn); }
+.card-might { color: var(--warn); text-align: right; }
+/* Cost and status go on a second line so a long name never gets clipped. */
+.card-sub, .card-cost { grid-column: 1 / -1; }
 .card-might em { color: var(--muted); font-style: normal; }
 .card-sub { color: var(--muted); font-size: 11px; }
+.card-cost { color: var(--calm); font-size: 11px; white-space: nowrap; }
 .card.type-spell { border-left: 3px solid var(--chaos); }
 .card.type-unit { border-left: 3px solid var(--accent); }
 .card.type-gear { border-left: 3px solid var(--calm); }
 .card.is-exhausted { opacity: 0.5; }
 .card.is-stunned { text-decoration: line-through; }
-.card.is-actionable { border-color: var(--muted); }
+.card.is-actionable { border-color: var(--warn); }
 .card.is-legal { border-color: var(--good); }
 .card.is-selected {
   border-color: var(--accent);
@@ -153,7 +156,7 @@ button:disabled { opacity: 0.4; cursor: default; }
   color: var(--muted);
 }
 .rune.is-exhausted { opacity: 0.35; }
-.rune.is-actionable { border-color: var(--muted); }
+.rune.is-actionable { border-color: var(--warn); box-shadow: 0 0 0 1px rgba(224, 175, 104, 0.35); }
 .rune.is-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .rune-chaos { color: var(--chaos); }
 .rune-calm { color: var(--calm); }
@@ -185,9 +188,31 @@ button:disabled { opacity: 0.4; cursor: default; }
 .chain li { margin-bottom: 3px; }
 .log li { color: var(--muted); margin-bottom: 2px; }
 
+.move-groups { display: flex; flex-direction: column; gap: 10px; }
+.move-group { border-left: 2px solid var(--line); padding-left: 8px; }
+.move-group.is-focused { border-left-color: var(--accent); }
+.move-group-head {
+  background: none;
+  border: none;
+  padding: 0 0 4px;
+  color: var(--warn);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: left;
+  width: 100%;
+}
 .moves { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .move { width: 100%; text-align: left; }
-.clear { margin-bottom: 6px; }
+.clear { margin-bottom: 8px; }
+.blocked {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+}
 
 .banners { grid-area: banners; }
 .banners > * + * { margin-top: 0; }

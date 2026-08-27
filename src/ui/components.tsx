@@ -2,8 +2,8 @@ import { totals } from "../cost.js";
 import { VICTORY_SCORE } from "../scoring.js";
 import { characteristicsOf } from "../layers.js";
 import type { GameState, CardId, Location, PlayerId } from "../state.js";
-import { OPPONENT, controlOf, nameOf, unitsAt } from "./game.js";
-import type { Move } from "./game.js";
+import { OPPONENT, controlOf, costLabel, nameOf, unitsAt } from "./game.js";
+import type { Move, MoveGroup } from "./game.js";
 
 interface Selectable {
   selected: CardId | null;
@@ -23,11 +23,14 @@ function Card({
   state,
   cardId,
   sub,
+  cost,
   pick,
 }: {
   state: GameState;
   cardId: CardId;
   sub?: string | undefined;
+  /** Shown for a card still in hand, so its price is visible before clicking. */
+  cost?: string | undefined;
   pick: Selectable;
 }) {
   const now = characteristicsOf(state, cardId);
@@ -57,6 +60,7 @@ function Card({
         </span>
       )}
       {sub !== undefined && <span className="card-sub">{sub}</span>}
+      {cost !== undefined && <span className="card-cost">{cost}</span>}
       {permanent?.buffed === true && <span className="pip" title="buffed">+</span>}
       {permanent?.attachedTo !== undefined && (
         <span className="pip" title="attached">⇗</span>
@@ -71,12 +75,15 @@ function Row({
   state,
   pick,
   empty = "—",
+  owner,
 }: {
   label: string;
   ids: CardId[];
   state: GameState;
   pick: Selectable;
   empty?: string;
+  /** When given, each card shows what it would cost this player. */
+  owner?: PlayerId;
 }) {
   return (
     <div className="row">
@@ -86,7 +93,13 @@ function Row({
           <span className="muted">{empty}</span>
         ) : (
           ids.map((id) => (
-            <Card key={id} state={state} cardId={id} pick={pick} />
+            <Card
+              key={id}
+              state={state}
+              cardId={id}
+              pick={pick}
+              cost={owner === undefined ? undefined : costLabel(state, owner, id)}
+            />
           ))
         )}
       </div>
@@ -138,10 +151,23 @@ export function PlayerPanel({
         </div>
       </header>
 
-      <Row label="hand" ids={player.hand} state={state} pick={pick} empty="no cards" />
+      <Row
+        label="hand"
+        ids={player.hand}
+        state={state}
+        pick={pick}
+        owner={playerId}
+        empty="no cards"
+      />
       <Row label="base" ids={inBase} state={state} pick={pick} empty="empty" />
       {player.champion !== null && (
-        <Row label="champion" ids={[player.champion]} state={state} pick={pick} />
+        <Row
+          label="champion"
+          ids={[player.champion]}
+          state={state}
+          pick={pick}
+          owner={playerId}
+        />
       )}
 
       {/*
@@ -297,25 +323,46 @@ export function Chain({ state }: { state: GameState }) {
 
 /** Everything the acting player may do, grouped by the card it is about. */
 export function MoveList({
-  moves,
+  groups,
+  selected,
   onPlay,
+  onFocus,
 }: {
-  moves: Move[];
+  groups: MoveGroup[];
+  selected: CardId | null;
   onPlay: (move: Move) => void;
+  onFocus: (cardId: CardId | null) => void;
 }) {
-  if (moves.length === 0) {
+  if (groups.length === 0) {
     return <p className="muted">nothing legal right now.</p>;
   }
   return (
-    <ul className="moves">
-      {moves.map((move, i) => (
-        <li key={i}>
-          <button className="move" onClick={() => onPlay(move)}>
-            {move.label}
+    <div className="move-groups">
+      {groups.map((group) => (
+        <div
+          key={group.cardId ?? "anytime"}
+          className={`move-group ${
+            selected !== null && group.cardId === selected ? "is-focused" : ""
+          }`}
+        >
+          <button
+            className="move-group-head"
+            onClick={() => onFocus(group.cardId)}
+          >
+            {group.heading}
           </button>
-        </li>
+          <ul className="moves">
+            {group.moves.map((move, i) => (
+              <li key={i}>
+                <button className="move" onClick={() => onPlay(move)}>
+                  {move.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
