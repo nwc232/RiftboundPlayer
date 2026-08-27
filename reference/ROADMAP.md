@@ -31,6 +31,7 @@ Built and tested (174 tests):
 | Two real decks | 38 cards, 6 battlefields, played start to finish |
 | Front-end | React over `legalActions` + `pending` + the event stream |
 | Replacement effects (R369.3) | How a unit enters the board |
+| Replacement effects (R369–372) | Deaths, with R372's ordering through the queue |
 | Layers (R473–479) | 3 layers, fixpoint, dependency, snapshotting |
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
@@ -269,9 +270,17 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
 5. ~~**Replacement effects, Tier A**~~ (R369.3) — done. 66 cards, and
    [Accelerate] stopped being a special case: R805.1.a's "If you do, I
    enter ready" is now literally a conditional entry replacement.
-6. **Replacement effects, Tier B** — the general mechanism. This is the
-   structural one: events stop being reports and become proposals.
-   Retires Burn Out's and damage prevention's hardcodes.
+6. **Replacement effects, Tier B** — half done. Deaths go through a
+   chokepoint and R372's ordering is asked through the task queue.
+   Remaining: the **damage** chokepoint (Lotus Trap's doubling, R437's
+   Prevent, Unyielding Spirit), and routing Burn Out through the draw
+   chokepoint so a card could order against it.
+
+   The damage half has a design question deaths did not: damage is dealt
+   inside `execute`, which cannot suspend, so R372's ordering choice has
+   nowhere to go there. Stacked Deck solved the same problem by leaving a
+   task behind, but that works because it needs no answer *back* —
+   damage does.
 7. **Tier 3/4** as card authoring demands them.
 
 **Deferred by decision, not dropped:** replacement-effect Tier C
