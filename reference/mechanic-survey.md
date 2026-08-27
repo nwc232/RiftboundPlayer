@@ -598,12 +598,9 @@ Recorded as they're found, so they don't get lost between slices.
   it and nothing in the Core Rules defines "open". Read here as
   *uncontrolled*, which is the reading that makes the card do anything —
   a battlefield its controller holds is already valid under R355.2.a.
-- **Resolution-time choices arrive through the task queue.** `execute` is
-  synchronous and cannot suspend, so Stacked Deck's "put 1 into your hand"
-  and Sabotage's "choose a non-unit card" enqueue a task instead. R334.1
-  makes that legal — outstanding work is completed before anything else
-  happens — but a `seq` step *after* one of these would run before the
-  answer arrived. Both cards end with the choice, so it never shows.
+- ~~**Resolution-time choices arrive through the task queue.**~~ Closed.
+  `execute` now returns what is *left* of a paused effect, and `seq` carries
+  its remaining steps into it, so a step after a choice waits for the answer.
 - **"Plays it to any battlefield" is chosen at finalization (R355.2).**
   Thrill of the Hunt's destination is taken as a second target rather than
   as a choice made during the sub-play. Observationally the same unless the

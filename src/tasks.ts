@@ -10,6 +10,8 @@ import type { Assignment } from "./combat.js";
 import type { PendingDecision } from "./decisions.js";
 import type { GameEvent, Progress } from "./events.js";
 import { drawCards } from "./draw.js";
+import { execute } from "./abilities.js";
+import type { Effect, EffectContext, EffectOutcome } from "./abilities.js";
 import { controllerOf } from "./layers.js";
 import { openShowdown, runCleanup, stagedBattlefields } from "./showdown.js";
 import { harvestTriggers } from "./triggers.js";
@@ -75,16 +77,19 @@ export type Task =
    * "choose a non-unit card from it". `execute` cannot suspend, so it leaves
    * one of these behind and the queue asks.
    */
-  | ResolutionChoice;
-
-export interface ResolutionChoice {
-  kind: "chooseFromRevealed";
-  player: PlayerId;
-  legal: CardId[];
-  /** How many of `legal` go to hand; the rest are recycled (R416.1). */
-  keep: number;
-  source: "mainDeck" | "opponentHand";
-}
+  /**
+   * What is left of an effect that stopped to ask something. R334.1 lets it
+   * sit here: work outstanding when a chain item finishes resolving is
+   * completed before anything else happens.
+   */
+  | {
+      kind: "resumeEffect";
+      effect: Effect;
+      context: EffectContext;
+      decision: PendingDecision;
+      /** Set once the player has answered; absent means still asking. */
+      answer?: CardId[];
+    };
 
 /**
  * R372's ordering question, if this task's kills raise one. Returns a suspend
@@ -178,28 +183,16 @@ function runTask(state: GameState, task: Task): TaskOutcome {
       };
     }
 
-    case "chooseFromRevealed": {
-      if (task.legal.length === 0) return { state, events: [] };
-      // Only one answer is ever needed: `keep` is 1 (Stacked Deck) or 0 with a
-      // single card recycled (Sabotage).
-      if (task.legal.length === 1) {
-        return applyRevealedChoice({ ...state, pending: null }, task, task.legal);
+    case "resumeEffect": {
+      if (task.answer === undefined) {
+        return { state, events: [], suspend: { task, decision: task.decision } };
       }
-      return {
-        state,
-        events: [],
-        suspend: {
-          task,
-          decision: {
-            player: task.player,
-            prompt: {
-              kind: "chooseFromRevealed",
-              legal: task.legal,
-              keep: task.keep,
-            },
-          },
-        },
-      };
+      const outcome = execute(state, task.effect, {
+        ...task.context,
+        answer: task.answer,
+      });
+      // The resumed effect may itself stop to ask again.
+      return park(outcome);
     }
 
     case "openStagedShowdown": {
@@ -446,76 +439,6 @@ export function applyStagedShowdown(
 }
 
 /**
- * R416.1 — recycling puts a card on the bottom of the deck it came from. The
- * chosen cards go to hand (Stacked Deck) or are the ones recycled (Sabotage);
- * either way everything named leaves the zone it was in.
- */
-export function applyRevealedChoice(
-  state: GameState,
-  task: ResolutionChoice,
-  chosen: CardId[],
-): { state: GameState; events: GameEvent[] } {
-  const events: GameEvent[] = [];
-
-  if (task.source === "mainDeck") {
-    const player = state.players[task.player];
-    const rest = task.legal.filter((cardId) => !chosen.includes(cardId));
-    return {
-      state: {
-        ...state,
-        players: {
-          ...state.players,
-          [task.player]: {
-            ...player,
-            hand: [...player.hand, ...chosen],
-            // The looked-at cards leave the top; the unkept ones go under.
-            mainDeck: [...player.mainDeck.slice(task.legal.length), ...rest],
-          },
-        },
-      },
-      events: chosen.map((cardId) => ({
-        type: "cardDrawn" as const,
-        playerId: task.player,
-        cardId,
-      })),
-    };
-  }
-
-  const opponent = task.player === "p1" ? "p2" : "p1";
-  const theirs = state.players[opponent];
-  return {
-    state: {
-      ...state,
-      players: {
-        ...state.players,
-        [opponent]: {
-          ...theirs,
-          hand: theirs.hand.filter((cardId) => !chosen.includes(cardId)),
-          mainDeck: [...theirs.mainDeck, ...chosen],
-        },
-      },
-    },
-    events: chosen.map((cardId) => ({
-      type: "cardRecycled" as const,
-      playerId: opponent,
-      cardId,
-    })),
-  };
-}
-
-/** Answers a `chooseFromRevealed` and drops the task that was waiting on it. */
-export function applyRevealedDecision(
-  state: GameState,
-  chosen: CardId[],
-): Progress {
-  const [head, ...rest] = state.tasks;
-  if (head === undefined || head.kind !== "chooseFromRevealed") {
-    return { state, events: [] };
-  }
-  return applyRevealedChoice({ ...state, pending: null, tasks: rest }, head, chosen);
-}
-
-/**
  * Records R372's answer on the suspended task and clears the decision, so the
  * cleanup or combat resolution picks up with the ordering settled.
  */
@@ -540,6 +463,36 @@ export function applyReplacementOrder(
       ...rest,
     ],
   };
+}
+
+/**
+ * Parks whatever is left of a paused effect on the queue, so it is asked and
+ * finished before anything else proceeds. Every caller of `execute` funnels
+ * through here, which is what keeps the pause from being dropped silently.
+ */
+export function park(outcome: EffectOutcome): Progress {
+  if (outcome.pause === undefined) {
+    return { state: outcome.state, events: outcome.events };
+  }
+  return {
+    state: enqueueNext(outcome.state, {
+      kind: "resumeEffect",
+      effect: outcome.pause.resume,
+      context: outcome.pause.context,
+      decision: outcome.pause.decision,
+    }),
+    events: outcome.events,
+  };
+}
+
+/** Records the answer the queue was waiting on, so the effect can finish. */
+export function applyResumeAnswer(
+  state: GameState,
+  answer: CardId[],
+): GameState {
+  const [head, ...rest] = state.tasks;
+  if (head === undefined || head.kind !== "resumeEffect") return state;
+  return { ...state, pending: null, tasks: [{ ...head, answer }, ...rest] };
 }
 
 export function enqueue(state: GameState, ...tasks: Task[]): GameState {

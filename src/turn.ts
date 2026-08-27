@@ -1,4 +1,5 @@
 import { execute } from "./abilities.js";
+import { park } from "./tasks.js";
 import { healAllUnits } from "./combat.js";
 import { drawCards } from "./draw.js";
 import { expireModifiers } from "./layers.js";
@@ -169,13 +170,15 @@ function fireDelayed(progress: Progress, at: DelayedTiming): Progress {
   const events: GameEvent[] = [];
 
   for (const entry of due) {
-    const outcome = execute(state, entry.effect, {
-      controller: entry.controller,
-      sourceId: entry.sourceId,
-      targets: entry.targets,
-    });
-    state = outcome.state;
-    events.push(...outcome.events);
+    const parked = park(
+      execute(state, entry.effect, {
+        controller: entry.controller,
+        sourceId: entry.sourceId,
+        targets: entry.targets,
+      }),
+    );
+    state = parked.state;
+    events.push(...parked.events);
   }
 
   return { state, events: [...progress.events, ...events] };

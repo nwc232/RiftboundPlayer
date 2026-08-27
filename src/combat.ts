@@ -11,6 +11,7 @@ import {
 // because neither side calls the other during module initialization, and
 // tests/combat.test.ts imports both orders to keep that true.
 import { execute } from "./abilities.js";
+import { park } from "./tasks.js";
 import { deathReplacementsFor, replaceDamage } from "./replacements.js";
 import type { ApplicableReplacement } from "./replacements.js";
 import { score } from "./scoring.js";
@@ -326,12 +327,14 @@ function applyDeathReplacement(
   batch: CardId[],
   chosen: Record<CardId, CardId>,
 ): KillOutcome {
-  const outcome = execute(state, pick.instead, {
-    controller: pick.controller,
-    sourceId: pick.sourceId,
-    // "it" — the unit whose death was replaced.
-    targets: [cardId],
-  });
+  const outcome = park(
+    execute(state, pick.instead, {
+      controller: pick.controller,
+      sourceId: pick.sourceId,
+      // "it" — the unit whose death was replaced.
+      targets: [cardId],
+    }),
+  );
 
   const tallied: GameState = {
     ...outcome.state,

@@ -36,8 +36,9 @@ import {
   applyCombatAssignment,
   applyMulligan,
   applyReplacementOrder,
-  applyRevealedDecision,
+  applyResumeAnswer,
   applyStagedShowdown,
+  park,
   beginTurn,
   enqueue,
   enqueueNext,
@@ -497,9 +498,8 @@ export function decide(
     if (!chosen.every((id) => prompt.legal.includes(id))) {
       return rejected("invalidTarget");
     }
-    const done = applyRevealedDecision(state, chosen);
-    const worked = runTasks(done.state, done.events);
-    return afterTasks(worked.state, [...done.events, ...worked.events]);
+    const worked = runTasks(applyResumeAnswer(state, chosen));
+    return afterTasks(worked.state, worked.events);
   }
 
   const item = state.chain[prompt.chainIndex];
@@ -1115,8 +1115,10 @@ export function passPriority(
         ? { playedFrom: item.playedFrom }
         : {}),
     });
-    current = outcome.state;
-    events.push(...outcome.events);
+    // An effect that stopped to ask leaves the rest of itself on the queue.
+    const parked = park(outcome);
+    current = parked.state;
+    events.push(...parked.events);
 
     if (item.kind === "spell") {
       // R359.3.d — a resolved spell goes to its owner's trash. A triggered
@@ -1353,12 +1355,12 @@ export function activateAbility(
     events.push(...paid.events);
   }
 
-  const outcome = execute(current, ability.effect, context);
+  const parked = park(execute(current, ability.effect, context));
 
   return {
     ok: true,
-    state: outcome.state,
-    events: [...events, ...outcome.events],
+    state: parked.state,
+    events: [...events, ...parked.events],
   };
 }
 

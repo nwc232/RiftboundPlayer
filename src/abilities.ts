@@ -24,13 +24,13 @@ import type {
   PassiveScope,
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
-import type { ResolutionChoice } from "./tasks.js";
 import { replaceDamage } from "./replacements.js";
 import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
 import type { DeathReplacement, EntryReplacement } from "./replacements.js";
 import { holds } from "./conditions.js";
+import type { PendingDecision } from "./decisions.js";
 import type { Condition } from "./conditions.js";
 
 /**
@@ -165,6 +165,16 @@ export type Effect =
    * the reveal.
    */
   | { op: "recycleFromOpponentHand"; exclude?: "unit" }
+  /**
+   * A continuation, not card vocabulary: what `lookAtTop` and
+   * `recycleFromOpponentHand` become once the player has answered. It reads
+   * the chosen cards out of `context.answer`.
+   */
+  | {
+      op: "takeRevealed";
+      from: "mainDeck" | "opponentHand";
+      revealed: CardId[];
+    }
   /** Astral Heron — "your next card costs [2][A][A] less". */
   | { op: "discountNextCard"; reduce: Cost }
   /** Lotus Trap — "Double all damage that would be dealt to it this turn." */
@@ -296,24 +306,36 @@ export interface EffectContext {
   paidAdditionalCost?: boolean;
   /** Which zone a resolving spell was played from (R811.3). */
   playedFrom?: PlaySource;
+  /**
+   * The answer to the decision that paused this effect. Set by the queue when
+   * the resumed effect runs, and read by the continuation op that asked.
+   */
+  answer?: CardId[];
+}
+
+/**
+ * R321 — a chain item resolves in one go, but some of what it does is a choice
+ * the player has to make partway through: Stacked Deck's "put 1 into your
+ * hand", R372's order for two replacements landing on the same event.
+ *
+ * `execute` is synchronous and cannot stop to ask, so instead it hands back
+ * what is *left* of the effect. The caller parks that on the task queue, which
+ * suspends and asks the way it does for every other decision.
+ *
+ * `resume` is an ordinary `Effect`, and the answer reaches it through
+ * `context.answer`. Both are plain data on purpose: abilities carry no
+ * functions, which is what keeps `GameState` serializable.
+ */
+export interface EffectPause {
+  decision: PendingDecision;
+  resume: Effect;
+  context: EffectContext;
 }
 
 export interface EffectOutcome {
   state: GameState;
   events: GameEvent[];
-}
-
-/**
- * Leaves a choice behind for the task queue. `execute` is synchronous and
- * cannot suspend, so an effect that needs an answer mid-resolution enqueues
- * one instead. R334.1 makes that legal: work outstanding when an item finishes
- * resolving is worked through before anything else happens.
- *
- * A step *after* one of these inside a `seq` therefore runs before the answer
- * arrives. Both cards that use it end with the choice, so it never shows.
- */
-function enqueueChoice(state: GameState, task: ResolutionChoice): GameState {
-  return { ...state, tasks: [...state.tasks, task] };
+  pause?: EffectPause;
 }
 
 function resolveDomain(
@@ -1190,15 +1212,25 @@ export function execute(
       const revealed = player.mainDeck.slice(0, effect.count);
       if (revealed.length === 0) return { state, events: [] };
 
+      const keep = Math.min(effect.keep, revealed.length);
+      const rest: Effect = { op: "takeRevealed", from: "mainDeck", revealed };
+
+      // Nothing to ask when every revealed card is kept.
+      if (keep >= revealed.length) {
+        return execute(state, rest, { ...context, answer: revealed });
+      }
+
       return {
-        state: enqueueChoice(state, {
-          kind: "chooseFromRevealed",
-          player: context.controller,
-          legal: revealed,
-          keep: Math.min(effect.keep, revealed.length),
-          source: "mainDeck",
-        }),
+        state,
         events: [],
+        pause: {
+          decision: {
+            player: context.controller,
+            prompt: { kind: "chooseFromRevealed", legal: revealed, keep },
+          },
+          resume: rest,
+          context,
+        },
       };
     }
 
@@ -1211,17 +1243,84 @@ export function execute(
       );
       if (legal.length === 0) return { state, events: [] };
 
+      const rest: Effect = {
+        op: "takeRevealed",
+        from: "opponentHand",
+        revealed: legal,
+      };
+      if (legal.length === 1) {
+        return execute(state, rest, { ...context, answer: legal });
+      }
+
       return {
-        state: enqueueChoice(state, {
-          kind: "chooseFromRevealed",
-          // R355.5 — "Choose a non-unit card from it" is the *spell's*
-          // controller choosing, not the player revealing.
-          player: context.controller,
-          legal,
-          keep: 0,
-          source: "opponentHand",
-        }),
+        state,
         events: [],
+        pause: {
+          decision: {
+            // R355.5 — "Choose a non-unit card from it" is the *spell's*
+            // controller choosing, not the player revealing.
+            player: context.controller,
+            prompt: { kind: "chooseFromRevealed", legal, keep: 0 },
+          },
+          resume: rest,
+          context,
+        },
+      };
+    }
+
+    /**
+     * R416.1 — recycling puts a card on the bottom of the deck it came from.
+     * For `lookAtTop` the answer is what goes to hand and the rest is
+     * recycled; for the opponent's hand the answer *is* what is recycled.
+     */
+    case "takeRevealed": {
+      const chosen = context.answer ?? [];
+
+      if (effect.from === "mainDeck") {
+        const player = state.players[context.controller];
+        const rest = effect.revealed.filter((id) => !chosen.includes(id));
+        return {
+          state: {
+            ...state,
+            players: {
+              ...state.players,
+              [context.controller]: {
+                ...player,
+                hand: [...player.hand, ...chosen],
+                mainDeck: [
+                  ...player.mainDeck.slice(effect.revealed.length),
+                  ...rest,
+                ],
+              },
+            },
+          },
+          events: chosen.map((cardId) => ({
+            type: "cardDrawn" as const,
+            playerId: context.controller,
+            cardId,
+          })),
+        };
+      }
+
+      const opponent = context.controller === "p1" ? "p2" : "p1";
+      const theirs = state.players[opponent];
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [opponent]: {
+              ...theirs,
+              hand: theirs.hand.filter((id) => !chosen.includes(id)),
+              mainDeck: [...theirs.mainDeck, ...chosen],
+            },
+          },
+        },
+        events: chosen.map((cardId) => ({
+          type: "cardRecycled" as const,
+          playerId: opponent,
+          cardId,
+        })),
       };
     }
 
@@ -1317,11 +1416,32 @@ export function execute(
     case "seq": {
       let current = state;
       const events: GameEvent[] = [];
-      for (const step of effect.steps) {
+
+      for (const [index, step] of effect.steps.entries()) {
         const outcome = execute(current, step, context);
         current = outcome.state;
         events.push(...outcome.events);
+
+        // A step that stopped to ask takes the rest of the sequence with it,
+        // or the steps after it would run before the answer arrived — which is
+        // how "look at the top 3, keep 1" used to draw a card that was still
+        // among the three on offer.
+        if (outcome.pause !== undefined) {
+          const rest = effect.steps.slice(index + 1);
+          return {
+            state: current,
+            events,
+            pause: {
+              ...outcome.pause,
+              resume:
+                rest.length === 0
+                  ? outcome.pause.resume
+                  : { op: "seq", steps: [outcome.pause.resume, ...rest] },
+            },
+          };
+        }
       }
+
       return { state: current, events };
     }
 

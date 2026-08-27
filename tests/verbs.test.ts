@@ -6,19 +6,21 @@ import type { Action } from "../src/actions.js";
 import {
   attachSelf,
   banishThenPlay,
+  draw,
   drawPerBattlefield,
   lookAtTop,
   mutualDamage,
   readyRunes,
   recycleFromOpponentHand,
   restrictMovement,
+  seq,
   swapLocations,
   swapMight,
 } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import { keywordsOf, mightOf } from "../src/layers.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
-import { runTasks } from "../src/tasks.js";
+import { stackedDeck } from "../src/decks/vex.js";
 import { makeState, pool, runeCard, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -339,80 +341,178 @@ describe("looking at the top of the deck", () => {
     });
   }
 
-  it("asks which to keep", () => {
+  /**
+   * R321 — the choice comes partway through resolution, so `execute` hands
+   * back what is left of the effect rather than doing it and asking later.
+   */
+  it("pauses, asking which to keep", () => {
     const after = execute(deckBoard(), lookAtTop(3, 1), context([]));
 
-    expect(after.state.tasks).toEqual([
-      {
-        kind: "chooseFromRevealed",
-        player: "p1",
-        legal: ["a", "b", "c"],
-        keep: 1,
-        source: "mainDeck",
-      },
-    ]);
+    expect(after.pause?.decision).toEqual({
+      player: "p1",
+      prompt: { kind: "chooseFromRevealed", legal: ["a", "b", "c"], keep: 1 },
+    });
+    // R370.1.c's spirit — nothing has moved yet.
+    expect(after.state.players.p1.mainDeck).toEqual(["a", "b", "c", "d"]);
   });
 
   it("puts the choice in hand and recycles the rest (R416.1)", () => {
-    const queued = execute(deckBoard(), lookAtTop(3, 1), context([])).state;
-    // The queue is what asks — R334.1 works it through once resolution ends.
-    const asked = runTasks(queued).state;
-    expect(asked.pending?.prompt).toEqual({
-      kind: "chooseFromRevealed",
-      legal: ["a", "b", "c"],
-      keep: 1,
+    const paused = execute(deckBoard(), lookAtTop(3, 1), context([]));
+    const answered = execute(paused.state, paused.pause!.resume, {
+      ...paused.pause!.context,
+      answer: ["b"],
     });
 
-    const answered = run(asked, [
-      { type: "decide", playerId: "p1", targets: ["b"] },
-    ]);
-
-    expect(answered.players.p1.hand).toEqual(["b"]);
+    expect(answered.state.players.p1.hand).toEqual(["b"]);
     // "d" was under the looked-at three; "a" and "c" went to the bottom.
-    expect(answered.players.p1.mainDeck).toEqual(["d", "a", "c"]);
+    expect(answered.state.players.p1.mainDeck).toEqual(["d", "a", "c"]);
+  });
+
+  it("does not ask when every revealed card is kept", () => {
+    const after = execute(deckBoard(), lookAtTop(2, 2), context([]));
+
+    expect(after.pause).toBeUndefined();
+    expect(after.state.players.p1.hand).toEqual(["a", "b"]);
+  });
+
+  /**
+   * The whole point of pausing rather than queueing: a step after the choice
+   * used to run before the answer arrived, drawing a card that was still one
+   * of the three on offer.
+   */
+  it("carries the rest of a sequence with it", () => {
+    const after = execute(deckBoard(), seq(lookAtTop(3, 1), draw(1)), context([]));
+
+    expect(after.state.players.p1.hand).toEqual([]);
+    expect(after.pause?.resume).toEqual({
+      op: "seq",
+      steps: [
+        { op: "takeRevealed", from: "mainDeck", revealed: ["a", "b", "c"] },
+        { op: "draw", count: 1 },
+      ],
+    });
+
+    // Answering runs both, in order: "b" to hand, then a real draw from the
+    // deck that is left.
+    const done = execute(after.state, after.pause!.resume, {
+      ...after.pause!.context,
+      answer: ["b"],
+    });
+    expect(done.state.players.p1.hand).toEqual(["b", "d"]);
   });
 });
 
 /** Sabotage — "Choose a non-unit card from it, and recycle that card." */
 describe("recycling from an opponent's hand", () => {
-  it("offers only the non-unit cards", () => {
-    const state = makeState({
-      p2: { hand: ["theirUnit", "theirSpell"], mainDeck: [] },
+  function theirHand(): GameState {
+    return makeState({
+      p2: { hand: ["theirUnit", "theirSpell", "theirOtherSpell"], mainDeck: [] },
       cards: [
         unit("theirUnit"),
         { ...unit("theirSpell"), type: "spell" as const },
+        { ...unit("theirOtherSpell"), type: "spell" as const },
         unit("source"),
       ],
     });
+  }
 
-    const after = execute(state, recycleFromOpponentHand("unit"), context([]));
+  it("offers only the non-unit cards", () => {
+    const after = execute(theirHand(), recycleFromOpponentHand("unit"), context([]));
 
-    expect(after.state.tasks).toEqual([
-      {
-        kind: "chooseFromRevealed",
-        player: "p1",
-        legal: ["theirSpell"],
-        keep: 0,
-        source: "opponentHand",
-      },
-    ]);
+    expect(after.pause?.decision.prompt).toEqual({
+      kind: "chooseFromRevealed",
+      legal: ["theirSpell", "theirOtherSpell"],
+      keep: 0,
+    });
   });
 
-  it("recycles it with no choice to make when only one qualifies", () => {
-    const state = makeState({
-      p2: { hand: ["theirUnit", "theirSpell"], mainDeck: [] },
+  it("recycles the chosen one", () => {
+    const paused = execute(theirHand(), recycleFromOpponentHand("unit"), context([]));
+    const after = execute(paused.state, paused.pause!.resume, {
+      ...paused.pause!.context,
+      answer: ["theirSpell"],
+    });
+
+    expect(after.state.players.p2.hand).toEqual([
+      "theirUnit",
+      "theirOtherSpell",
+    ]);
+    expect(after.state.players.p2.mainDeck).toEqual(["theirSpell"]);
+  });
+
+  it("does not ask when only one qualifies", () => {
+    const base = theirHand();
+    const single: GameState = {
+      ...base,
+      players: {
+        ...base.players,
+        p2: { ...base.players.p2, hand: ["theirUnit", "theirSpell"] },
+      },
+    };
+
+    const after = execute(single, recycleFromOpponentHand("unit"), context([]));
+
+    expect(after.pause).toBeUndefined();
+    expect(after.state.players.p2.hand).toEqual(["theirUnit"]);
+    expect(after.state.players.p2.mainDeck).toEqual(["theirSpell"]);
+  });
+});
+
+/**
+ * The whole path, with the real card: play it, the queue asks, answer, it
+ * finishes. A pause that never reaches `state.pending` would be a game that
+ * silently stops, so this is checked through `applyAction` rather than
+ * `execute`.
+ */
+describe("a paused effect, end to end", () => {
+  function casting(): GameState {
+    return makeState({
+      p1: {
+        hand: [stackedDeck.id],
+        mainDeck: ["a", "b", "c", "d"],
+        runePool: pool({ energy: 9 }),
+      },
+      p2: { mainDeck: ["e"] },
       cards: [
-        unit("theirUnit"),
-        { ...unit("theirSpell"), type: "spell" as const },
-        unit("source"),
+        stackedDeck,
+        ...["a", "b", "c", "d", "e"].map((id) => unit(id)),
       ],
     });
-    const queued = execute(state, recycleFromOpponentHand("unit"), context([])).state;
+  }
 
-    // Only one legal card, so there is nothing to ask and the queue just does it.
-    const after = runTasks(queued).state;
+  const CAST: Action[] = [
+    { type: "playSpell", playerId: "p1", cardId: stackedDeck.id, targets: [] },
+    { type: "passPriority", playerId: "p1" },
+    { type: "passPriority", playerId: "p2" },
+  ];
 
-    expect(after.players.p2.hand).toEqual(["theirUnit"]);
-    expect(after.players.p2.mainDeck).toEqual(["theirSpell"]);
+  it("stops and asks once the spell resolves", () => {
+    const state = run(casting(), CAST);
+
+    expect(state.pending).toEqual({
+      player: "p1",
+      prompt: { kind: "chooseFromRevealed", legal: ["a", "b", "c"], keep: 1 },
+    });
+  });
+
+  it("R320.1 — nothing else may happen while it waits", () => {
+    const state = run(casting(), CAST);
+
+    expect(applyAction(state, { type: "endTurn", playerId: "p1" })).toEqual({
+      ok: false,
+      reason: "decisionPending",
+    });
+  });
+
+  it("finishes when answered", () => {
+    const asked = run(casting(), CAST);
+    const state = run(asked, [
+      { type: "decide", playerId: "p1", targets: ["c"] },
+    ]);
+
+    expect(state.pending).toBeNull();
+    expect(state.players.p1.hand).toEqual(["c"]);
+    expect(state.players.p1.mainDeck).toEqual(["d", "a", "b"]);
+    expect(state.tasks).toEqual([]);
   });
 });
