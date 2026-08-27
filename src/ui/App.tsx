@@ -5,6 +5,7 @@ import type { Action, RejectionReason } from "../actions.js";
 import type { CardId, GameState } from "../state.js";
 import {
   Battlefields,
+  CardDetail,
   Chain,
   MoveList,
   PlayerPanel,
@@ -235,9 +236,12 @@ export function App() {
               : `${acting} — ${state.cards[selected]?.name ?? selected}`}
           </h3>
           {selected !== null && (
-            <button className="clear" onClick={() => setSelected(null)}>
-              show every move
-            </button>
+            <>
+              <CardDetail state={state} cardId={selected} viewer={acting} />
+              <button className="clear" onClick={() => setSelected(null)}>
+                show every move
+              </button>
+            </>
           )}
           {blocked !== null && <p className="blocked">{blocked}</p>}
           <MoveList

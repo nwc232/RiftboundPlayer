@@ -366,6 +366,60 @@ export function MoveList({
   );
 }
 
+/**
+ * The selected card, as printed. The engine runs the `abilities` data, never
+ * this text — showing both is what lets a mismatch between them be noticed.
+ */
+export function CardDetail({
+  state,
+  cardId,
+  viewer,
+}: {
+  state: GameState;
+  cardId: CardId;
+  viewer: PlayerId;
+}) {
+  const now = characteristicsOf(state, cardId);
+  const printed = state.cards[cardId];
+  const permanent = state.permanents[cardId];
+  const cost = costLabel(state, viewer, cardId);
+
+  const status = [
+    permanent?.exhausted === true ? "exhausted" : "",
+    permanent?.stunned === true ? "stunned" : "",
+    permanent?.buffed === true ? "buffed" : "",
+    permanent?.designation ?? "",
+    permanent?.damage !== undefined && permanent.damage > 0
+      ? `${permanent.damage} damage`
+      : "",
+  ].filter(Boolean);
+
+  return (
+    <section className="detail">
+      <h4>{now.name}</h4>
+      <div className="detail-meta">
+        <span>{now.type}</span>
+        {cost !== undefined && <span>{cost}</span>}
+        {now.type === "unit" && (
+          <span>
+            {now.might} Might
+            {printed?.might !== undefined && printed.might !== now.might && (
+              <em> (printed {printed.might})</em>
+            )}
+          </span>
+        )}
+        {now.keywords.length > 0 && <span>{now.keywords.join(" · ")}</span>}
+        {status.length > 0 && (
+          <span className="detail-status">{status.join(" · ")}</span>
+        )}
+      </div>
+      {printed?.text !== undefined && (
+        <p className="detail-text">{printed.text}</p>
+      )}
+    </section>
+  );
+}
+
 export function Prompt({ state }: { state: GameState }) {
   const pending = state.pending;
   if (pending === null) return null;

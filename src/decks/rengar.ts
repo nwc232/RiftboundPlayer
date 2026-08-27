@@ -33,10 +33,10 @@ const cost = (energy: number, domain?: Domain, power = 0): Cost => ({
   anyPower: 0,
 });
 
-/** "When you play a unit, give a unit +1 [M] this turn." */
 export const pridestalker: CardInstance = {
   id: "pridestalker",
   name: "Pridestalker",
+  text: "When you play a unit, give a unit +1 [M] this turn.",
   type: "legend",
   cost: FREE,
   keywords: [],
@@ -51,10 +51,10 @@ export const pridestalker: CardInstance = {
   ],
 };
 
-/** "[Ambush] · I can be played to a battlefield where there are enemy units." */
 export const rengarTrophyHunter: CardInstance = {
   id: "rengar-trophy-hunter",
   name: "Rengar, Trophy Hunter",
+  text: "[Ambush] I can be played to a battlefield where there are enemy units.",
   type: "unit",
   cost: cost(5, "body", 1),
   might: 6,
@@ -64,10 +64,10 @@ export const rengarTrophyHunter: CardInstance = {
   abilities: [playPermission({ kind: "whereEnemyUnits" })],
 };
 
-/** "Choose an opponent. They reveal their hand. Choose a non-unit card from it, and recycle that card." */
 export const sabotage: CardInstance = {
   id: "sabotage",
   name: "Sabotage",
+  text: "Choose an opponent. They reveal their hand. Choose a non-unit card from it, and recycle that card.",
   type: "spell",
   cost: cost(1, "body", 1),
   domains: ["body"],
@@ -82,10 +82,10 @@ export const sabotage: CardInstance = {
   ],
 };
 
-/** "[Action] Give a unit +5 [M] this turn." */
 export const punchFirst: CardInstance = {
   id: "punch-first",
   name: "Punch First",
+  text: "[Action] Give a unit +5 [M] this turn.",
   type: "spell",
   cost: cost(1, "body", 2),
   domains: ["body"],
@@ -101,10 +101,10 @@ export const punchFirst: CardInstance = {
   ],
 };
 
-/** "[Ambush] [Assault 2]" */
 export const inferna: CardInstance = {
   id: "inferna",
   name: "Inferna",
+  text: "[Ambush] [Assault 2]",
   type: "unit",
   cost: cost(2),
   might: 1,
@@ -114,10 +114,10 @@ export const inferna: CardInstance = {
   abilities: [],
 };
 
-/** "When I move to a battlefield, you may move an enemy unit to that battlefield." */
 export const irresistibleFaefolk: CardInstance = {
   id: "irresistible-faefolk",
   name: "Irresistible Faefolk",
+  text: "When I move to a battlefield, you may move an enemy unit to that battlefield.",
   type: "unit",
   cost: cost(2),
   might: 1,
@@ -135,10 +135,10 @@ export const irresistibleFaefolk: CardInstance = {
   ],
 };
 
-/** "When you play me, buff another friendly unit." */
 export const pitRookie: CardInstance = {
   id: "pit-rookie",
   name: "Pit Rookie",
+  text: "When you play me, buff another friendly unit.",
   type: "unit",
   cost: cost(2),
   might: 2,
@@ -156,10 +156,10 @@ export const pitRookie: CardInstance = {
   ],
 };
 
-/** "[Reaction] Banish a friendly unit, then its owner plays it to any battlefield, ignoring its cost." */
 export const thrillOfTheHunt: CardInstance = {
   id: "thrill-of-the-hunt",
   name: "Thrill of the Hunt",
+  text: "[Reaction] Banish a friendly unit, then its owner plays it to any battlefield, ignoring its cost.",
   type: "spell",
   cost: cost(2, "body", 1),
   domains: ["fury", "body"],
@@ -182,10 +182,10 @@ export const thrillOfTheHunt: CardInstance = {
   ],
 };
 
-/** "When you play me, ready another unit." */
 export const firstMate: CardInstance = {
   id: "first-mate",
   name: "First Mate",
+  text: "When you play me, ready another unit.",
   type: "unit",
   cost: cost(3),
   might: 3,
@@ -201,10 +201,10 @@ export const firstMate: CardInstance = {
   ],
 };
 
-/** "[Ambush] · When you play me, you may return a friendly unit at a battlefield to its owner's hand." */
 export const grimApothecary: CardInstance = {
   id: "grim-apothecary",
   name: "Grim Apothecary",
+  text: "[Ambush] When you play me, you may return a friendly unit at a battlefield to its owner's hand.",
   type: "unit",
   cost: cost(3),
   might: 3,
@@ -225,10 +225,10 @@ export const grimApothecary: CardInstance = {
   ],
 };
 
-/** "When you play me, draw 1 if your other units have total Might 5 or more." */
 export const kinkouInitiate: CardInstance = {
   id: "kinkou-initiate",
   name: "Kinkou Initiate",
+  text: "When you play me, draw 1 if your other units have total Might 5 or more.",
   type: "unit",
   cost: cost(3),
   might: 3,
@@ -245,10 +245,10 @@ export const kinkouInitiate: CardInstance = {
   ],
 };
 
-/** "[Hidden] [Ganking] · You may pay [Fury] as an additional cost to play me. · When you play me, if you paid the additional cost, ready me and give me +2 [M] this turn." */
 export const pyke: CardInstance = {
   id: "pyke",
   name: "Pyke, Dockside Butcher",
+  text: "[Hidden] [Ganking] You may pay [Fury] as an additional cost to play me. When you play me, if you paid the additional cost, ready me and give me +2 [M] this turn.",
   type: "unit",
   cost: cost(3),
   might: 2,
@@ -267,10 +267,10 @@ export const pyke: CardInstance = {
   ],
 };
 
-/** "As you play this, you may pay [Body] as an additional cost. Choose a friendly unit and an enemy unit. If you paid the additional cost, give the friendly unit +2 [M] this turn. They deal damage equal to their Mights to each other." */
 export const rampage: CardInstance = {
   id: "rampage",
   name: "Rampage",
+  text: "As you play this, you may pay [Body] as an additional cost. Choose a friendly unit and an enemy unit. If you paid the additional cost, give the friendly unit +2 [M] this turn. They deal damage equal to their Mights to each other.",
   type: "spell",
   cost: cost(3),
   domains: ["body"],
@@ -295,10 +295,10 @@ export const rampage: CardInstance = {
   ],
 };
 
-/** "[Ambush] · When I win a combat, draw 1." */
 export const nidalee: CardInstance = {
   id: "nidalee",
   name: "Nidalee, Cat Form",
+  text: "[Ambush] When I win a combat, draw 1.",
   type: "unit",
   cost: cost(3, "body", 1),
   might: 4,
@@ -313,10 +313,10 @@ export const nidalee: CardInstance = {
   ],
 };
 
-/** "[Accelerate] · When I conquer, draw 1." */
 export const kaisa: CardInstance = {
   id: "kaisa",
   name: "Kai'Sa, Survivor",
+  text: "[Accelerate] When I conquer, draw 1.",
   type: "unit",
   cost: cost(4),
   might: 4,
@@ -333,10 +333,10 @@ export const kaisa: CardInstance = {
   ],
 };
 
-/** "[Legion] — I cost [2] less." */
 export const noxusHopeful: CardInstance = {
   id: "noxus-hopeful",
   name: "Noxus Hopeful",
+  text: "[Legion] — I cost [2] less.",
   type: "unit",
   cost: cost(4),
   might: 4,
@@ -345,10 +345,10 @@ export const noxusHopeful: CardInstance = {
   abilities: [legionCostReduction({ energy: 2 })],
 };
 
-/** "[Deathknell] — Play two 3 [M] Mech unit tokens to your base." */
 export const ferrousForerunner: CardInstance = {
   id: "ferrous-forerunner",
   name: "Ferrous Forerunner",
+  text: "[Deathknell] — Play two 3 [M] Mech unit tokens to your base.",
   type: "unit",
   cost: cost(6, "fury", 1),
   might: 6,
@@ -363,10 +363,10 @@ export const ferrousForerunner: CardInstance = {
   ],
 };
 
-/** "When you conquer here, you may pay [1] and return a unit you control here to its owner's hand. If you do, play a 2 [M] Sand Soldier unit token here." */
 export const emperorsDais: CardInstance = {
   id: "emperors-dais",
   name: "Emperor's Dais",
+  text: "When you conquer here, you may pay [1] and return a unit you control here to its owner's hand. If you do, play a 2 [M] Sand Soldier unit token here.",
   type: "battlefield",
   cost: FREE,
   keywords: [],
@@ -391,10 +391,10 @@ export const emperorsDais: CardInstance = {
   ],
 };
 
-/** "When you conquer here, draw 1 for each other battlefield you or allies control." */
 export const seatOfPower: CardInstance = {
   id: "seat-of-power",
   name: "Seat of Power",
+  text: "When you conquer here, draw 1 for each other battlefield you or allies control..",
   type: "battlefield",
   cost: FREE,
   keywords: [],
@@ -407,10 +407,10 @@ export const seatOfPower: CardInstance = {
   ],
 };
 
-/** "The first time a player plays a non-token unit here each turn, they may move another unit they control here to its base." */
 export const starSpring: CardInstance = {
   id: "star-spring",
   name: "Star Spring",
+  text: "The first time a player plays a non-token unit here each turn, they may move another unit they control here to its base.",
   type: "battlefield",
   cost: FREE,
   keywords: [],

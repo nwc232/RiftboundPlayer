@@ -42,6 +42,31 @@ describe("the two real decks", () => {
 });
 
 /**
+ * Printed text is carried alongside the authored abilities so a player can see
+ * what a card claims to do. The engine never reads it — which is exactly why
+ * it has to be checked here rather than trusted.
+ */
+describe("every card carries its printed text", () => {
+  const authored = ALL_CARDS.filter((card) => card.type !== "rune");
+
+  it.each(authored.map((card) => [card.name, card] as const))(
+    "%s",
+    (_name, card) => {
+      expect(card.text).toBeDefined();
+      expect(card.text!.length).toBeGreaterThan(0);
+    },
+  );
+
+  /** A vanilla card would have no text; none of these are vanilla. */
+  it("gives runes their two abilities in words (R164.2)", () => {
+    const rune = ALL_CARDS.find((card) => card.type === "rune");
+
+    expect(rune?.text).toMatch(/Exhaust: Add \[1\]/);
+    expect(rune?.text).toMatch(/Recycle: Add \[\w+\]/);
+  });
+});
+
+/**
  * Every ability is data, so nothing in a deck should contain a function. The
  * roadmap's serialization item turns on this staying true.
  */

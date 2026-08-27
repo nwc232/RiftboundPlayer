@@ -205,6 +205,29 @@ button:disabled { opacity: 0.4; cursor: default; }
 .moves { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .move { width: 100%; text-align: left; }
 .clear { margin-bottom: 8px; }
+.detail {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.detail h4 { margin: 0 0 4px; font-size: 13px; }
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.detail-meta em { font-style: normal; }
+.detail-status { color: var(--warn); }
+.detail-text {
+  margin: 8px 0 0;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
 .blocked {
   margin: 0 0 10px;
   padding: 6px 8px;

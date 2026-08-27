@@ -36,10 +36,10 @@ const cost = (energy: number, domain?: Domain, power = 0): Cost => ({
   anyPower: 0,
 });
 
-/** "When you or an ally hold, you may exhaust me to draw 1." */
 export const gloomist: CardInstance = {
   id: "gloomist",
   name: "Gloomist",
+  text: "When you or an ally hold, you may exhaust me to draw 1.",
   type: "legend",
   cost: FREE,
   keywords: [],
@@ -58,10 +58,10 @@ export const gloomist: CardInstance = {
   ],
 };
 
-/** "[Deflect] · When an opponent plays a unit while I'm at a battlefield, [Stun] it. They can't move it this turn." */
 export const vexApathetic: CardInstance = {
   id: "vex-apathetic",
   name: "Vex, Apathetic",
+  text: "[Deflect] When an opponent plays a unit while I'm at a battlefield, [Stun] it. They can't move it this turn.",
   type: "unit",
   cost: cost(4),
   might: 4,
@@ -81,10 +81,10 @@ export const vexApathetic: CardInstance = {
   ],
 };
 
-/** "[Hidden] [Backline] · When you play me from face down on your turn, you may move an enemy unit at a different location to my battlefield." */
 export const evelynn: CardInstance = {
   id: "evelynn",
   name: "Evelynn, Entrancing",
+  text: "[Hidden] [Backline] When you play me from face down on your turn, you may move an enemy unit at a different location to my battlefield.",
   type: "unit",
   cost: cost(2),
   might: 2,
@@ -106,10 +106,10 @@ export const evelynn: CardInstance = {
   ],
 };
 
-/** "[Reaction] Give a friendly unit +1 [M] this turn, then an additional +1 [M] this turn if it is the only unit you control there." */
 export const enGarde: CardInstance = {
   id: "en-garde",
   name: "En Garde",
+  text: "[Reaction] Give a friendly unit +1 [M] this turn, then an additional +1 [M] this turn if it is the only unit you control there.",
   type: "spell",
   cost: cost(1),
   domains: ["calm"],
@@ -130,10 +130,10 @@ export const enGarde: CardInstance = {
   ],
 };
 
-/** "[Reaction] Return a unit at a battlefield with 3 [M] or less to its owner's hand." */
 export const gust: CardInstance = {
   id: "gust",
   name: "Gust",
+  text: "[Reaction] Return a unit at a battlefield with 3 [M] or less to its owner's hand.",
   type: "spell",
   cost: cost(1),
   domains: ["chaos"],
@@ -151,10 +151,10 @@ export const gust: CardInstance = {
   ],
 };
 
-/** "[Action] Look at the top 3 cards of your Main Deck. Put 1 into your hand and recycle the rest." */
 export const stackedDeck: CardInstance = {
   id: "stacked-deck",
   name: "Stacked Deck",
+  text: "[Action] Look at the top 3 cards of your Main Deck. Put 1 into your hand and recycle the rest.",
   type: "spell",
   cost: cost(1),
   domains: ["chaos"],
@@ -164,10 +164,10 @@ export const stackedDeck: CardInstance = {
   ],
 };
 
-/** "[Reaction] Counter a spell that costs no more than [4] and no more than [A]." */
 export const defy: CardInstance = {
   id: "defy",
   name: "Defy",
+  text: "[Reaction] Counter a spell that costs no more than [4] and no more than [A].",
   type: "spell",
   cost: cost(1, "calm", 1),
   domains: ["calm"],
@@ -185,10 +185,10 @@ export const defy: CardInstance = {
   ],
 };
 
-/** "[Reaction] Give a unit +2 [M] this turn. Draw 1." */
 export const discipline: CardInstance = {
   id: "discipline",
   name: "Discipline",
+  text: "[Reaction] Give a unit +2 [M] this turn. Draw 1.",
   type: "spell",
   cost: cost(2),
   domains: ["calm"],
@@ -204,10 +204,10 @@ export const discipline: CardInstance = {
   ],
 };
 
-/** "[Hidden] · When you play me, you may choose a friendly unit. Move me to its location and it to my original location." */
 export const tideturner: CardInstance = {
   id: "tideturner",
   name: "Tideturner",
+  text: "[Hidden] When you play me, you may choose a friendly unit. Move me to its location and it to my original location.",
   type: "unit",
   cost: cost(2),
   might: 2,
@@ -228,10 +228,10 @@ export const tideturner: CardInstance = {
   ],
 };
 
-/** "[Action] Return a unit at a battlefield to its owner's hand." */
 export const rebuke: CardInstance = {
   id: "rebuke",
   name: "Rebuke",
+  text: "[Action] Return a unit at a battlefield to its owner's hand.",
   type: "spell",
   cost: cost(2, "chaos", 2),
   domains: ["chaos"],
@@ -247,10 +247,10 @@ export const rebuke: CardInstance = {
   ],
 };
 
-/** "[Hidden] [Action] Swap the Might of two units at the same battlefield this turn." */
 export const switcheroo: CardInstance = {
   id: "switcheroo",
   name: "Switcheroo",
+  text: "[Hidden] [Action] Swap the Might of two units at the same battlefield this turn.",
   type: "spell",
   cost: cost(2, "chaos", 2),
   domains: ["chaos"],
@@ -273,10 +273,10 @@ export const switcheroo: CardInstance = {
   ],
 };
 
-/** "[Hidden] [Action] [Stun] a unit. If you played this from your hand, draw 1." */
 export const backOff: CardInstance = {
   id: "back-off",
   name: "Back Off",
+  text: "[Hidden] [Action] [Stun] a unit. If you played this from your hand, draw 1.",
   type: "spell",
   cost: cost(3),
   domains: ["calm"],
@@ -292,10 +292,10 @@ export const backOff: CardInstance = {
   ],
 };
 
-/** "[Equip] [Chaos] · +2 [M] · [Ganking]" */
 export const bootsOfSwiftness: CardInstance = {
   id: "boots",
   name: "Boots of Swiftness",
+  text: "[Equip] [Chaos] [Ganking]",
   type: "gear",
   cost: cost(3),
   domains: ["chaos"],
@@ -314,10 +314,10 @@ export const bootsOfSwiftness: CardInstance = {
   attachment: { mightBonus: 2, keywords: ["ganking"] },
 };
 
-/** "You may play me to an open battlefield." */
 export const sneakyDeckhand: CardInstance = {
   id: "sneaky-deckhand",
   name: "Sneaky Deckhand",
+  text: "You may play me to an open battlefield.",
   type: "unit",
   cost: cost(3),
   might: 2,
@@ -326,10 +326,10 @@ export const sneakyDeckhand: CardInstance = {
   abilities: [playPermission({ kind: "openBattlefield" })],
 };
 
-/** "[Reaction] Return a friendly unit and an enemy unit to their owners' hands." */
 export const starCrossed: CardInstance = {
   id: "star-crossed",
   name: "Star-Crossed",
+  text: "[Reaction] Return a friendly unit and an enemy unit to their owners' hands.",
   type: "spell",
   cost: cost(3, "chaos", 1),
   domains: ["chaos"],
@@ -350,10 +350,10 @@ export const starCrossed: CardInstance = {
   ],
 };
 
-/** "[Ambush] · When I attack or defend, if an enemy unit is alone here, give me +2 [M] this turn and gain 2 XP." */
 export const khazix: CardInstance = {
   id: "khazix",
   name: "Kha'Zix, Mutating Horror",
+  text: "[Ambush] When I attack or defend, if an enemy unit is alone here, give me +2 [M] this turn and gain 2 XP.",
   type: "unit",
   cost: cost(4, "chaos", 1),
   might: 4,
@@ -371,10 +371,10 @@ export const khazix: CardInstance = {
   ],
 };
 
-/** "When you play your first card each turn, if I'm at a battlefield, your next card costs [2][A][A] less." */
 export const astralHeron: CardInstance = {
   id: "astral-heron",
   name: "Astral Heron",
+  text: "When you play your first card each turn, if I'm at a battlefield, your next card costs [2][A][A] less.",
   type: "unit",
   cost: cost(7),
   might: 7,
@@ -393,10 +393,10 @@ export const astralHeron: CardInstance = {
   ],
 };
 
-/** "[Ambush] · Enemy units here with less Might than me don't deal combat damage. · When I hold, draw 1." */
 export const vilemaw: CardInstance = {
   id: "vilemaw",
   name: "Vilemaw",
+  text: "[Ambush] Enemy units here with less Might than me don't deal combat damage. When I hold, draw 1.",
   type: "unit",
   cost: cost(8, "calm", 2),
   might: 8,
@@ -418,10 +418,10 @@ export const vilemaw: CardInstance = {
   ],
 };
 
-/** "When you conquer here, ready 2 runes at the end of this turn." */
 export const targonsPeak: CardInstance = {
   id: "targons-peak",
   name: "Targon's Peak",
+  text: "When you conquer here, ready 2 runes at the end of this turn.",
   type: "battlefield",
   cost: FREE,
   keywords: [],
@@ -434,10 +434,10 @@ export const targonsPeak: CardInstance = {
   ],
 };
 
-/** "When a player plays a spell, they may give a unit they control here +1 [M] this turn." */
 export const abandonedHall: CardInstance = {
   id: "abandoned-hall",
   name: "Abandoned Hall",
+  text: "When a player plays a spell, they may give a unit they control here +1 [M] this turn.",
   type: "battlefield",
   cost: FREE,
   keywords: [],
@@ -457,10 +457,10 @@ export const abandonedHall: CardInstance = {
   ],
 };
 
-/** "When combat starts here, the attacker and defender each [Add] [1]." */
 export const thresholdOfTheGray: CardInstance = {
   id: "threshold-of-the-gray",
   name: "Threshold of the Gray",
+  text: "When combat starts here, the attacker and defender each [Add] [1].",
   type: "battlefield",
   cost: FREE,
   keywords: [],

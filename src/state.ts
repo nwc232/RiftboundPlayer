@@ -79,6 +79,13 @@ export interface CardInstance {
    */
   domains?: Domain[];
   abilities: Ability[];
+  /**
+   * The card's printed rules text, verbatim. The engine never reads it — the
+   * `abilities` above are what it runs — but a player needs to see what a card
+   * claims to do, and having both here means an authoring slip shows up as a
+   * disagreement rather than staying invisible.
+   */
+  text?: string;
   keywords: Keyword[];
   /** Units only. Absent elsewhere; treated as 0. */
   might?: number;

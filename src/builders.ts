@@ -454,6 +454,9 @@ export function basicRune(id: string, domain: Domain): CardInstance {
   return {
     id,
     name: `${domain} rune`,
+    // R164.2 — a rune's two abilities. R416 puts no ready requirement on the
+    // recycle, so one rune yields an energy *and* a power.
+    text: `[Reaction] Exhaust: Add [1]. [Reaction] Recycle: Add [${domain}].`,
     type: "rune",
     cost: FREE,
     domain,
