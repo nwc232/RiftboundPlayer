@@ -12,7 +12,7 @@ rather than what is subtly wrong.
 
 ## 1. Where the engine stands
 
-Built and tested (573 tests):
+Built and tested (613 tests):
 
 | Area | State |
 |---|---|
@@ -42,6 +42,10 @@ Built and tested (573 tests):
 | [Quick-Draw] (R819) | [Reaction] plus an attach-on-play, both derived |
 | [Repeat] (R820) | Several costs, independent choices per execution |
 | [Unique] (R825) | Deck construction only, which is all R825.4 asks |
+| [Weaponmaster] (R821) | Equip on the way in, at a discount, ignoring timing |
+| [Flow] (R829) | Played from the trash for an alternate cost, then banished |
+| Play zones | Hand, Champion Zone, Facedown Zone, trash — one shape |
+| Tags (R133.8) | Copyable; narrow target filters and passive scopes |
 
 The decision mechanism matters more than its size suggests: **it is the
 same shape a UI needs.** "Engine stops, offers a legal set, waits" maps
@@ -81,13 +85,13 @@ their foundations (XP is a number now; [Level] is one Condition away).
 
 ### Tier 3 — smaller keywords
 
-~~[Accelerate] 26~~, ~~[Repeat] 24~~, ~~[Ambush] 14~~, ~~[Legion] 10~~,
-~~[Vision] 9~~, ~~[Quick-Draw] 5~~, ~~[Unique] 3~~ — all built.
+**Done.** [Ganking] 34, [Accelerate] 26, [Repeat] 24, [Flow] 17,
+[Ambush] 14, [Weaponmaster] 12, [Legion] 10, [Vision] 9, [Quick-Draw] 5,
+[Unique] 3.
 
-Left: **[Flow] 17** (R829 — play from the trash for an alternate cost, then
-a delayed replacement banishes it), **[Weaponmaster] 12** (R821 — a play
-effect that pays an Equipment's Equip cost at a discount, ignoring its
-timing), and **[Ganking] 34**, which is partly present already.
+[Ganking] was the one already "partly present", and partly was the
+problem: it read the printed card, so Boots of Swiftness could grant it and
+the unit wearing them still could not gank.
 
 ### Tier 4 — card vocabulary
 
@@ -290,15 +294,30 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
    ordering for damage, and a `seq` step running before a resolution-time
    choice was answered.
 
-8. **Tier 3** — [Vision], [Quick-Draw], [Repeat] and [Unique] are built;
-   [Flow] and [Weaponmaster] are what is left, and both are real
-   mechanisms rather than one-liners. [Repeat] paid for itself twice over:
-   it turned up a queue bug where a task's own enqueued work was discarded,
-   which silently truncated *any* effect that had to stop and ask twice —
-   R372's death ordering and delayed effects included.
+8. ~~**Tier 3**~~ — done, all ten keywords. Three of them paid for
+   themselves by turning up bugs underneath: [Repeat] found a queue bug
+   where a task's own enqueued work was discarded, silently truncating
+   *any* effect that had to stop and ask twice (R372's death ordering and
+   delayed effects were on that path); [Quick-Draw] found that a permanent
+   simply *having* [Reaction] could not be played at Reaction timing at
+   all; [Ganking] was reading the printed card rather than the
+   characteristic.
 
-9. **Tier 4** — the effect ops the card vocabulary still wants: `choose`
-   (modes, which two Repeat cards need), `spend`, `recycle`, `use`.
+9. ~~**Tags** (R133.8)~~ — built, and with them R103.2.a.2's
+   Champion/Legend link, R150's Equipment tag, and tag-scoped passives.
+
+10. **Tier 4** — the effect ops the card vocabulary still wants. `choose`
+    is the big one: modes ("Choose one —") are what Rocket Barrage and
+    Curtain Call need to finish [Repeat], and 47 clauses use the word.
+    Then `spend`, `recycle`, `use`.
+
+11. **Granting a keyword whose value is a Cost.** Three cards grant
+    [Repeat] and two grant or reduce [Flow]. Both keywords are abilities
+    carrying a `Cost`, and the layer system grants keywords whose values
+    are numbers. R820.4 and R829.2 both call them characteristics, so the
+    honest fix is keywords with richer values — which would also close
+    R817.2's and R821.1.c.7's "multiple instances trigger separately",
+    since a set of keywords cannot count to two.
 
 **Deferred by decision, not dropped:** replacement-effect Tier C
 (R373.2's sequences across simultaneous events). Written up at the end of
