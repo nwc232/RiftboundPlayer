@@ -33,7 +33,8 @@ export type GameEvent =
   /**
    * R369 — a replacement effect interceded, so the event it replaced never
    * happened (R370.1.a.1). Logged because "the unit did not die" is otherwise
-   * invisible: there is no event for a thing that was prevented.
+   * invisible: there is no event for a thing that was prevented. R829.1.b.1's
+   * `leavesChain` is the same shape — the spell did not reach the trash.
    */
   | {
       type: "eventReplaced";
@@ -42,7 +43,7 @@ export type GameEvent =
       cardId: CardId;
       /** What it was going to happen to. */
       subject: CardId;
-      replaced: "death";
+      replaced: "death" | "leavesChain";
     }
   | { type: "poolEmptied"; playerId: PlayerId }
   | {

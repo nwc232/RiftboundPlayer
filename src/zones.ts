@@ -1,3 +1,4 @@
+import { flowCostsOf } from "./costing.js";
 import { clearFacedown, facedownAt, playableFromFacedown } from "./hidden.js";
 import type {
   CardId,
@@ -74,6 +75,17 @@ export function playZonesFor(
         destination: { kind: "battlefield", id: hiddenAt },
       },
     ];
+  }
+
+  // R829.1.b — "You may play this from your trash for its flow cost. Then
+  // banish it." R829.1.b.2 is the limit of what the keyword changes: the zone,
+  // and nothing about timing or any other permission.
+  if (player.trash.includes(cardId)) {
+    return flowCostsOf(state, cardId).map((cost) => ({
+      source: "trash" as const,
+      alternateCost: cost,
+      banishOnLeave: true as const,
+    }));
   }
 
   return [];

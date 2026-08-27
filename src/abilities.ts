@@ -16,6 +16,7 @@ import type {
   PlaySource,
   PowerCount,
 } from "./state.js";
+import { leaveChain } from "./chain.js";
 import { killUnits } from "./combat.js";
 import { ownerOf } from "./state.js";
 import { drawCards } from "./draw.js";
@@ -317,6 +318,21 @@ export interface RepeatAbility {
 }
 
 /**
+ * R829 — "[Flow] [Cost]". R829.1.b makes it short for "You may play this from
+ * your trash for its flow cost. Then banish it."
+ *
+ * A passive that widens where the card may be played from, so it is read off
+ * the card in hand — or rather, off the card in the *trash* — like the other
+ * non-resolving kinds. R829.1.c.3 allows several with different costs, which
+ * is why `playZonesFor` hands back a list.
+ */
+export interface FlowAbility {
+  kind: "flow";
+  /** R829.1.c.1 — an Alternate Cost: it replaces the base cost, not adds to it. */
+  cost: Cost;
+}
+
+/**
  * R369.3 — "I enter ready", and the conditional forms of it. Read off a card
  * in hand like the other non-resolving kinds, because it has to be known
  * before the permanent exists.
@@ -342,6 +358,7 @@ export type Ability =
   | ReplacementAbility
   | AdditionalCostAbility
   | RepeatAbility
+  | FlowAbility
   | TriggeredAbility
   | PassiveAbility
   | PlayPermissionAbility
@@ -607,25 +624,23 @@ export function execute(
       );
       if (index === -1) return { state, events: [] };
 
-      const owner = state.chain[index]!.controller;
+      const countered = state.chain[index]!;
+      // The second way off the chain, and it goes through the same door: a
+      // [Flow] spell that is countered is banished too (R829.1.b.1).
+      const left = leaveChain(
+        { ...state, chain: state.chain.filter((_, i) => i !== index) },
+        countered,
+        "countered",
+      );
       return {
-        state: {
-          ...state,
-          chain: state.chain.filter((_, i) => i !== index),
-          players: {
-            ...state.players,
-            [owner]: {
-              ...state.players[owner],
-              trash: [...state.players[owner].trash, targetId],
-            },
-          },
-        },
+        state: left.state,
         events: [
           {
             type: "spellCountered",
             playerId: context.controller,
             cardId: targetId,
           },
+          ...left.events,
         ],
       };
     }

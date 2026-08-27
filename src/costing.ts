@@ -149,6 +149,17 @@ export function repeatCostsOf(state: GameState, cardId: CardId): Cost[] {
     .map((ability) => ability.cost);
 }
 
+/**
+ * R829.1.c — every [Flow] cost printed on a card, in printed order. R829.1.c.3:
+ * "If a spell has multiple instances of the Flow keyword with different costs,
+ * its controller may choose which cost to apply as they play it."
+ */
+export function flowCostsOf(state: GameState, cardId: CardId): Cost[] {
+  return (state.cards[cardId]?.abilities ?? [])
+    .filter((ability) => ability.kind === "flow")
+    .map((ability) => ability.cost);
+}
+
 export interface CostOptions {
   /**
    * R809.1.d — what this play chooses. Deflect imposes a Mandatory Additional

@@ -1,3 +1,4 @@
+import type { GameEvent } from "./events.js";
 import { mightOf } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
 import type {
@@ -69,6 +70,68 @@ export type ChainItem =
       /** R323.4 — Might as it stood at death, which printed Might won't give. */
       sourceMight?: number;
     };
+
+/**
+ * Why a spell is leaving the chain. R829.1.b.1 asks: it replaces a departure
+ * only when "leaving the chain wasn't instructed by its own execution", so the
+ * reason has to travel to wherever the decision is made.
+ */
+export type ChainExit = "resolved" | "countered" | "itsOwnExecution";
+
+/**
+ * R359.3.d — a spell that leaves the chain goes to its owner's trash. The one
+ * place that happens, so that a replacement has one place to intercede: today
+ * only [Flow]'s R829.1.b.1, recorded on the item as it was played.
+ *
+ * A triggered ability has no card to move, so this is spells only; its source
+ * stays wherever it is.
+ */
+export function leaveChain(
+  state: GameState,
+  item: ChainItem,
+  reason: ChainExit,
+): { state: GameState; events: GameEvent[] } {
+  if (item.kind !== "spell") return { state, events: [] };
+
+  const owner = item.controller;
+  const player = state.players[owner];
+
+  // R829.1.b.1 — "if the spell would leave the chain after becoming a
+  // finalized chain item, and leaving the chain wasn't instructed by its own
+  // execution, banish it instead."
+  if (item.banishOnLeave === true && reason !== "itsOwnExecution") {
+    return {
+      state: {
+        ...state,
+        players: {
+          ...state.players,
+          [owner]: { ...player, banished: [...player.banished, item.cardId] },
+        },
+      },
+      events: [
+        {
+          type: "eventReplaced",
+          playerId: owner,
+          cardId: item.cardId,
+          subject: item.cardId,
+          replaced: "leavesChain",
+        },
+        { type: "banished", playerId: owner, cardId: item.cardId },
+      ],
+    };
+  }
+
+  return {
+    state: {
+      ...state,
+      players: {
+        ...state.players,
+        [owner]: { ...player, trash: [...player.trash, item.cardId] },
+      },
+    },
+    events: [],
+  };
+}
 
 /** What a chain item is identified by on the board — its card either way. */
 export function chainItemCardId(item: ChainItem): CardId {

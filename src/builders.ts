@@ -3,6 +3,7 @@ import type {
   AbilityTiming,
   ActivatedAbility,
   AdditionalCostAbility,
+  FlowAbility,
   RepeatAbility,
   Effect,
   CostModifierAbility,
@@ -410,6 +411,14 @@ export function legionCostReduction(reduce: Partial<Cost>): CostModifierAbility 
  */
 export function repeat(cost: Partial<Cost>): RepeatAbility {
   return { kind: "repeat", cost: { ...FREE, ...cost } };
+}
+
+/**
+ * R829 — "[Flow] [Cost]": play it from your trash for this instead of its
+ * printed cost, then it is banished rather than trashed again.
+ */
+export function flow(cost: Partial<Cost>): FlowAbility {
+  return { kind: "flow", cost: { ...FREE, ...cost } };
 }
 
 export function additionalCost(

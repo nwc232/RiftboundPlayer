@@ -1,6 +1,7 @@
 import { applyAction } from "./actions.js";
 import type { Action } from "./actions.js";
-import { repeatCostsOf } from "./costing.js";
+import { flowCostsOf, repeatCostsOf } from "./costing.js";
+import { playZonesFor } from "./zones.js";
 import { legalTargets } from "./decisions.js";
 import type { TargetFilter } from "./decisions.js";
 import { MULLIGAN_MAX } from "./tasks.js";
@@ -230,11 +231,13 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     ...(player.champion === null ? [] : [player.champion]),
   ];
   // R811.1.b — and a card facedown at a battlefield is playable from there.
+  // R829.1.b — and a spell in the trash with [Flow] is playable from there.
   const playable = [
     ...held,
     ...Object.values(state.facedown)
       .filter((entry) => entry.controller === playerId)
       .map((entry) => entry.cardId),
+    ...player.trash.filter((cardId) => flowCostsOf(state, cardId).length > 0),
   ];
 
   // R421 — Hide, offered for every held card against every battlefield. The
@@ -261,21 +264,26 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
       // R820.1.c.2 — each [Repeat] cost is paid or not on its own, so every
       // subset of them is a different play at a different price.
       const repeats = repeatCostsOf(state, cardId).map((_, index) => index);
-      for (const payRepeats of subsets(repeats, repeats.length)) {
-        for (const chosen of repeatedTargetTuples(
-          state,
-          playerId,
-          cardId,
-          1 + payRepeats.length,
-        )) {
-          out.push({
-            type: "playSpell",
+      // R829.1.c.3 — and a spell with several [Flow] costs is several plays.
+      const zones = Math.max(1, playZonesFor(state, playerId, cardId).length);
+      for (let playFrom = 0; playFrom < zones; playFrom += 1) {
+        for (const payRepeats of subsets(repeats, repeats.length)) {
+          for (const chosen of repeatedTargetTuples(
+            state,
             playerId,
             cardId,
-            targets: chosen,
-            payOptional,
-            payRepeats,
-          });
+            1 + payRepeats.length,
+          )) {
+            out.push({
+              type: "playSpell",
+              playerId,
+              cardId,
+              targets: chosen,
+              payOptional,
+              payRepeats,
+              playFrom,
+            });
+          }
         }
       }
     }

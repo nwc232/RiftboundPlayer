@@ -685,6 +685,13 @@ built when a card asks for it.
   choice is offered per *source card*, so two damage replacements from the
   same source apply in creation order relative to each other. No printed
   card does that.
+- **[Flow] is on printed spells only, and its costs are resources.** Two cards
+  do something else: Kennen, Storm of Shuriken *grants* "[Flow] equal to its
+  cost this turn", and Stargazer reduces Flow costs ("[Flow] you play from your
+  trash cost [2] less"). Both are the same two gaps [Repeat] has — granting a
+  keyword whose value is a Cost, and a cost modifier that can name a Flow cost
+  specifically. R829.1.c.2 also allows non-resource Flow costs; none is
+  printed. The 14 cards with a plain printed Flow cost work.
 - **[Weaponmaster] reads "Equipment tag" as "any gear".** R821.1.c chooses "a
   Card you control with the Equipment tag" and the engine has no tags — the
   same gap R103.2.a.2's Champion/Legend tag match sits behind. The

@@ -22,6 +22,7 @@ import {
   chainExists,
   chainItemCardId,
   newestItem,
+  leaveChain,
   sourceLocationOf,
 } from "./chain.js";
 import {
@@ -96,6 +97,11 @@ export type Action =
       payOptional?: boolean;
       /** R820.1.c.2 — which of the card's [Repeat] costs to pay, by index. */
       payRepeats?: number[];
+      /**
+       * Which of `playZonesFor`'s ways of playing this card is being used.
+       * Only [Flow] (R829.1.c.3) ever offers more than one.
+       */
+      playFrom?: number;
     }
   /** R421 — the Hide discretionary action, granted by [Hidden] (R811.1.c). */
   | {
@@ -1229,17 +1235,18 @@ export function passPriority(
     events.push(...parked.events);
 
     if (item.kind === "spell") {
-      // R359.3.d — a resolved spell goes to its owner's trash. A triggered
-      // ability has no card to move; its source stays where it is.
-      current = withPlayer(current, item.controller, {
-        ...current.players[item.controller],
-        trash: [...current.players[item.controller].trash, item.cardId],
-      });
-      events.push({
-        type: "spellResolved",
-        playerId: item.controller,
-        cardId: item.cardId,
-      });
+      // R359.3.d — a resolved spell leaves the chain. Where it goes is
+      // `leaveChain`'s business, not this step's.
+      const left = leaveChain(current, item, "resolved");
+      current = left.state;
+      events.push(
+        {
+          type: "spellResolved",
+          playerId: item.controller,
+          cardId: item.cardId,
+        },
+        ...left.events,
+      );
     } else {
       events.push({
         type: "triggerResolved",
@@ -1518,6 +1525,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
           action.targets,
           action.payOptional,
           action.payRepeats,
+          action.playFrom,
         ),
       );
     case "endTurn":
