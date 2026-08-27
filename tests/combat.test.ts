@@ -49,6 +49,22 @@ function run(state: GameState, actions: Action[]) {
   return current;
 }
 
+/**
+ * combat.ts and abilities.ts import each other: a death replacement has to run
+ * an effect, and an effect has to be able to kill. ESM tolerates that only
+ * while neither side calls the other at module-initialization time, so both
+ * import orders are exercised here rather than trusted.
+ */
+describe("the combat/abilities import cycle", () => {
+  it("initializes from either side", async () => {
+    const combatFirst = await import("../src/combat.js");
+    const abilitiesAfter = await import("../src/abilities.js");
+
+    expect(typeof combatFirst.killUnits).toBe("function");
+    expect(typeof abilitiesAfter.execute).toBe("function");
+  });
+});
+
 describe("detecting combat", () => {
   it("is a combat once opposing units share a battlefield", () => {
     const state = run(battle([{ id: "a1", might: 3 }], [{ id: "d1", might: 2 }]), [

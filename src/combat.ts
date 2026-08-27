@@ -7,6 +7,9 @@ import {
   keywordsOf,
   mightOf,
 } from "./layers.js";
+// A cycle: abilities.ts imports `killUnits` back from here. ESM allows it
+// because neither side calls the other during module initialization, and
+// tests/combat.test.ts imports both orders to keep that true.
 import { execute } from "./abilities.js";
 import { deathReplacementsFor } from "./replacements.js";
 import type { ApplicableReplacement } from "./replacements.js";
