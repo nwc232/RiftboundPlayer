@@ -55,6 +55,42 @@ describe("standardMove", () => {
     expect(result.state.permanents.u1?.location).toEqual(SOUTH);
   });
 
+  /**
+   * R810.3 — "whether or not a unit has Ganking is a characteristic". Read off
+   * the printed card it was not: Boots of Swiftness grants Ganking by being
+   * attached (R477.2.c), and the unit wearing them could not gank.
+   */
+  it("allows it with a Ganking granted by an attachment", () => {
+    const state = makeState({
+      cards: [
+        unit("u1"),
+        {
+          ...unit("boots"),
+          type: "gear" as const,
+          attachment: { mightBonus: 0, keywords: ["ganking" as const] },
+        },
+      ],
+      permanents: [
+        { cardId: "u1", controller: "p1", location: NORTH },
+        { cardId: "boots", controller: "p1", location: NORTH },
+      ],
+      battlefields: ["bf-north", "bf-south"],
+    });
+    const worn: GameState = {
+      ...state,
+      permanents: {
+        ...state.permanents,
+        boots: { ...state.permanents.boots!, attachedTo: "u1" },
+      },
+    };
+
+    const result = standardMove(worn, "p1", "u1", SOUTH);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.permanents.u1?.location).toEqual(SOUTH);
+  });
+
   it("refuses to move an exhausted unit — it cannot pay the cost", () => {
     const exhausted = makeState({
       cards: [unit("u1")],

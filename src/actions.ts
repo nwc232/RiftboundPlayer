@@ -28,6 +28,7 @@ import {
   abilitiesOf,
   characteristicsOf,
   controllerOf,
+  keywordsOf,
   movementRestricted,
 } from "./layers.js";
 import { entersReady } from "./replacements.js";
@@ -905,11 +906,15 @@ export function standardMove(
   if (!toOwnBase && !toBattlefield) {
     return rejected("invalidDestination");
   }
-  // Battlefield to battlefield is only legal with Ganking.
+  // R810.1.b — "I may move to a battlefield from another battlefield with a
+  // standard move." R810.3 makes having Ganking a characteristic, so it is
+  // read through the layers: Boots of Swiftness grants it by being attached
+  // (R477.2.c), and a unit wearing them can gank as surely as one that prints
+  // the keyword.
   if (
     origin.kind === "battlefield" &&
     destination.kind === "battlefield" &&
-    !card.keywords.includes("ganking")
+    !keywordsOf(state, cardId).includes("ganking")
   ) {
     return rejected("invalidDestination");
   }
