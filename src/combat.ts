@@ -12,7 +12,11 @@ import {
 // tests/combat.test.ts imports both orders to keep that true.
 import { execute } from "./abilities.js";
 import { park } from "./tasks.js";
-import { deathReplacementsFor, replaceDamage } from "./replacements.js";
+import {
+  ambiguousDamage,
+  deathReplacementsFor,
+  replaceDamage,
+} from "./replacements.js";
 import type { ApplicableReplacement } from "./replacements.js";
 import { score } from "./scoring.js";
 import { ownerOf, permanentsAt } from "./state.js";
@@ -229,7 +233,28 @@ export function combatSides(
  * R465.2.c.1.a / R465.2.d — assigning is not dealing. Both players assign
  * against the same pre-damage board, and only then is all of it dealt at once.
  */
-export function dealAssigned(state: GameState, assigned: Assignment[]): Progress {
+/**
+ * R372 for combat damage: the first assignment whose replacements the unit's
+ * controller has not yet ordered. Asked by the task before anything is dealt.
+ */
+export function ambiguousCombatDamage(
+  state: GameState,
+  assigned: Assignment[],
+  ordered: Record<CardId, CardId[]>,
+): { cardId: CardId; amount: number; legal: CardId[] } | undefined {
+  for (const { cardId, amount } of assigned) {
+    if (ordered[cardId] !== undefined) continue;
+    const legal = ambiguousDamage(state, cardId, "combat");
+    if (legal !== undefined) return { cardId, amount, legal };
+  }
+  return undefined;
+}
+
+export function dealAssigned(
+  state: GameState,
+  assigned: Assignment[],
+  ordered: Record<CardId, CardId[]> = {},
+): Progress {
   const permanents = { ...state.permanents };
   const events: GameEvent[] = [];
 
@@ -240,7 +265,13 @@ export function dealAssigned(state: GameState, assigned: Assignment[]): Progress
 
     // R369.2 — prevention and any other replacement intercede here, before the
     // damage lands. R437.2.a allows the result to be 0.
-    const replaced = replaceDamage(current, cardId, amount, "combat");
+    const replaced = replaceDamage(
+      current,
+      cardId,
+      amount,
+      "combat",
+      ordered[cardId] ?? [],
+    );
     current = replaced.state;
     events.push(...replaced.events);
 

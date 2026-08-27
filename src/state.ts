@@ -196,6 +196,12 @@ export type PlaySource = "hand" | "champion" | "facedown";
  */
 export interface DamageReplacement {
   id: string;
+  /**
+   * The card that made it. R372 lists the choices by their source, and no
+   * printed card puts two damage replacements on one unit — two from the same
+   * source would apply in creation order relative to each other.
+   */
+  sourceId: CardId;
   /** The unit it watches. Absent means every unit (Unyielding Spirit's "all"). */
   targetId?: CardId;
   /** R437.1.b.1's "[source]" — which damage qualifies. */

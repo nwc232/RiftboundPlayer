@@ -437,6 +437,11 @@ export function Prompt({ state }: { state: GameState }) {
         return "which battlefield opens?";
       case "assignCombatDamage":
         return `assign ${prompt.remaining} damage`;
+      case "orderDamage":
+        return `click the replacements in the order they apply to ${nameOf(
+          state,
+          prompt.subject,
+        )} (${prompt.amount} damage incoming)`;
       case "orderReplacements":
         return `which replacement applies to ${nameOf(state, prompt.subject)}?`;
       case "chooseFromRevealed":

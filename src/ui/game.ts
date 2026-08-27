@@ -192,6 +192,9 @@ export function promptArity(state: GameState): { min: number; max: number } {
       return { min: 0, max: prompt.max };
     case "chooseFromRevealed":
       return { min: Math.max(1, prompt.keep), max: Math.max(1, prompt.keep) };
+    // R372 wants the whole order, and the staging list keeps click order.
+    case "orderDamage":
+      return { min: prompt.legal.length, max: prompt.legal.length };
     default:
       return { min: 1, max: 1 };
   }

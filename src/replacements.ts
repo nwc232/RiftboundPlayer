@@ -210,34 +210,72 @@ function replacementCovers(
 }
 
 /**
- * R369.2 / R437 — damage on its way to a unit, after every replacement that
- * applies has had its say. Returns the amount actually dealt, which R437.2.a
- * allows to be 0 ("equivalent to not dealing damage").
+ * R369.2 / R437 — every replacement watching damage of this kind headed at
+ * this unit, in creation order and before any has been applied.
+ */
+export function damageReplacementsFor(
+  state: GameState,
+  cardId: CardId,
+  from: "combat" | "spellOrAbility",
+): DamageReplacement[] {
+  return state.damageReplacements.filter(
+    (entry) =>
+      (entry.targetId === undefined || entry.targetId === cardId) &&
+      (entry.from === "any" || entry.from === from),
+  );
+}
+
+/**
+ * R372's question: do several replacements apply to this damage, so that the
+ * controller of the unit has an order to choose? The order changes the number
+ * — the rules' own example has prevent-then-double landing differently from
+ * double-then-prevent.
+ */
+export function ambiguousDamage(
+  state: GameState,
+  cardId: CardId,
+  from: "combat" | "spellOrAbility",
+): CardId[] | undefined {
+  const sources = [
+    ...new Set(
+      damageReplacementsFor(state, cardId, from).map((entry) => entry.sourceId),
+    ),
+  ];
+  return sources.length > 1 ? sources : undefined;
+}
+
+/**
+ * Damage on its way to a unit, after every replacement has had its say.
+ * R437.2.a allows the result to be 0 — "equivalent to not dealing damage".
  *
- * R372 gives the controller of the damaged unit a choice of order when more
- * than one applies, and the order matters — the rules' own example has prevent
- * -then-double landing on a different number than double-then-prevent. That
- * choice is not asked here: `execute` deals damage and cannot suspend to ask.
- * Applied in creation order instead, and written up in the survey.
+ * `order` is R372's answer, as source card ids. Without one the replacements
+ * apply in creation order, which is only reached when there is nothing to
+ * choose between.
  */
 export function replaceDamage(
   state: GameState,
   cardId: CardId,
   amount: number,
   from: "combat" | "spellOrAbility",
+  order: CardId[] = [],
 ): { state: GameState; amount: number; events: GameEvent[] } {
-  const applicable = state.damageReplacements.filter(
-    (entry) =>
-      (entry.targetId === undefined || entry.targetId === cardId) &&
-      (entry.from === "any" || entry.from === from),
-  );
+  const applicable = damageReplacementsFor(state, cardId, from);
   if (applicable.length === 0) return { state, amount, events: [] };
+
+  const ranked = [...applicable].sort((a, b) => {
+    const left = order.indexOf(a.sourceId);
+    const right = order.indexOf(b.sourceId);
+    if (left === -1 && right === -1) return 0;
+    if (left === -1) return 1;
+    if (right === -1) return -1;
+    return left - right;
+  });
 
   let running = amount;
   const events: GameEvent[] = [];
   const spent = new Map<string, DamageReplacement>();
 
-  for (const entry of applicable) {
+  for (const entry of ranked) {
     if (running === 0 && entry.op.kind === "prevent") continue;
 
     if (entry.op.kind === "scale") {
@@ -269,9 +307,7 @@ export function replaceDamage(
   // R437.3.a — a Prevent Value down to zero stops being tracked.
   const remaining = state.damageReplacements
     .map((entry) => spent.get(entry.id) ?? entry)
-    .filter(
-      (entry) => entry.op.kind !== "prevent" || entry.op.amount !== 0,
-    );
+    .filter((entry) => entry.op.kind !== "prevent" || entry.op.amount !== 0);
 
   return {
     state: { ...state, damageReplacements: remaining },

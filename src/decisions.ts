@@ -63,6 +63,12 @@ export type DecisionPrompt =
    * sources to pick from.
    */
   | { kind: "orderReplacements"; subject: CardId; legal: CardId[] }
+  /**
+   * R372 for damage. Answered with *every* source in the order they should
+   * apply, because the order changes the number: the rules' example has
+   * prevent-then-double landing differently from double-then-prevent.
+   */
+  | { kind: "orderDamage"; subject: CardId; amount: number; legal: CardId[] }
   | {
       kind: "assignCombatDamage";
       battlefieldId: CardId;

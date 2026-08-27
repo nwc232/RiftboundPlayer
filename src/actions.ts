@@ -34,6 +34,7 @@ import { legalTargets } from "./decisions.js";
 import type { PendingDecision, TargetFilter } from "./decisions.js";
 import {
   applyCombatAssignment,
+  applyDamageOrder,
   applyMulligan,
   applyReplacementOrder,
   applyResumeAnswer,
@@ -490,6 +491,27 @@ export function decide(
   }
 
   // A choice made mid-resolution belongs to the queue, like combat assignment.
+  // R372 for damage — the full order, since which is applied first changes
+  // the number that lands.
+  if (prompt.kind === "orderDamage") {
+    const chosen = choice.targets ?? [];
+    if (chosen.length !== prompt.legal.length) {
+      return rejected("wrongTargetCount");
+    }
+    if (!chosen.every((id) => prompt.legal.includes(id))) {
+      return rejected("invalidTarget");
+    }
+    // Two things can be waiting on this: an effect that paused mid-resolution,
+    // or the combat damage task, which asks before dealing.
+    const head = state.tasks[0];
+    const answered =
+      head?.kind === "combatDamage"
+        ? applyDamageOrder(state, prompt.subject, chosen)
+        : applyResumeAnswer(state, chosen);
+    const worked = runTasks(answered);
+    return afterTasks(worked.state, worked.events);
+  }
+
   if (prompt.kind === "chooseFromRevealed") {
     const chosen = choice.targets ?? [];
     if (chosen.length !== Math.max(1, prompt.keep)) {

@@ -123,6 +123,7 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
           playerId,
           targets: [id],
         }));
+      case "orderDamage":
       case "orderReplacements":
       case "chooseFromRevealed":
       case "assignCombatDamage":

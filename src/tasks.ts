@@ -1,5 +1,6 @@
 import {
   amountFor,
+  ambiguousCombatDamage,
   ambiguousDeath,
   combatSides,
   dealAssigned,
@@ -57,6 +58,8 @@ export type Task =
       remaining: number;
       /** Everything assigned so far, by either player. */
       assigned: Assignment[];
+      /** R372's answer per damaged unit, once its controller has ordered. */
+      damageOrder?: Record<CardId, CardId[]>;
     }
   /** R466 — the Resolution Step, once all combat damage has been dealt. */
   | {
@@ -277,7 +280,30 @@ function runTask(state: GameState, task: Task): TaskOutcome {
         };
       }
 
-      const dealt = dealAssigned(state, assigned);
+      // R372 — asked before any of it lands, because R370.1.c applies
+      // replacements before the event occurs.
+      const ordered = task.damageOrder ?? {};
+      const asking = ambiguousCombatDamage(state, assigned, ordered);
+      if (asking !== undefined) {
+        return {
+          state,
+          events: [],
+          suspend: {
+            task: { ...task, assigned, remaining },
+            decision: {
+              player: controllerOf(state, asking.cardId),
+              prompt: {
+                kind: "orderDamage",
+                subject: asking.cardId,
+                amount: asking.amount,
+                legal: asking.legal,
+              },
+            },
+          },
+        };
+      }
+
+      const dealt = dealAssigned(state, assigned, ordered);
       return {
         state: dealt.state,
         events: [
@@ -442,6 +468,27 @@ export function applyStagedShowdown(
  * Records R372's answer on the suspended task and clears the decision, so the
  * cleanup or combat resolution picks up with the ordering settled.
  */
+/** Records R372's damage ordering on the suspended combat task. */
+export function applyDamageOrder(
+  state: GameState,
+  subject: CardId,
+  order: CardId[],
+): GameState {
+  const [head, ...rest] = state.tasks;
+  if (head === undefined || head.kind !== "combatDamage") return state;
+  return {
+    ...state,
+    pending: null,
+    tasks: [
+      {
+        ...head,
+        damageOrder: { ...(head.damageOrder ?? {}), [subject]: order },
+      },
+      ...rest,
+    ],
+  };
+}
+
 export function applyReplacementOrder(
   state: GameState,
   subject: CardId,

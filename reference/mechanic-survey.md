@@ -679,14 +679,12 @@ built when a card asks for it.
   the kill happens. Same answer, asked slightly early; only observable if
   something changed the board between the two points, which nothing can,
   since the task holds priority throughout.
-- **R372's ordering is not asked for damage.** When several replacements
-  apply to one damage event the controller of the damaged unit chooses the
-  order, and the order changes the number — the rules' own example has
-  prevent-then-double landing differently from double-then-prevent. Deaths
-  ask (the cleanup is a task and can suspend); damage does not, because it
-  is dealt inside `execute`, which is synchronous. Applied in creation
-  order instead. The fix is a resumable `execute`, which would also close
-  the `seq` limitation noted above for Stacked Deck.
+- ~~**R372's ordering is not asked for damage.**~~ Closed by the resumable
+  `execute`. Effect damage pauses and asks; combat damage is asked by the
+  `combatDamage` task before anything lands. One narrowing remains: the
+  choice is offered per *source card*, so two damage replacements from the
+  same source apply in creation order relative to each other. No printed
+  card does that.
 - **Burn Out still does not route through a chokepoint.** R369.2 names it a
   replacement effect, and it remains inside `drawCards`. A draw chokepoint
   would let a card order against it (R372), but no card in the pool

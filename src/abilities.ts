@@ -24,7 +24,7 @@ import type {
   PassiveScope,
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
-import { replaceDamage } from "./replacements.js";
+import { ambiguousDamage, replaceDamage } from "./replacements.js";
 import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
@@ -175,6 +175,11 @@ export type Effect =
       from: "mainDeck" | "opponentHand";
       revealed: CardId[];
     }
+  /**
+   * A continuation: damage whose R372 ordering has been asked about. The
+   * chosen order arrives on `context.answer`.
+   */
+  | { op: "applyDamage"; targetId: CardId; amount: number }
   /** Astral Heron — "your next card costs [2][A][A] less". */
   | { op: "discountNextCard"; reduce: Cost }
   /** Lotus Trap — "Double all damage that would be dealt to it this turn." */
@@ -338,6 +343,74 @@ export interface EffectOutcome {
   pause?: EffectPause;
 }
 
+/**
+ * R369.2 — damage through the replacement chokepoint, then onto the unit.
+ * R372's ordering is asked for when more than one replacement applies and no
+ * order has been given yet; `execute` hands back the rest of itself and the
+ * queue asks.
+ */
+function dealAfterReplacement(
+  state: GameState,
+  targetId: CardId,
+  amount: number,
+  context: EffectContext,
+  order?: CardId[],
+): EffectOutcome {
+  const permanent = state.permanents[targetId];
+  if (permanent === undefined) return { state, events: [] };
+
+  const sources =
+    order === undefined
+      ? ambiguousDamage(state, targetId, "spellOrAbility")
+      : undefined;
+
+  if (sources !== undefined) {
+    return {
+      state,
+      events: [],
+      pause: {
+        decision: {
+          // R372 — the controller of the object being acted on.
+          player: controllerOf(state, targetId),
+          prompt: { kind: "orderDamage", subject: targetId, amount, legal: sources },
+        },
+        resume: { op: "applyDamage", targetId, amount },
+        context,
+      },
+    };
+  }
+
+  const replaced = replaceDamage(
+    state,
+    targetId,
+    amount,
+    "spellOrAbility",
+    order ?? [],
+  );
+
+  return {
+    state: {
+      ...replaced.state,
+      permanents: {
+        ...replaced.state.permanents,
+        [targetId]: {
+          ...permanent,
+          damage: permanent.damage + replaced.amount,
+        },
+      },
+    },
+    events: [
+      ...replaced.events,
+      {
+        type: "damageDealt",
+        playerId: context.controller,
+        cardId: targetId,
+        amount: replaced.amount,
+      },
+    ],
+  };
+}
+
 function resolveDomain(
   state: GameState,
   domain: Domain | "selfDomain",
@@ -416,35 +489,23 @@ export function execute(
       const permanent = state.permanents[targetId];
       if (permanent === undefined) return { state, events: [] };
 
-      // R369.2 — a replacement intercedes before the damage lands.
-      const replaced = replaceDamage(
-        state,
-        targetId,
-        effect.amount,
-        "spellOrAbility",
-      );
-      return {
-        state: {
-          ...replaced.state,
-          permanents: {
-            ...replaced.state.permanents,
-            [targetId]: {
-              ...permanent,
-              damage: permanent.damage + replaced.amount,
-            },
-          },
-        },
-        events: [
-          ...replaced.events,
-          {
-            type: "damageDealt",
-            playerId: context.controller,
-            cardId: targetId,
-            amount: replaced.amount,
-          },
-        ],
-      };
+      // R369.2 — a replacement intercedes before the damage lands, and R372
+      // lets the unit's controller order them when more than one applies.
+      return dealAfterReplacement(state, targetId, effect.amount, context);
     }
+
+    case "applyDamage": {
+      const permanent = state.permanents[effect.targetId];
+      if (permanent === undefined) return { state, events: [] };
+      return dealAfterReplacement(
+        state,
+        effect.targetId,
+        effect.amount,
+        context,
+        context.answer,
+      );
+    }
+
 
     case "draw":
       return drawCards(state, context.controller, effect.count);
@@ -1115,6 +1176,7 @@ export function execute(
             ...state.damageReplacements,
             {
               id: `scale-${state.damageReplacements.length}-${targetId}`,
+              sourceId: context.sourceId,
               targetId,
               from: "any",
               op: { kind: "scale", factor: effect.factor },
@@ -1141,6 +1203,7 @@ export function execute(
             ...state.damageReplacements,
             {
               id: `prevent-${state.damageReplacements.length}-${targetId ?? "all"}`,
+              sourceId: context.sourceId,
               ...(targetId !== undefined ? { targetId } : {}),
               from: effect.from,
               op: { kind: "prevent", amount: effect.amount },

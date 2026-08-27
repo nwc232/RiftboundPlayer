@@ -9,7 +9,6 @@ import {
 } from "../src/builders.js";
 import { dealAssigned } from "../src/combat.js";
 import { expireModifiers } from "../src/layers.js";
-import { replaceDamage } from "../src/replacements.js";
 import type { GameState, Location } from "../src/state.js";
 import { makeState, unit } from "./fixtures.js";
 
@@ -222,16 +221,90 @@ describe("both directions of mutual damage", () => {
   });
 });
 
-/** R372's ordering, which the engine applies in creation order for now. */
-describe("more than one applying at once", () => {
-  it("puts prevention and doubling through in the order they were made", () => {
+/**
+ * R372 — "the controller of the object being acted on determines the order the
+ * Replacement Effects will apply." The order changes the number, so the engine
+ * has to ask rather than pick.
+ */
+describe("ordering two replacements on one damage event (R372)", () => {
+  /** A 3-Might unit with both a Prevent 2 and Lotus Trap's doubling on it. */
+  function bothWatching(): GameState {
     let state = board();
-    state = execute(state, preventDamage(2, "thisTurn", { targetIndex: 0 }), context(["mine"])).state;
-    state = execute(state, scaleDamage(2, "thisTurn"), context(["mine"])).state;
+    state = execute(
+      state,
+      preventDamage(2, "thisTurn", { targetIndex: 0 }),
+      { controller: "p2", sourceId: "shield", targets: ["mine"] },
+    ).state;
+    state = execute(state, scaleDamage(2, "thisTurn"), {
+      controller: "p2",
+      sourceId: "trap",
+      targets: ["mine"],
+    }).state;
+    return state;
+  }
 
-    // Prevent 2 of 3 first, then double the 1 that is left.
-    const result = replaceDamage(state, "mine", 3, "spellOrAbility");
+  it("stops and asks the damaged unit's controller", () => {
+    const paused = execute(
+      bothWatching(),
+      dealDamage(3),
+      { controller: "p2", sourceId: "bolt", targets: ["mine"] },
+    );
 
-    expect(result.amount).toBe(2);
+    expect(paused.pause?.decision).toEqual({
+      // "mine" is p1's, and R372 asks the controller of the object acted on —
+      // not the controller of the replacements or of the damage.
+      player: "p1",
+      prompt: {
+        kind: "orderDamage",
+        subject: "mine",
+        amount: 3,
+        legal: ["shield", "trap"],
+      },
+    });
+    // R370.1.c — nothing has landed yet.
+    expect(paused.state.permanents.mine?.damage).toBe(0);
+  });
+
+  function answer(order: string[]): number {
+    const paused = execute(bothWatching(), dealDamage(3), {
+      controller: "p2",
+      sourceId: "bolt",
+      targets: ["mine"],
+    });
+    const done = execute(paused.state, paused.pause!.resume, {
+      ...paused.pause!.context,
+      answer: order,
+    });
+    return done.state.permanents.mine?.damage ?? -1;
+  }
+
+  /**
+   * The rules' own example, and why this cannot be picked for the player: at
+   * 3 Might the unit lives one way and dies the other.
+   */
+  it("prevent first: 3 - 2 = 1, doubled to 2 — it survives", () => {
+    expect(answer(["shield", "trap"])).toBe(2);
+  });
+
+  it("doubling first: 3 x 2 = 6, less 2 = 4 — it dies", () => {
+    expect(answer(["trap", "shield"])).toBe(4);
+  });
+
+  it("does not ask when only one applies", () => {
+    let state = board();
+    state = execute(state, scaleDamage(2, "thisTurn"), {
+      controller: "p2",
+      sourceId: "trap",
+      targets: ["mine"],
+    }).state;
+
+    const outcome = execute(state, dealDamage(3), {
+      controller: "p2",
+      sourceId: "bolt",
+      targets: ["mine"],
+    });
+
+    expect(outcome.pause).toBeUndefined();
+    expect(outcome.state.permanents.mine?.damage).toBe(6);
   });
 });

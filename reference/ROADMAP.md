@@ -33,6 +33,7 @@ Built and tested (174 tests):
 | Replacement effects (R369.3) | How a unit enters the board |
 | Replacement effects (R369–372) | Deaths, with R372's ordering through the queue |
 | Replacement effects (R369.2, R437) | Damage: doubling, and Prevent with a consumable value |
+| Resumable resolution (R321, R372) | An effect can stop mid-resolution and ask |
 | Layers (R473–479) | 3 layers, fixpoint, dependency, snapshotting |
 | Durations + delayed effects | `thisTurn`, `thisCombat`, `endOfTurn` |
 | Tokens + copy (R179–187, R477.1.b) | Creation, ceasing to exist, copy-of-copy |
@@ -275,17 +276,12 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
    chokepoints. R372's ordering is asked for deaths through the task
    queue; for damage it is applied in creation order, because damage is
    dealt inside `execute`, which cannot suspend.
-7. **A resumable `execute`.** The last structural limiter, and the only
-   thing standing between the engine and two written-down deviations:
-   R372's ordering for damage, and a `seq` step running before a
-   resolution-time choice is answered (Stacked Deck, Sabotage).
+7. ~~**A resumable `execute`.**~~ Done. `execute` hands back what is left
+   of a paused effect, `seq` carries its remaining steps into it, and the
+   queue asks. Closed both outstanding replacement deviations: R372's
+   ordering for damage, and a `seq` step running before a resolution-time
+   choice was answered.
 
-   `execute` would return an optional pause carrying what is left of the
-   effect; `seq` and `conditional` propagate it; the six call sites park
-   the remainder on the task queue. The fiddly part is that an answer has
-   to reach the resumed effect *as data*, since abilities carry no
-   functions — the same constraint that has kept the engine
-   serializable.
 8. **Tier 3/4** as card authoring demands them.
 
 **Deferred by decision, not dropped:** replacement-effect Tier C
