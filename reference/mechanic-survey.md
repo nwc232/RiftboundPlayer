@@ -542,9 +542,10 @@ Recorded as they're found, so they don't get lost between slices.
   through the layer pipeline (R477.1.b.1.a), narrowing both target filters
   and passive scopes. R187's token tags are transcribed. R133.7's supertypes
   came with them, so R103.2.a.2 is enforced in full — both the champion tag
-  and the Champion supertype — along with all of R103.2.d's Signature limits. Two of R187's keywords were transcribed
-  as unmodelled at the same time and are modelled now: the Sprite's
-  [Temporary] (R187.2) and the Bird's [Deflect] (R187.7).
+  and the Champion supertype — along with all of R103.2.d's Signature
+  limits. Two of R187's keywords were transcribed as unmodelled at the same
+  time and are modelled now: the Sprite's [Temporary] (R187.2) and the
+  Bird's [Deflect] (R187.7).
 - **Temporary runs off the chain (R816.1).** The rules make Temporary a
   *triggered* ability, which would put it on the chain and let a [Reaction]
   answer it. The engine kills directly in the Beginning Step instead,
@@ -553,8 +554,6 @@ Recorded as they're found, so they don't get lost between slices.
   changes who wins, while losing the response window rarely matters.
   Doing both needs the turn's phases on the task queue so the chain can
   resolve mid-phase.
-- **Deflect (R809).** R187.7 prints it on the Bird token; not modelled, so
-  Bird tokens are created without it.
 - **The Gold token's ability (R187.5).** Printed as "[Reaction][>] Kill
   this, [E]: [Add] [A]". The engine has no kill-self ability cost, so it is
   modelled as a recycle. Both remove it from the board and yield one Power,
