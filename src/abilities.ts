@@ -19,7 +19,7 @@ import type {
 import { leaveChain } from "./chain.js";
 import { killUnits } from "./combat.js";
 import { ownerOf } from "./state.js";
-import { drawCards } from "./draw.js";
+import { burnOut, drawCards } from "./draw.js";
 import { controllerOf, mightOf } from "./layers.js";
 import { tokenCard } from "./tokens.js";
 import type { TokenKind } from "./tokens.js";
@@ -187,6 +187,12 @@ export type Effect =
    */
   | { op: "empowerSelf" }
   /**
+   * R442 — Disempowering "is the act of removing the Empowered status".
+   * R442.1.a.1: doing it to something that is not Empowered "will do nothing",
+   * so this is a no-op rather than a failure. Omit `targetIndex` for "this".
+   */
+  | { op: "disempower"; targetIndex?: number }
+  /**
    * Stacked Deck — "Look at the top 3 cards of your Main Deck. Put 1 into your
    * hand and recycle the rest." The choice is made on resolution, not at
    * finalization, so this enqueues a task the queue can suspend on.
@@ -210,6 +216,25 @@ export type Effect =
    * same way every other route to the bottom of the deck does.
    */
   | { op: "recycleFromHand"; count: number }
+  /**
+   * R422 — "Discard X": from a hand straight to that player's trash, "without
+   * activating or executing its normal rules text" (R422.1.a).
+   *
+   * R422.1.a gives the choice to the player *doing* the discarding, not to
+   * whoever wrote the effect — "Choose a player. They discard 1" asks them.
+   * R422.4 makes an effect discard as many as possible and ignore the rest,
+   * which is why a short hand is not a failure here (R422.3's cost is where it
+   * is, and that is a different rule).
+   */
+  | { op: "discard"; count: number; targetIndex?: number }
+  /** A continuation: `discard` once that player has said which cards. */
+  | { op: "takeDiscarded"; player: PlayerId; from: CardId[] }
+  /**
+   * R440 — "Burn X": from the top of a Main Deck to that player's trash.
+   * R440.4 runs it into Burn Out when the deck is short — "they burn that many
+   * cards, burn out and then burn the rest".
+   */
+  | { op: "burn"; count: number; targetIndex?: number }
   /**
    * A continuation: `recycleFromHand` once the player has said which. They
    * arrive on `context.answer`.
@@ -284,7 +309,19 @@ export type AbilityCost =
    * R701–705 — "Spend my buff: give me +4 [M] this turn." A buff is a binary
    * status on the permanent, so spending it is removing it.
    */
-  | { kind: "spendBuff" };
+  | { kind: "spendBuff" }
+  /**
+   * R442 — "Disempower me, [1]: …". R442.1.a means an unempowered source
+   * cannot pay it, which as a *cost* is a refusal rather than a no-op.
+   */
+  | { kind: "disempowerSelf" }
+  /**
+   * R422.3 — "When Discarding is listed as a Cost, then the Action must be
+   * able to be completed for the cost to be paid." Unlike R422.4's effect,
+   * which discards as many as it can, a cost of Discard 2 with one card in
+   * hand simply cannot be paid.
+   */
+  | { kind: "discard"; count: number };
 
 /** Recorded from the card, but not yet enforced — that needs the chain. */
 export type AbilityTiming = "reaction" | "action" | "default";
@@ -1571,6 +1608,122 @@ export function execute(
       };
     }
 
+    case "discard": {
+      // R422.1 — a player discards from their *own* hand, so the effect names
+      // whose hand, and that same player makes the choice (R422.1.a).
+      const chosen =
+        effect.targetIndex === undefined
+          ? context.controller
+          : context.targets[effect.targetIndex];
+      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+
+      const hand = state.players[chosen].hand;
+      // R422.4 — "a player must Discard as many cards as possible… If
+      // instructed to discard more than they have, further instructions are
+      // ignored." So an empty hand is a no-op, not a failure.
+      const count = Math.min(effect.count, hand.length);
+      if (count === 0) return { state, events: [] };
+
+      const rest: Effect = {
+        op: "takeDiscarded",
+        player: chosen,
+        from: [...hand],
+      };
+      if (count >= hand.length) {
+        return execute(state, rest, { ...context, answer: [...hand] });
+      }
+      return {
+        state,
+        events: [],
+        pause: {
+          decision: {
+            // R422.1.a — "the player who is performing the action chooses
+            // which cards to send to their Trash, and may use Private
+            // Information to do so." Not the effect's controller.
+            player: chosen,
+            prompt: { kind: "chooseFromRevealed", legal: [...hand], keep: count },
+          },
+          resume: rest,
+          context,
+        },
+      };
+    }
+
+    case "takeDiscarded": {
+      const chosen = (context.answer ?? []).filter((id) =>
+        effect.from.includes(id),
+      );
+      if (chosen.length === 0) return { state, events: [] };
+      const player = state.players[effect.player];
+
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [effect.player]: {
+              ...player,
+              hand: player.hand.filter((id) => !chosen.includes(id)),
+              trash: [...player.trash, ...chosen],
+            },
+          },
+        },
+        // R422.1.b — "when I am discarded" abilities run *after* the discard,
+        // so this reports it rather than doing anything else itself.
+        events: chosen.map((cardId) => ({
+          type: "cardDiscarded" as const,
+          playerId: effect.player,
+          cardId,
+        })),
+      };
+    }
+
+    case "burn": {
+      const chosen =
+        effect.targetIndex === undefined
+          ? context.controller
+          : context.targets[effect.targetIndex];
+      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+
+      let current = state;
+      const events: GameEvent[] = [];
+      // R440.4 — "if instructed to burn more cards than they have in their
+      // main deck, they burn that many cards, burn out and then burn the
+      // rest." So the burn out does not consume one of the burns: the count is
+      // of cards actually burned, and the loop goes round again after it.
+      let burned = 0;
+      while (burned < effect.count) {
+        const player = current.players[chosen];
+        const [top, ...rest] = player.mainDeck;
+
+        if (top === undefined) {
+          // R431 recycles the trash into the deck. With both empty there is
+          // nothing to recycle and no progress to be made, so this stops
+          // rather than burning out forever for a point a time.
+          if (player.trash.length === 0) break;
+          const out = burnOut(current, chosen);
+          current = out.state;
+          events.push(...out.events);
+          continue;
+        }
+
+        current = {
+          ...current,
+          players: {
+            ...current.players,
+            [chosen]: {
+              ...player,
+              mainDeck: rest,
+              trash: [...player.trash, top],
+            },
+          },
+        };
+        events.push({ type: "cardBurned", playerId: chosen, cardId: top });
+        burned += 1;
+      }
+      return { state: current, events };
+    }
+
     case "predict": {
       const player = state.players[context.controller];
       // R436.4 — "If a player attempts to Predict more cards than are
@@ -1875,6 +2028,34 @@ export function execute(
             playerId: context.controller,
             cardId: gearId,
             to: context.sourceId,
+          },
+        ],
+      };
+    }
+
+    case "disempower": {
+      const targetId =
+        effect.targetIndex === undefined
+          ? context.sourceId
+          : context.targets[effect.targetIndex];
+      const permanent =
+        targetId === undefined ? undefined : state.permanents[targetId];
+      // R442.1.a — "Disempowering affects only cards that are currently
+      // Empowered", and R442.1.a.1 makes the rest silent.
+      if (permanent === undefined || permanent.empowered !== true) {
+        return { state, events: [] };
+      }
+      const { empowered: _gone, ...rest } = permanent;
+      return {
+        state: {
+          ...state,
+          permanents: { ...state.permanents, [targetId!]: rest },
+        },
+        events: [
+          {
+            type: "disempowered",
+            playerId: controllerOf(state, targetId!),
+            cardId: targetId!,
           },
         ],
       };

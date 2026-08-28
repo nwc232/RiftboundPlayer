@@ -351,6 +351,24 @@ export function scorePoint(amount = 1, targetIndex?: number): Effect {
   };
 }
 
+/** R422 — "Discard X". Omit `targetIndex` for "discard X" (yourself). */
+export function discard(count: number, targetIndex?: number): Effect {
+  return {
+    op: "discard",
+    count,
+    ...(targetIndex !== undefined ? { targetIndex } : {}),
+  };
+}
+
+/** R440 — "[Burn X]": the top X of a Main Deck into that player's trash. */
+export function burn(count: number, targetIndex?: number): Effect {
+  return {
+    op: "burn",
+    count,
+    ...(targetIndex !== undefined ? { targetIndex } : {}),
+  };
+}
+
 /** R416 — "Recycle N cards from your hand." */
 export function recycleFromHand(count: number): Effect {
   return { op: "recycleFromHand", count };

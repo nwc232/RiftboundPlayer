@@ -141,6 +141,12 @@ export function renderEvent(event: GameEvent): string {
       return `combat opens at ${event.battlefieldId}`;
     case "designated":
       return `${event.cardId} is an ${event.designation}`;
+    case "cardDiscarded":
+      return `${event.playerId} discards ${event.cardId}`;
+    case "cardBurned":
+      return `${event.playerId} burns ${event.cardId}`;
+    case "disempowered":
+      return `${event.cardId} is no longer empowered`;
     case "empowered":
       return `${event.cardId} is empowered`;
     case "combatResolved":

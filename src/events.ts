@@ -95,6 +95,10 @@ export type GameEvent =
   | { type: "pointGained"; playerId: PlayerId; points: number }
   /** R730.1 — XP is a plain number on the player, and public (R729.2). */
   | { type: "xpGained"; playerId: PlayerId; amount: number }
+  /** R422 — a card moved from a hand to its owner's trash. */
+  | { type: "cardDiscarded"; playerId: PlayerId; cardId: CardId }
+  /** R440 — a card moved from the top of a Main Deck to its owner's trash. */
+  | { type: "cardBurned"; playerId: PlayerId; cardId: CardId }
   /** R431 — drew from an empty deck; trash recycled, opponent gains a point. */
   | { type: "burnedOut"; playerId: PlayerId }
   | { type: "mulliganed"; playerId: PlayerId; count: number }
@@ -158,6 +162,8 @@ export type GameEvent =
   | { type: "stunned"; playerId: PlayerId; cardId: CardId }
   /** R827.2.a — becoming Empowered is its own referenceable event (R441). */
   | { type: "empowered"; playerId: PlayerId; cardId: CardId }
+  /** R442 — the Empowered status removed. */
+  | { type: "disempowered"; playerId: PlayerId; cardId: CardId }
   | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }
   /** R369.2 — damage altered on its way in: doubled, or prevented (R437). */
   | { type: "damageReplaced"; cardId: CardId; from: number; to: number }

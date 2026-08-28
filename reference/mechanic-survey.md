@@ -706,9 +706,18 @@ built when a card asks for it.
   costs cost [1] less") and Stargazer ("spells with [Flow] you play from your
   trash cost [2] less") both modify a *keyword's* cost, which `costModifier`
   cannot name — it reduces a card's own cost.
-- **Repeat, Flow and Empower costs are resources only.** Square Up prints
-  "[Repeat] — Discard 1"; R829.1.c.2 and R827.1.c.2 allow the same. None of
-  those are ability costs the engine has.
+- **A discard *cost* does not ask which cards.** R422.1.a gives the choice to
+  the discarding player, and the *effect* asks. A cost is paid as the ability
+  is played, inside R355's finalization, where the engine has no room to stop
+  and ask — so `{ kind: "discard" }` takes from the front of the hand. R422.3's
+  legality is right (a short hand cannot pay); only the choice is missing.
+  Closing it means letting finalization suspend, which is a bigger change than
+  the two cards printing it justify.
+- **Keyword costs are still resources only.** `AbilityCost` can now hold a
+  discard or a disempower, but the `Cost` a [Repeat], [Flow] or [Empower]
+  carries is still a resource cost by type (R820.1.c, R827.1.c.2, R829.1.c.2),
+  so Square Up's "[Repeat] — Discard 1" cannot be authored. The actions exist
+  now; what is left is widening those three to hold an `AbilityCost[]`.
 - **"Your Sand Soldiers" is read as the Shurima tag.** Emperor of the Sands
   says "your Sand Soldiers have [Weaponmaster]", and R187.3 gives the Sand
   Soldier token the Shurima tag — but a *card* with the Shurima tag is not a

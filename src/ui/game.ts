@@ -172,6 +172,10 @@ function abilityWording(
           return `spend ${each.amount} XP`;
         case "spendBuff":
           return "spend its buff";
+        case "disempowerSelf":
+          return "disempower it";
+        case "discard":
+          return `discard ${each.count}`;
         default:
           return `pay ${describeCost(each.cost)}`;
       }

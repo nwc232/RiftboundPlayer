@@ -10,6 +10,8 @@ import type { GameState, PlayerId } from "./state.js";
  * given throughout this engine so games stay reproducible, so the trash is
  * appended in order; a caller wanting randomness shuffles.
  */
+export { burnOut };
+
 function burnOut(state: GameState, playerId: PlayerId): Progress {
   const player = state.players[playerId];
   const opponent: PlayerId = playerId === "p1" ? "p2" : "p1";

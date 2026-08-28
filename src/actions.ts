@@ -1471,6 +1471,45 @@ function payAbilityCost(
       };
     }
 
+    // R442.1.a — an unempowered source cannot pay this; as a cost that is a
+    // refusal, where R442.1.a.1 makes the *effect* silently do nothing.
+    case "disempowerSelf": {
+      if (permanent === undefined || permanent.empowered !== true) {
+        return undefined;
+      }
+      const { empowered: _spent, ...rest } = permanent;
+      return {
+        state: {
+          ...state,
+          permanents: { ...state.permanents, [sourceId]: rest },
+        },
+        events: [
+          { type: "disempowered", playerId: controller, cardId: sourceId },
+        ],
+      };
+    }
+
+    // R422.3 — "the Action must be able to be completed for the cost to be
+    // paid", so a short hand cannot pay it at all. Which cards go is not asked:
+    // a cost is paid as the ability is played, and R355 leaves no room to stop
+    // and ask there, so this takes from the front. Written up as a deviation.
+    case "discard": {
+      if (player.hand.length < cost.count) return undefined;
+      const going = player.hand.slice(0, cost.count);
+      return {
+        state: withPlayer(state, controller, {
+          ...player,
+          hand: player.hand.slice(cost.count),
+          trash: [...player.trash, ...going],
+        }),
+        events: going.map((cardId) => ({
+          type: "cardDiscarded" as const,
+          playerId: controller,
+          cardId,
+        })),
+      };
+    }
+
     case "exhaustSelf": {
       if (rune !== undefined) {
         if (rune.exhausted) return undefined;
