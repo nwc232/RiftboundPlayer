@@ -110,17 +110,27 @@ export interface TargetFilter {
    * battlefield (Thrill of the Hunt names one as a destination).
    */
   /**
-   * A card type, matched against the permanent's own — except `spellOnChain`,
-   * which is a different search entirely.
+   * A card type, matched against the permanent's own — except `spellOnChain`
+   * and `player`, which are different searches entirely.
+   *
+   * `player` is the one that is not a card at all. R133 makes players Game
+   * Objects that effects choose — "Choose an opponent. They score 1 point" —
+   * and fifty cards in the pool take one as their subject. `PlayerId` is a
+   * `CardId` structurally, so a chosen player travels through the targeting
+   * machinery, the prompts and `context.targets` exactly like a card does,
+   * and nothing downstream needed widening.
    */
-  type: "unit" | "gear" | "spellOnChain" | "battlefield";
+  type: "unit" | "gear" | "spellOnChain" | "battlefield" | "player";
   /**
    * R133.8 — one of the subject's tags. R150's Equipment tag is what
    * [Weaponmaster] chooses by (R821.1.c); "a friendly Mech" is the other
    * shape. Read through the layers, so a copy is chosen by what it copied.
    */
   tag?: string;
-  /** Relative to the ability's controller. */
+  /**
+   * Relative to the ability's controller. On a `player` filter it reads as the
+   * player themselves (`friendly`) or an opponent (`enemy`); omitted, either.
+   */
   controller?: "enemy" | "friendly";
   location?: "battlefield";
   /**
@@ -176,6 +186,14 @@ export function legalTargets(
         return true;
       })
       .map((item) => chainItemCardId(item));
+  }
+
+  // Not a search over permanents: the two players are simply there.
+  if (filter.type === "player") {
+    const opponent: PlayerId = controller === "p1" ? "p2" : "p1";
+    if (filter.controller === "friendly") return [controller];
+    if (filter.controller === "enemy") return [opponent];
+    return [controller, opponent];
   }
 
   if (filter.type === "battlefield") {

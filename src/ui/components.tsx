@@ -130,11 +130,29 @@ export function PlayerPanel({
   const base: Location = { kind: "base", player: playerId };
   const inBase = unitsAt(state, base).map((permanent) => permanent.cardId);
 
+  // R133 — a player can be the thing an ability chooses, and a player is not
+  // on the board anywhere, so the panel itself is what gets clicked.
+  const choosable = pick.legal.has(playerId);
+
   return (
-    <section className={`panel ${acting ? "is-acting" : ""}`}>
+    <section
+      className={[
+        "panel",
+        acting ? "is-acting" : "",
+        choosable ? "is-legal" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <header className="panel-head">
         <h2>
-          {playerId.toUpperCase()}
+          {choosable ? (
+            <button className="pick-player" onClick={() => pick.onSelect(playerId)}>
+              {playerId.toUpperCase()}
+            </button>
+          ) : (
+            playerId.toUpperCase()
+          )}
           {player.legend !== null && (
             <span className="legend">
               {nameOf(state, player.legend)}

@@ -135,6 +135,16 @@ export type Effect =
   /** R730.1 — Kha'Zix, Mutating Horror's "gain 2 XP". */
   | { op: "gainXP"; amount: number }
   /**
+   * "Choose an opponent. They score 1 point." R470 makes scoring the usual
+   * *consequence* of holding a battlefield; a handful of cards score directly,
+   * and R471.1's near-victory restriction does not apply to them because they
+   * are not conquering.
+   *
+   * `targetIndex` points at a chosen *player* (R133), which reaches the effect
+   * through `context.targets` exactly as a chosen card does.
+   */
+  | { op: "scorePoint"; amount: number; targetIndex?: number }
+  /**
    * R433 — Switcheroo's "Swap the Might of two units at the same battlefield
    * this turn." R433.1.b: find the difference and apply it as an increase to
    * the lower and a decrease to the higher, for the stated duration.
@@ -1866,6 +1876,30 @@ export function execute(
             cardId: gearId,
             to: context.sourceId,
           },
+        ],
+      };
+    }
+
+    case "scorePoint": {
+      const chosen =
+        effect.targetIndex === undefined
+          ? context.controller
+          : context.targets[effect.targetIndex];
+      // A player id is the only thing this can name; anything else is a card,
+      // and a card cannot score.
+      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+
+      const player = state.players[chosen];
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [chosen]: { ...player, points: player.points + effect.amount },
+          },
+        },
+        events: [
+          { type: "pointGained", playerId: chosen, points: effect.amount },
         ],
       };
     }

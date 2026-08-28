@@ -339,6 +339,18 @@ export function attachSelf(targetIndex = 0): Effect {
 }
 
 /** Stacked Deck — "Look at the top 3 … Put 1 into your hand and recycle the rest." */
+/**
+ * "Choose an opponent. They score 1 point." Omit `targetIndex` for the plain
+ * "score 1 point", which is the ability's own controller scoring.
+ */
+export function scorePoint(amount = 1, targetIndex?: number): Effect {
+  return {
+    op: "scorePoint",
+    amount,
+    ...(targetIndex !== undefined ? { targetIndex } : {}),
+  };
+}
+
 /** R416 — "Recycle N cards from your hand." */
 export function recycleFromHand(count: number): Effect {
   return { op: "recycleFromHand", count };

@@ -275,3 +275,18 @@ button:disabled { opacity: 0.4; cursor: default; }
   border: 1px solid var(--good);
   color: var(--good);
 }
+
+/* R133 — a player the current prompt can choose. The panel is the target, so
+   the panel is what lights up. */
+.panel.is-legal {
+  border-color: var(--good);
+}
+.pick-player {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 0.35em;
+  cursor: pointer;
+}
