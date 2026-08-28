@@ -5,8 +5,11 @@ import {
   activated,
   dealDamage,
   grantCostKeyword,
+  keywordAura,
   passive,
 } from "../src/builders.js";
+import { legalActions } from "../src/legal.js";
+import { totalCostOf } from "../src/costing.js";
 import { FREE } from "../src/cost.js";
 import { flowCostsOf, repeatCostsOf } from "../src/costing.js";
 import { abilitiesOf, characteristicsOf } from "../src/layers.js";
@@ -151,6 +154,121 @@ describe("keywords whose value is a Cost", () => {
       effect: { op: "empowerSelf" },
       when: { kind: "notEmpowered" },
     });
+  });
+});
+
+/**
+ * Syndra, Transcendent — "While I'm in a showdown, your spells have [Repeat]
+ * [2][Chaos]." The half of the passive-reach gap that costs did not close: the
+ * spell is in a hand, where R711 reads printed values, so the board is swept
+ * when the question is asked rather than the card being modified.
+ */
+describe("a keyword aura reaching a card in hand", () => {
+  const syndraAura: CardInstance = {
+    ...unit("syndra", { might: 4 }),
+    abilities: [
+      keywordAura({
+        affects: "friendly",
+        match: { type: "spell" },
+        keyword: "repeat",
+        costs: [{ energy: 2 }],
+      }),
+    ],
+  };
+
+  function board(source: CardInstance, owner: "p1" | "p2" = "p1"): GameState {
+    return makeState({
+      p1: { hand: ["bolt"], mainDeck: ["a"], runePool: pool({ energy: 9 }) },
+      p2: { hand: [], mainDeck: ["b"] },
+      cards: [
+        source,
+        {
+          id: "bolt",
+          name: "bolt",
+          type: "spell" as const,
+          cost: { ...FREE, energy: 1 },
+          keywords: [],
+          abilities: [activated([], dealDamage(2))],
+        },
+        unit("a"),
+        unit("b"),
+      ],
+      permanents: [{ cardId: source.id, controller: owner }],
+    });
+  }
+
+  it("gives a spell in hand a Repeat cost it never printed", () => {
+    expect(repeatCostsOf(board(syndraAura), "bolt", "p1")).toEqual([
+      [{ kind: "pay", cost: { ...FREE, energy: 2 } }],
+    ]);
+  });
+
+  it("prices the play with it", () => {
+    const state = board(syndraAura);
+
+    expect(totalCostOf(state, "p1", "bolt", {}).energy).toBe(1);
+    expect(totalCostOf(state, "p1", "bolt", { payRepeats: [0] }).energy).toBe(3);
+  });
+
+  it("is offered as a real play", () => {
+    const moves = legalActions(board(syndraAura), "p1").filter(
+      (action) =>
+        action.type === "playSpell" &&
+        action.cardId === "bolt" &&
+        (action.payRepeats ?? []).length === 1,
+    );
+
+    expect(moves.length).toBeGreaterThan(0);
+  });
+
+  it('respects "*your* spells" — the opponent\'s aura does not reach it', () => {
+    expect(repeatCostsOf(board(syndraAura, "p2"), "bolt", "p1")).toEqual([]);
+  });
+
+  it("respects what it matches on", () => {
+    const forUnits: CardInstance = {
+      ...unit("syndra", { might: 4 }),
+      abilities: [
+        keywordAura({
+          affects: "friendly",
+          match: { type: "unit" },
+          keyword: "repeat",
+          costs: [{ energy: 2 }],
+        }),
+      ],
+    };
+
+    expect(repeatCostsOf(board(forUnits), "bolt", "p1")).toEqual([]);
+  });
+
+  /** "*While I'm in a showdown*, your spells have [Repeat]…" */
+  it("can be gated on a condition", () => {
+    const gated: CardInstance = {
+      ...unit("syndra", { might: 4 }),
+      abilities: [
+        keywordAura({
+          affects: "friendly",
+          match: { type: "spell" },
+          keyword: "repeat",
+          costs: [{ energy: 2 }],
+          when: { kind: "inShowdown" },
+        }),
+      ],
+    };
+    const state = board(gated);
+
+    expect(repeatCostsOf(state, "bolt", "p1")).toEqual([]);
+
+    const duringShowdown: GameState = {
+      ...state,
+      showdown: {
+        battlefieldId: "bf",
+        attacker: "p1",
+        focus: "p1",
+        consecutivePasses: 0,
+      },
+    };
+    expect(repeatCostsOf(duringShowdown, "bolt", "p1")).toHaveLength(1);
   });
 });
 

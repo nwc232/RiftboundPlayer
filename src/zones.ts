@@ -89,7 +89,7 @@ export function playZonesFor(
   // banish it." R829.1.b.2 is the limit of what the keyword changes: the zone,
   // and nothing about timing or any other permission.
   if (player.trash.includes(cardId)) {
-    return flowCostsOf(state, cardId).map((costs) => ({
+    return flowCostsOf(state, cardId, playerId).map((costs) => ({
       source: "trash" as const,
       alternateCost: resourcePartOf(costs),
       extraCosts: costs.filter((each) => each.kind !== "pay"),

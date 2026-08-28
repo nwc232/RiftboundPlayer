@@ -689,13 +689,16 @@ built when a card asks for it.
   choice is offered per *source card*, so two damage replacements from the
   same source apply in creation order relative to each other. No printed
   card does that.
-- **A passive cannot *grant a keyword* to a card off the board.** Costs are
-  solved — `costAura` sweeps the board when a cost is asked for, which is what
-  R356.3's increases and Marai Spire's reductions needed, and it sidesteps R711
-  by never touching the card at all. Granting a *keyword* to a card in a hand
-  is the half still open: Syndra, Transcendent's "your spells have [Repeat]
-  [2][Chaos]". An explicit grant already lands anywhere (Kennen's "a spell in
-  your trash"); it is only the passive form that has nowhere to live.
+- ~~**A passive cannot reach a card off the board.**~~ Closed, in two halves
+  and by the same trick: the board is swept when the question is *asked*, so
+  R711 is never contradicted — the card is not modified at all. `costAura`
+  answers R356.3's increases and Marai Spire's reductions; `keywordAura`
+  answers Syndra, Transcendent's "your spells have [Repeat] [2][Chaos]".
+  ROADMAP §3b's cost modification was the original statement of this gap.
+- **A keyword aura only grants the cost-valued keywords.** [Repeat], [Flow]
+  and [Empower] are what the printed cards grant to a card in a hand. A plain
+  keyword granted the same way has no card asking for it, so `keywordAura`
+  does not carry one.
 - **"Your *next* spell this turn" has nowhere to live.** Temporal Portal and
   The Academy both grant [Repeat] to a spell that has not been chosen yet.
   `pendingDiscounts` is exactly this shape for cost reductions (Astral Heron)

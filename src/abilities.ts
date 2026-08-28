@@ -529,6 +529,25 @@ export interface CostAuraAbility {
 }
 
 /**
+ * Syndra, Transcendent — "While I'm in a showdown, your spells have [Repeat]
+ * [2][Chaos]." A board ability granting a *keyword* to cards that are not
+ * permanents, which is the mirror of `CostAuraAbility` and exists for the same
+ * reason: R711 reads anything off the board on printed values, so the board is
+ * swept when the question is asked rather than the card being modified.
+ *
+ * Cost-valued keywords only. A plain keyword granted to a card in a hand has
+ * no printed card asking for it.
+ */
+export interface KeywordAuraAbility {
+  kind: "keywordAura";
+  affects: "friendly" | "enemy" | "any";
+  match?: { type?: CardType; nonToken?: true };
+  keyword: "repeat" | "flow" | "empower";
+  costs: AbilityCost[];
+  when?: Condition;
+}
+
+/**
  * R369.3 — "I enter ready", and the conditional forms of it. Read off a card
  * in hand like the other non-resolving kinds, because it has to be known
  * before the permanent exists.
@@ -554,6 +573,7 @@ export type Ability =
   | ReplacementAbility
   | AdditionalCostAbility
   | CostAuraAbility
+  | KeywordAuraAbility
   | RepeatAbility
   | FlowAbility
   | EmpowerAbility

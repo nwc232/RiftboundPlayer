@@ -179,8 +179,9 @@ export function additionalCostsOf(
 export function repeatCostsOf(
   state: GameState,
   cardId: CardId,
+  playerId?: PlayerId,
 ): AbilityCost[][] {
-  return costKeywordsOf(state, cardId, "repeat");
+  return costKeywordsOf(state, cardId, "repeat", playerId);
 }
 
 /**
@@ -191,8 +192,9 @@ export function repeatCostsOf(
 export function flowCostsOf(
   state: GameState,
   cardId: CardId,
+  playerId?: PlayerId,
 ): AbilityCost[][] {
-  return costKeywordsOf(state, cardId, "flow");
+  return costKeywordsOf(state, cardId, "flow", playerId);
 }
 
 /**
@@ -205,10 +207,42 @@ function costKeywordsOf(
   state: GameState,
   cardId: CardId,
   keyword: "repeat" | "flow" | "empower",
+  playerId?: PlayerId,
 ): AbilityCost[][] {
-  return characteristicsOf(state, cardId)
+  const own = characteristicsOf(state, cardId)
     .costKeywords.filter((each) => each.keyword === keyword)
     .map((each) => each.costs);
+
+  // Syndra, Transcendent — "your spells have [Repeat] [2][Chaos]". Swept from
+  // the board rather than layered, because the card is in a hand and R711
+  // reads anything off the board on printed values alone.
+  const card = state.cards[cardId];
+  if (playerId === undefined || card === undefined) return own;
+
+  const granted: AbilityCost[][] = [];
+  for (const { sourceId, controller } of boardAuraSources(state)) {
+    for (const ability of state.cards[sourceId]?.abilities ?? []) {
+      if (ability.kind !== "keywordAura") continue;
+      if (ability.keyword !== keyword) continue;
+
+      const mine = controller === playerId;
+      if (ability.affects === "friendly" && !mine) continue;
+      if (ability.affects === "enemy" && mine) continue;
+
+      const match = ability.match;
+      if (match?.type !== undefined && card.type !== match.type) continue;
+      if (match?.nonToken === true && card.isToken === true) continue;
+
+      if (
+        ability.when !== undefined &&
+        !holds(state, ability.when, { controller, sourceId, targets: [] })
+      ) {
+        continue;
+      }
+      granted.push(ability.costs);
+    }
+  }
+  return [...own, ...granted];
 }
 
 /**
@@ -219,14 +253,9 @@ function costKeywordsOf(
  * contributes nothing — "you" refers to nobody, so its instructions are
  * ignored.
  */
-function costAurasFor(
+function boardAuraSources(
   state: GameState,
-  playerId: PlayerId,
-  cardId: CardId,
-): CostAuraAbility[] {
-  const card = state.cards[cardId];
-  if (card === undefined) return [];
-
+): { sourceId: CardId; controller: PlayerId }[] {
   const sources: { sourceId: CardId; controller: PlayerId }[] = [
     ...Object.values(state.permanents).map((permanent) => ({
       sourceId: permanent.cardId,
@@ -242,9 +271,19 @@ function costAurasFor(
     const controller = state.battlefields[battlefieldId]?.controller;
     if (controller != null) sources.push({ sourceId: battlefieldId, controller });
   }
+  return sources;
+}
+
+function costAurasFor(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+): CostAuraAbility[] {
+  const card = state.cards[cardId];
+  if (card === undefined) return [];
 
   const found: CostAuraAbility[] = [];
-  for (const { sourceId, controller } of sources) {
+  for (const { sourceId, controller } of boardAuraSources(state)) {
     for (const ability of state.cards[sourceId]?.abilities ?? []) {
       if (ability.kind !== "costAura") continue;
 
@@ -328,7 +367,7 @@ export function totalCostOf(
   // steps of playing the spell", so it lands in step 2 beside the others.
   // Only the resource half is priced here; R820.1.c.2's non-resource costs are
   // paid as the card is played, like any other ability cost.
-  const repeats = repeatCostsOf(state, cardId);
+  const repeats = repeatCostsOf(state, cardId, playerId);
   for (const index of new Set(options.payRepeats ?? [])) {
     const repeat = repeats[index];
     if (repeat !== undefined) total = addCosts(total, resourcePartOf(repeat));

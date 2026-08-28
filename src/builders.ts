@@ -4,6 +4,7 @@ import type {
   ActivatedAbility,
   AdditionalCostAbility,
   CostAuraAbility,
+  KeywordAuraAbility,
   Ability,
   EmpowerAbility,
   Mode,
@@ -505,6 +506,19 @@ export function costAura(
   spec: Omit<CostAuraAbility, "kind">,
 ): CostAuraAbility {
   return { kind: "costAura", ...spec };
+}
+
+/**
+ * Syndra, Transcendent — "your spells have [Repeat] [2][Chaos]". A board
+ * ability granting a cost-valued keyword to cards that are not permanents.
+ */
+export function keywordAura(
+  spec: Omit<KeywordAuraAbility, "kind" | "costs"> & {
+    costs: (Partial<Cost> | AbilityCost)[];
+  },
+): KeywordAuraAbility {
+  const { costs, ...rest } = spec;
+  return { kind: "keywordAura", ...rest, costs: costs.map(asAbilityCost) };
 }
 
 /** "I can't be chosen by enemy spells and abilities." */

@@ -280,7 +280,9 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     ...Object.values(state.facedown)
       .filter((entry) => entry.controller === playerId)
       .map((entry) => entry.cardId),
-    ...player.trash.filter((cardId) => flowCostsOf(state, cardId).length > 0),
+    ...player.trash.filter(
+      (cardId) => flowCostsOf(state, cardId, playerId).length > 0,
+    ),
   ];
 
   // R421 — Hide, offered for every held card against every battlefield. The
@@ -306,7 +308,9 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
       }
       // R820.1.c.2 — each [Repeat] cost is paid or not on its own, so every
       // subset of them is a different play at a different price.
-      const repeats = repeatCostsOf(state, cardId).map((_, index) => index);
+      const repeats = repeatCostsOf(state, cardId, playerId).map(
+        (_, index) => index,
+      );
       // R829.1.c.3 — and a spell with several [Flow] costs is several plays.
       const zones = Math.max(1, playZonesFor(state, playerId, cardId).length);
       // "Choose one —": every arm is a different play, and with [Repeat] every

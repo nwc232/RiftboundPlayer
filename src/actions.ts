@@ -1092,7 +1092,7 @@ export function playSpell(
 
   // R820.1.c.3 — "Each Repeat Cost can be paid only a single time", so a
   // repeated index is not a second payment but a malformed action.
-  const repeats = repeatCostsOf(state, cardId);
+  const repeats = repeatCostsOf(state, cardId, playerId);
   if (new Set(payRepeats).size !== payRepeats.length) {
     return rejected("noAdditionalCost");
   }
