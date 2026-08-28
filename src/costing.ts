@@ -1,5 +1,6 @@
 import { addCosts } from "./cost.js";
-import type { AbilityCost } from "./abilities.js";
+import type { AbilityCost, CostAuraAbility } from "./abilities.js";
+import { FREE } from "./cost.js";
 import {
   characteristicsOf,
   controllerOf,
@@ -67,6 +68,32 @@ function applyDiscounts(
   starting: Cost,
 ): Cost {
   let cost = starting;
+
+  // R356.4 — the board's reductions alongside the card's own, and the floor a
+  // "to a minimum of [1]" imposes on both.
+  const auras = costAurasFor(state, playerId, cardId);
+  const floors = auras.flatMap((aura) =>
+    aura.minimum === undefined ? [] : [{ ...FREE, ...aura.minimum }],
+  );
+  const applyFloor = (value: Cost): Cost =>
+    floors.reduce(
+      (out, floor) => ({
+        energy: Math.max(out.energy, floor.energy),
+        power: out.power,
+        anyPower: Math.max(out.anyPower, floor.anyPower),
+      }),
+      value,
+    );
+
+  for (const aura of auras) {
+    if (aura.reduce === undefined) continue;
+    const { reduce } = aura;
+    cost = applyFloor({
+      energy: Math.max(0, cost.energy - (reduce.energy ?? 0)),
+      power: reducePower(cost.power, reduce.power ?? {}),
+      anyPower: Math.max(0, cost.anyPower - (reduce.anyPower ?? 0)),
+    });
+  }
 
   for (const ability of state.cards[cardId]?.abilities ?? []) {
     if (ability.kind !== "costModifier") continue;
@@ -184,6 +211,71 @@ function costKeywordsOf(
     .map((each) => each.costs);
 }
 
+/**
+ * Every board ability that changes what `cardId` costs `playerId` to play.
+ *
+ * Swept rather than layered: the card is in a hand, and R711 reads anything
+ * off the board on printed values. R190.6.d is why an uncontrolled battlefield
+ * contributes nothing — "you" refers to nobody, so its instructions are
+ * ignored.
+ */
+function costAurasFor(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+): CostAuraAbility[] {
+  const card = state.cards[cardId];
+  if (card === undefined) return [];
+
+  const sources: { sourceId: CardId; controller: PlayerId }[] = [
+    ...Object.values(state.permanents).map((permanent) => ({
+      sourceId: permanent.cardId,
+      controller: controllerOf(state, permanent.cardId),
+    })),
+  ];
+  for (const player of Object.values(state.players)) {
+    if (player.legend !== null) {
+      sources.push({ sourceId: player.legend, controller: player.id });
+    }
+  }
+  for (const battlefieldId of state.battlefieldOrder) {
+    const controller = state.battlefields[battlefieldId]?.controller;
+    if (controller != null) sources.push({ sourceId: battlefieldId, controller });
+  }
+
+  const found: CostAuraAbility[] = [];
+  for (const { sourceId, controller } of sources) {
+    for (const ability of state.cards[sourceId]?.abilities ?? []) {
+      if (ability.kind !== "costAura") continue;
+
+      // "Opponents' spells" is relative to whoever the aura belongs to.
+      const mine = controller === playerId;
+      if (ability.affects === "friendly" && !mine) continue;
+      if (ability.affects === "enemy" && mine) continue;
+
+      const match = ability.match;
+      if (match?.type !== undefined && card.type !== match.type) continue;
+      if (match?.nonToken === true && card.isToken === true) continue;
+      if (
+        match?.keyword !== undefined &&
+        !(card.keywords ?? []).includes(match.keyword)
+      ) {
+        continue;
+      }
+
+      if (
+        ability.when !== undefined &&
+        !holds(state, ability.when, { controller, sourceId, targets: [] })
+      ) {
+        continue;
+      }
+
+      found.push(ability);
+    }
+  }
+  return found;
+}
+
 export interface CostOptions {
   /**
    * R809.1.d — what this play chooses. Deflect imposes a Mandatory Additional
@@ -254,7 +346,13 @@ export function totalCostOf(
     }
   }
 
-  // 4. Discounts (R356.4). Step 3, cost increases, has no card yet.
+  // 3. Cost increases (R356.3), swept off the board — see `costAurasFor`.
+  for (const aura of costAurasFor(state, playerId, cardId)) {
+    if (aura.increase === undefined) continue;
+    total = addCosts(total, { ...FREE, ...aura.increase });
+  }
+
+  // 4. Discounts (R356.4).
   // R356.4.d — a discount on the *total* applies after component ones, which
   // is where a waiting "your next card costs less" belongs.
   const discounted = applyDiscounts(state, playerId, cardId, total);

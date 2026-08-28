@@ -3,6 +3,7 @@ import type {
   AbilityTiming,
   ActivatedAbility,
   AdditionalCostAbility,
+  CostAuraAbility,
   Ability,
   EmpowerAbility,
   Mode,
@@ -493,6 +494,17 @@ export function grantCostKeyword(
  */
 function asAbilityCost(each: Partial<Cost> | AbilityCost): AbilityCost {
   return "kind" in each ? each : { kind: "pay", cost: { ...FREE, ...each } };
+}
+
+/**
+ * R356.3 / R356.4 — a board ability that changes what *other* cards cost.
+ * Helm of Suppression: `costAura({ affects: "enemy", match: { type: "spell" },
+ * increase: { energy: 1 } })`.
+ */
+export function costAura(
+  spec: Omit<CostAuraAbility, "kind">,
+): CostAuraAbility {
+  return { kind: "costAura", ...spec };
 }
 
 /** One arm of a "Choose one —", with whatever that arm chooses for itself. */

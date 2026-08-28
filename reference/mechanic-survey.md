@@ -689,23 +689,21 @@ built when a card asks for it.
   choice is offered per *source card*, so two damage replacements from the
   same source apply in creation order relative to each other. No printed
   card does that.
-- **A passive cannot grant a cost keyword to a card off the board.** R820.4,
-  R827.4 and R829.2 make [Repeat], [Flow] and [Empower] characteristics, and
-  they are read through the layer pipeline now, so an *explicit* grant lands
-  wherever the card lies — Kennen, Storm of Shuriken's "give a spell in your
-  trash [Flow] equal to its cost this turn" works. A **passive** aimed at cards
-  that are not permanents does not: Syndra, Transcendent's "your spells have
-  [Repeat] [2][Chaos]" wants a scope reaching into a hand, which R711 otherwise
-  reads on printed values alone. The same shape as ROADMAP §3b's cost
-  modification, and it wants the same answer.
+- **A passive cannot *grant a keyword* to a card off the board.** Costs are
+  solved — `costAura` sweeps the board when a cost is asked for, which is what
+  R356.3's increases and Marai Spire's reductions needed, and it sidesteps R711
+  by never touching the card at all. Granting a *keyword* to a card in a hand
+  is the half still open: Syndra, Transcendent's "your spells have [Repeat]
+  [2][Chaos]". An explicit grant already lands anywhere (Kennen's "a spell in
+  your trash"); it is only the passive form that has nowhere to live.
 - **"Your *next* spell this turn" has nowhere to live.** Temporal Portal and
   The Academy both grant [Repeat] to a spell that has not been chosen yet.
   `pendingDiscounts` is exactly this shape for cost reductions (Astral Heron)
   and a `pendingGrants` beside it would serve all three.
-- **Nothing reduces a Repeat or Flow cost.** Marai Spire ("friendly [Repeat]
-  costs cost [1] less") and Stargazer ("spells with [Flow] you play from your
-  trash cost [2] less") both modify a *keyword's* cost, which `costModifier`
-  cannot name — it reduces a card's own cost.
+- **Nothing reduces a Repeat or Flow cost specifically.** `costAura` reduces
+  what a *card* costs; Marai Spire ("friendly [Repeat] costs cost [1] less")
+  and Stargazer ("spells with [Flow] you play from your trash cost [2] less")
+  name a *keyword's* cost, which is a different subject.
 - **A discard *cost* does not ask which cards.** R422.1.a gives the choice to
   the discarding player, and the *effect* asks. A cost is paid as the ability
   is played, inside R355's finalization, where the engine has no room to stop

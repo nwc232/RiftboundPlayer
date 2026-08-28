@@ -48,6 +48,10 @@ export type Condition =
    * which the [Empower] keyword spells out as "Play only if not Empowered".
    */
   | { kind: "notEmpowered" }
+  /** Helm of Suppression — "if this is [Empowered], they cost [2] more instead". */
+  | { kind: "empowered" }
+  /** Mystic Vortex — "during showdowns here"; Vex, Cheerless — "while I'm in combat". */
+  | { kind: "inShowdown"; here?: true }
   /**
    * R424.1.a.1 — "other cards … can reference the act of being Revealed".
    * "Then if you revealed a Bird, Cat, Dog, or Poro, do this: …" asks by tag;
@@ -195,6 +199,21 @@ export function holds(
           (card.tags ?? []).includes(condition.tag)
         );
       });
+
+    case "empowered":
+      return state.permanents[context.sourceId]?.empowered === true;
+
+    case "inShowdown": {
+      if (state.showdown === null) return false;
+      if (condition.here !== true) return true;
+      // "Here" for a battlefield is itself; for a unit, where it stands.
+      const where = locationOf(state, context.sourceId, context);
+      return (
+        state.showdown.battlefieldId === context.sourceId ||
+        (where?.kind === "battlefield" &&
+          where.id === state.showdown.battlefieldId)
+      );
+    }
 
     case "notEmpowered":
       return state.permanents[context.sourceId]?.empowered !== true;

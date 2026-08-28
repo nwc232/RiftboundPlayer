@@ -397,12 +397,16 @@ otherwise, and this one fix closes five separate deviations at once.
 
 | Gap | Rule | Cards |
 |---|---|---|
-| **Non-resource costs** — discard, kill, recycle, banish as a cost | R356.2, R422.3, R820.1.c.2, R827.1.c.2, R829.1.c.2, R818 | ~15 |
-| **Cost *increases*** — "costs [2] more" | R356.3 | 20 |
+| ~~**Non-resource keyword costs**~~ | R820.1.c.2, R827.1.c.2, R829.1.c.2 | ~4 | Done — [Repeat], [Flow] and [Empower] hold an `AbilityCost[]`. |
+| ~~**Cost *increases***~~ | R356.3 | 4 | Done — and all four are auras, so they needed the board sweep rather than the empty slot. |
+| **Non-resource *additional* costs** (R356.2) | R356.2, R818 | ~10 | Atakhan's "kill a friendly unit as an additional cost" — and it wants a *choice*, which a cost paid inside finalization cannot ask for. |
 | **Reducing a keyword's cost** — Marai Spire, Stargazer | R812 | 2 |
 
-`costing.ts` already names the second one: "Step 3, cost increases, has no card
-yet." Twenty of them do.
+The earlier count of 20 for cost increases was wrong: most of those matches are
+"costs *no more than* X", which is a target filter and was built long ago. Four
+cards genuinely raise a cost, and every one of them is an aura over cards in a
+hand — so they were blocked by §6d's passive-reach gap rather than by the empty
+step-3 slot `costing.ts` was carrying.
 
 ### 6c. Vocabulary the pool uses and the engine cannot say
 

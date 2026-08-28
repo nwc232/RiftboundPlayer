@@ -7,6 +7,7 @@ import {
 import type { GameEvent } from "./events.js";
 import type {
   CardId,
+  CardType,
   Cost,
   Domain,
   GameState,
@@ -496,6 +497,38 @@ export interface EmpowerAbility {
 }
 
 /**
+ * R356.3 / R356.4 — an ability on the *board* that changes what *other* cards
+ * cost, as opposed to `CostModifierAbility`, which a card carries about
+ * itself. Helm of Suppression's "opponents' spells cost [1] more", Vaults of
+ * Helia's "your non-token units cost [1] more to play this turn".
+ *
+ * It has to sit outside the layer pipeline for the same reason cost
+ * modification does (ROADMAP §3b): the cards it reaches are in a hand, and
+ * R711 reads anything off the board on printed values alone. So this is swept
+ * from the board when a cost is asked for, rather than applied to a permanent.
+ */
+export interface CostAuraAbility {
+  kind: "costAura";
+  /** Whose cards it reaches, relative to the ability's own controller. */
+  affects: "friendly" | "enemy" | "any";
+  /** Narrowed to some of them. Absent reaches every card. */
+  match?: {
+    type?: CardType;
+    keyword?: Keyword;
+    /** Vaults of Helia — "your **non-token** units". */
+    nonToken?: true;
+  };
+  /** R356.3 — applied before reductions, and never below zero. */
+  increase?: Partial<Cost>;
+  /** R356.4 — applied after increases. */
+  reduce?: Partial<Cost>;
+  /** Vex, Cheerless — "…less, **to a minimum of [1]**". */
+  minimum?: Partial<Cost>;
+  /** "While I'm in a showdown", "if this is [Empowered]". Absent means always. */
+  when?: Condition;
+}
+
+/**
  * R369.3 — "I enter ready", and the conditional forms of it. Read off a card
  * in hand like the other non-resolving kinds, because it has to be known
  * before the permanent exists.
@@ -520,6 +553,7 @@ export type Ability =
   | EntryReplacementAbility
   | ReplacementAbility
   | AdditionalCostAbility
+  | CostAuraAbility
   | RepeatAbility
   | FlowAbility
   | EmpowerAbility
