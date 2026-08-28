@@ -601,10 +601,15 @@ export function flow(...costs: (Partial<Cost> | AbilityCost)[]): FlowAbility {
 }
 
 export function additionalCost(
-  cost: Cost,
+  cost: Cost | AbilityCost | (Cost | AbilityCost)[],
   optional: true | undefined = true,
 ): AdditionalCostAbility {
-  return { kind: "additionalCost", cost, ...(optional ? { optional } : {}) };
+  const list = Array.isArray(cost) ? cost : [cost];
+  return {
+    kind: "additionalCost",
+    costs: list.map(asAbilityCost),
+    ...(optional ? { optional } : {}),
+  };
 }
 
 /** Astral Heron — "your next card costs [2][A][A] less". */

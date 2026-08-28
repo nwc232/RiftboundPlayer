@@ -860,13 +860,33 @@ export function playUnitFromHand(
     zone,
   );
 
+  // R356.2's non-resource half — "you may discard 1", "you may exhaust your
+  // legend". Paid after the card has left its zone, so a discard cannot help
+  // itself to the card being played.
+  let afterExtras = withPlayer(leftZone, playerId, {
+    ...leftZone.players[playerId],
+    runePool: remainingPool,
+  });
+  const extraEvents: GameEvent[] = [];
+  for (const additional of additionalCostsOf(state, cardId)) {
+    if (additional.optional && !payOptional) continue;
+    for (const each of additional.costs) {
+      if (each.kind === "pay") continue;
+      const paid = payAbilityCost(afterExtras, each, {
+        controller: playerId,
+        sourceId: cardId,
+        targets: [],
+      });
+      if (paid === undefined) return rejected("cannotAffordCost");
+      afterExtras = paid.state;
+      extraEvents.push(...paid.events);
+    }
+  }
+
   return {
     ok: true,
     state: {
-      ...withPlayer(leftZone, playerId, {
-        ...leftZone.players[playerId],
-        runePool: remainingPool,
-      }),
+      ...afterExtras,
       permanents: {
         ...state.permanents,
         [cardId]: {
@@ -894,6 +914,7 @@ export function playUnitFromHand(
     },
     events: [
       { type: "costPaid", playerId, cardId, cost },
+      ...extraEvents,
       // R383.4.a.4 — a gear's own "when you play this" is a play effect too,
       // and `unitPlayed`'s subject filters are what tell the two apart.
       { type: "unitPlayed", playerId, cardId },
@@ -1150,6 +1171,13 @@ export function playSpell(
   // ability's costs are, and refuse the play if they cannot be.
   const extraCosts: AbilityCost[] = [
     ...(zone.extraCosts ?? []),
+    // R356.2 — the non-resource half of an additional cost, mandatory ones
+    // always and optional ones only when the player chose to pay.
+    ...additionalCostsOf(state, cardId).flatMap((additional) =>
+      additional.optional && !payOptional
+        ? []
+        : additional.costs.filter((each) => each.kind !== "pay"),
+    ),
     ...payRepeats.flatMap((index) =>
       (repeats[index] ?? []).filter((each) => each.kind !== "pay"),
     ),
@@ -1541,6 +1569,23 @@ function payAbilityCost(
           playerId: controller,
           cardId,
         })),
+      };
+    }
+
+    // R107.4.c — the Legend's exhausted state lives on the player, since it
+    // has no permanent to carry one.
+    case "exhaustLegend": {
+      if (player.legend === null || player.legendExhausted === true) {
+        return undefined;
+      }
+      return {
+        state: withPlayer(state, controller, {
+          ...player,
+          legendExhausted: true,
+        }),
+        events: [
+          { type: "objectExhausted", playerId: controller, cardId: player.legend },
+        ],
       };
     }
 

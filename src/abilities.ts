@@ -354,7 +354,13 @@ export type AbilityCost =
    * which discards as many as it can, a cost of Discard 2 with one card in
    * hand simply cannot be paid.
    */
-  | { kind: "discard"; count: number };
+  | { kind: "discard"; count: number }
+  /**
+   * "You may exhaust your legend as an additional cost." R107.4.c — the
+   * Champion Legend has no permanent, so its exhausted state lives on the
+   * player, which is also why this is not `exhaustSelf` on another source.
+   */
+  | { kind: "exhaustLegend" };
 
 /** Recorded from the card, but not yet enforced — that needs the chain. */
 export type AbilityTiming = "reaction" | "action" | "default";
@@ -446,7 +452,12 @@ export interface AdditionalCostAbility {
   kind: "additionalCost";
   /** R356.2.b.1 — the word "may". Absent makes it mandatory (R356.2.a.1). */
   optional?: true;
-  cost: Cost;
+  /**
+   * R356.2 does not say "resources": the pool prints "you may discard 1", "you
+   * may spend 3 XP", "you may exhaust your legend" as additional costs. So this
+   * is what an ability costs generally, like [Repeat]'s and [Flow]'s.
+   */
+  costs: AbilityCost[];
 }
 
 /**

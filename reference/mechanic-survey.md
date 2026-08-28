@@ -714,12 +714,19 @@ built when a card asks for it.
   legality is right (a short hand cannot pay); only the choice is missing.
   Closing it means letting finalization suspend, which is a bigger change than
   the two cards printing it justify.
-- **An *additional* cost is still resources only.** R356.2's `AdditionalCost`
-  carries a bare `Cost`, so Atakhan's "you may kill a friendly unit as an
-  additional cost to play me" cannot be authored. [Repeat], [Flow] and
-  [Empower] were widened to `AbilityCost[]`; R356.2 wants the same treatment,
-  and additionally a *choice* — which friendly unit — that a cost paid inside
-  finalization has nowhere to ask for.
+- **A cost cannot ask a question.** R356.2's additional costs hold an
+  `AbilityCost[]` now, so discarding, spending XP and exhausting a Legend all
+  work. What is left is the shapes that *choose*: Atakhan's "you may kill a
+  friendly unit as an additional cost", "you may spend a buff" where the buff
+  is any friendly unit's, and R422.1.a's choice of *which* cards a discard
+  cost sends. R355.1 puts those choices at the start of playing a card, and
+  the engine has no way to suspend inside finalization — a paused effect is a
+  resolution-time mechanism. Three cards.
+- **R443's Skip is not built, and the one card printing it needs three other
+  things.** Endless Riches is the only card in the pool that skips anything
+  ("skip your Draw Phase"), and it also wants playing cards from a trash
+  generally and a replacement redirecting everything bound for the trash. The
+  mechanism alone would make nothing authorable, so it waits for the card.
 - **"Your Sand Soldiers" is read as the Shurima tag.** Emperor of the Sands
   says "your Sand Soldiers have [Weaponmaster]", and R187.3 gives the Sand
   Soldier token the Shurima tag — but a *card* with the Shurima tag is not a

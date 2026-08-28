@@ -176,6 +176,8 @@ function abilityWording(
           return "disempower it";
         case "discard":
           return `discard ${each.count}`;
+        case "exhaustLegend":
+          return "exhaust your legend";
         default:
           return `pay ${describeCost(each.cost)}`;
       }

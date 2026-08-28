@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { execute } from "../src/abilities.js";
+import type { AbilityCost } from "../src/abilities.js";
 import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import {
@@ -143,7 +144,15 @@ describe("[Accelerate] (R805)", () => {
 
   it("derives its cost from the keyword, in the card's own domain (R135.2.e.6.c)", () => {
     expect(additionalCostsOf(board(kaisa), "kaisa")).toEqual([
-      { optional: true, cost: { energy: 1, power: { body: 1 }, anyPower: 0 } },
+      {
+        optional: true,
+        costs: [
+          {
+            kind: "pay",
+            cost: { energy: 1, power: { body: 1 }, anyPower: 0 },
+          },
+        ],
+      },
     ]);
   });
 
@@ -165,12 +174,125 @@ describe("[Accelerate] (R805)", () => {
     );
   });
 
-  /** R135.2.e.6.c — a multi-domain card's [C] is any of its domains. */
+  /**
+ * R356.2 never says "resources". The pool prints "you may discard 1", "you may
+ * spend 3 XP" and "you may exhaust your legend" as additional costs, and
+ * R356.2.b.1's "may" makes each of them a choice made as the card is played.
+ */
+describe("non-resource additional costs (R356.2)", () => {
+  const ritual = (each: AbilityCost): CardInstance => ({
+    ...unit("ritual", { might: 3 }),
+    abilities: [additionalCost(each)],
+  });
+
+  function board(card: CardInstance, hand: string[] = [], xp = 0): GameState {
+    const base = makeState({
+      p1: {
+        hand: [card.id, ...hand],
+        mainDeck: ["a"],
+        runePool: pool({ energy: 9 }),
+        legend: "gloom",
+      },
+      p2: { mainDeck: ["b"] },
+      cards: [
+        card,
+        { ...unit("gloom"), type: "legend" as const },
+        unit("a"),
+        unit("b"),
+        ...hand.map((id) => unit(id)),
+      ],
+    });
+    return {
+      ...base,
+      players: { ...base.players, p1: { ...base.players.p1, xp } },
+    };
+  }
+
+  const play = (payOptional: boolean): Action => ({
+    type: "playUnitFromHand",
+    playerId: "p1",
+    cardId: "ritual",
+    payOptional,
+  });
+
+  it("pays a discard, and only when the player chose to", () => {
+    const state = board(ritual({ kind: "discard", count: 1 }), ["spare"]);
+
+    const paid = applyAction(state, play(true));
+    expect(paid.ok).toBe(true);
+    if (!paid.ok) return;
+    expect(paid.state.players.p1.trash).toEqual(["spare"]);
+
+    const declined = applyAction(state, play(false));
+    expect(declined.ok).toBe(true);
+    if (!declined.ok) return;
+    expect(declined.state.players.p1.trash).toEqual([]);
+  });
+
+  /** R354 step 1 — the card is on the chain before its costs are paid. */
+  it("never discards the card being played", () => {
+    const state = board(ritual({ kind: "discard", count: 1 }), ["spare"]);
+    const paid = applyAction(state, play(true));
+
+    expect(paid.ok).toBe(true);
+    if (!paid.ok) return;
+    expect(paid.state.players.p1.trash).not.toContain("ritual");
+  });
+
+  it("refuses when it cannot be paid", () => {
+    const state = board(ritual({ kind: "discard", count: 1 }));
+
+    expect(applyAction(state, play(true))).toEqual({
+      ok: false,
+      reason: "cannotAffordCost",
+    });
+    // Declining it is still a legal play.
+    expect(applyAction(state, play(false)).ok).toBe(true);
+  });
+
+  it("pays XP", () => {
+    const state = board(ritual({ kind: "spendXP", amount: 3 }), [], 5);
+    const paid = applyAction(state, play(true));
+
+    expect(paid.ok).toBe(true);
+    if (!paid.ok) return;
+    expect(paid.state.players.p1.xp).toBe(2);
+  });
+
+  /** R107.4.c — the Legend's exhausted state lives on the player. */
+  it("exhausts the legend", () => {
+    const state = board(ritual({ kind: "exhaustLegend" }));
+    const paid = applyAction(state, play(true));
+
+    expect(paid.ok).toBe(true);
+    if (!paid.ok) return;
+    expect(paid.state.players.p1.legendExhausted).toBe(true);
+
+    // R414.1.b — an already-exhausted object cannot be exhausted again.
+    expect(applyAction(paid.state, play(true)).ok).toBe(false);
+  });
+
+  it("records that the cost was paid, for R205 to ask about later", () => {
+    const state = board(ritual({ kind: "discard", count: 1 }), ["spare"]);
+    const paid = applyAction(state, play(true));
+
+    expect(paid.ok).toBe(true);
+    if (!paid.ok) return;
+    expect(paid.state.permanents.ritual?.paidAdditionalCost).toBe(true);
+  });
+});
+
+/** R135.2.e.6.c — a multi-domain card's [C] is any of its domains. */
   it("falls back to [A] for a multi-domain card", () => {
     const dual: CardInstance = { ...kaisa, id: "dual", domains: ["body", "fury"] };
 
     expect(additionalCostsOf(board(dual), "dual")).toEqual([
-      { optional: true, cost: { energy: 1, power: {}, anyPower: 1 } },
+      {
+        optional: true,
+        costs: [
+          { kind: "pay", cost: { energy: 1, power: {}, anyPower: 1 } },
+        ],
+      },
     ]);
   });
 });

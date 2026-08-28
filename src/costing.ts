@@ -126,7 +126,7 @@ function applyDiscounts(
  */
 export interface AdditionalCost {
   optional: boolean;
-  cost: Cost;
+  costs: AbilityCost[];
 }
 
 /**
@@ -155,16 +155,21 @@ export function additionalCostsOf(
   if (keywordsOf(state, cardId).includes("accelerate")) {
     costs.push({
       optional: true,
-      cost: addCosts(
-        { energy: 1, power: {}, anyPower: 0 },
-        ownDomainPower(state, cardId, 1),
-      ),
+      costs: [
+        {
+          kind: "pay",
+          cost: addCosts(
+            { energy: 1, power: {}, anyPower: 0 },
+            ownDomainPower(state, cardId, 1),
+          ),
+        },
+      ],
     });
   }
 
   for (const ability of state.cards[cardId]?.abilities ?? []) {
     if (ability.kind === "additionalCost") {
-      costs.push({ optional: ability.optional === true, cost: ability.cost });
+      costs.push({ optional: ability.optional === true, costs: ability.costs });
     }
   }
 
@@ -359,9 +364,11 @@ export function totalCostOf(
         : characteristicsOf(state, cardId).cost;
 
   // 2. Additional costs (R356.2).
+  // Only the resource half is priced; R356.2's non-resource costs are paid as
+  // the card is played, like any other ability cost.
   for (const additional of additionalCostsOf(state, cardId)) {
     if (additional.optional && options.payOptional !== true) continue;
-    total = addCosts(total, additional.cost);
+    total = addCosts(total, resourcePartOf(additional.costs));
   }
   // R820.1.c.1 — a Repeat cost is "an Additional Cost to be paid during the
   // steps of playing the spell", so it lands in step 2 beside the others.
