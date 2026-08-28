@@ -851,7 +851,8 @@ export function playUnitFromHand(
 
   const playedFrom: PlaySource = zone.source;
   // Whatever a waiting "your next card costs less" gave, it gave it to this
-  // card and is spent. R359.1 then takes the card out of wherever it came from.
+  // card and is spent. R354 step 1 then takes the card out of wherever it
+  // came from — "move the card from its current zone to the Chain".
   const leftZone = leaveZone(
     consumeDiscount(state, playerId),
     playerId,
@@ -1143,6 +1144,42 @@ export function playSpell(
   });
   if (remainingPool === undefined) return rejected("cannotAffordCost");
 
+  // R820.1.c.2 / R829.1.c.2 — a [Repeat] or [Flow] cost "may include both
+  // resource costs and non-resource costs". The resources went through
+  // `spend`; discarding, disempowering and the rest are paid the same way an
+  // ability's costs are, and refuse the play if they cannot be.
+  const extraCosts: AbilityCost[] = [
+    ...(zone.extraCosts ?? []),
+    ...payRepeats.flatMap((index) =>
+      (repeats[index] ?? []).filter((each) => each.kind !== "pay"),
+    ),
+  ];
+  // R354 step 1 — "Move the card from its current zone to the Chain" is the
+  // *first* step of playing, before R355's choices and R356's costs. Taking it
+  // out of its zone here rather than at the end is what stops a discard cost
+  // from being paid with the very card being played.
+  const afterZone = leaveZone(
+    consumeDiscount(state, playerId),
+    playerId,
+    cardId,
+    zone,
+  );
+  let afterExtras: GameState = withPlayer(afterZone, playerId, {
+    ...afterZone.players[playerId],
+    runePool: remainingPool,
+  });
+  const extraEvents: GameEvent[] = [];
+  for (const each of extraCosts) {
+    const paid = payAbilityCost(afterExtras, each, {
+      controller: playerId,
+      sourceId: cardId,
+      targets,
+    });
+    if (paid === undefined) return rejected("cannotAffordCost");
+    afterExtras = paid.state;
+    extraEvents.push(...paid.events);
+  }
+
   // R355.5/R355.8 — a spell's choices are made as it is played, and each one
   // has to be valid for the filter the card names in that position.
   if (spellTargeting(state, cardId, chosenModes[0]!) !== undefined) {
@@ -1179,19 +1216,10 @@ export function playSpell(
     }
   }
 
-  const leftZone = leaveZone(
-    consumeDiscount(state, playerId),
-    playerId,
-    cardId,
-    zone,
-  );
   return {
     ok: true,
     state: {
-      ...withPlayer(leftZone, playerId, {
-        ...leftZone.players[playerId],
-        runePool: remainingPool,
-      }),
+      ...afterExtras,
       chain: [
         ...state.chain,
         {
@@ -1217,6 +1245,7 @@ export function playSpell(
     },
     events: [
       { type: "costPaid", playerId, cardId, cost },
+      ...extraEvents,
       { type: "spellPlayed", playerId, cardId },
     ],
   };

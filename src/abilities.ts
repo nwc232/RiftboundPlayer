@@ -448,7 +448,12 @@ export interface AdditionalCostAbility {
  */
 export interface RepeatAbility {
   kind: "repeat";
-  cost: Cost;
+  /**
+   * R820.1.c.2 — "costs may include both resource costs and non-resource costs",
+   * so this is a list of `AbilityCost` rather than a bare `Cost`. Square Up's
+   * "[Repeat] — Discard 1" is the printed case.
+   */
+  costs: AbilityCost[];
 }
 
 /**
@@ -463,7 +468,12 @@ export interface RepeatAbility {
 export interface FlowAbility {
   kind: "flow";
   /** R829.1.c.1 — an Alternate Cost: it replaces the base cost, not adds to it. */
-  cost: Cost;
+  /**
+   * R829.1.c.2 — "costs may include both resource costs and non-resource costs",
+   * so this is a list of `AbilityCost` rather than a bare `Cost`. Square Up's
+   * "[Repeat] — Discard 1" is the printed case.
+   */
+  costs: AbilityCost[];
 }
 
 /**
@@ -477,7 +487,12 @@ export interface FlowAbility {
  */
 export interface EmpowerAbility {
   kind: "empower";
-  cost: Cost;
+  /**
+   * R827.1.c.2 — "costs may include both resource costs and non-resource costs",
+   * so this is a list of `AbilityCost` rather than a bare `Cost`. Square Up's
+   * "[Repeat] — Discard 1" is the printed case.
+   */
+  costs: AbilityCost[];
 }
 
 /**

@@ -200,9 +200,9 @@ describe("[Repeat] (R820)", () => {
 
     it("reads them all off the card in printed order", () => {
       expect(repeatCostsOf(board(three()), "bolt")).toEqual([
-        { ...FREE, energy: 1 },
-        { ...FREE, energy: 2 },
-        { ...FREE, energy: 4 },
+        [{ kind: "pay", cost: { ...FREE, energy: 1 } }],
+        [{ kind: "pay", cost: { ...FREE, energy: 2 } }],
+        [{ kind: "pay", cost: { ...FREE, energy: 4 } }],
       ]);
     });
 
@@ -300,6 +300,91 @@ describe("[Repeat] (R820)", () => {
       legal: ["d", "e", "a"],
       keep: 1,
     });
+  });
+});
+
+/**
+ * R820.1.c.2 — "Repeat costs may include both resource costs and non-resource
+ * costs." Square Up prints "[Repeat] — Discard 1", which is the whole reason a
+ * cost keyword carries an `AbilityCost[]` rather than a bare resource amount.
+ */
+describe("a non-resource Repeat cost (R820.1.c.2)", () => {
+  const squareUp = (): CardInstance => ({
+    id: "bolt",
+    name: "Square Up",
+    type: "spell",
+    cost: FREE,
+    keywords: [],
+    abilities: [
+      {
+        ...activated([], dealDamage(2)),
+        targeting: { filters: [{ type: "unit", controller: "enemy" }] },
+      },
+      repeat({ kind: "discard", count: 1 }),
+    ],
+  });
+
+  function handOf(cards: string[]): GameState {
+    const card = squareUp();
+    return makeState({
+      p1: {
+        hand: [card.id, ...cards],
+        mainDeck: ["a"],
+        runePool: pool({ energy: 9 }),
+      },
+      p2: { mainDeck: ["b"] },
+      cards: [
+        card,
+        unit("ogre", { might: 9 }),
+        unit("a"),
+        unit("b"),
+        ...cards.map((id) => unit(id)),
+      ],
+      permanents: [{ cardId: "ogre", controller: "p2" }],
+    });
+  }
+
+  it("costs nothing in resources", () => {
+    expect(totalCostOf(handOf(["x"]), "p1", "bolt", { payRepeats: [0] })).toEqual(
+      FREE,
+    );
+  });
+
+  it("pays it by discarding, and repeats", () => {
+    const after = resolve(handOf(["x"]), {
+      type: "playSpell",
+      playerId: "p1",
+      cardId: "bolt",
+      targets: ["ogre", "ogre"],
+      payRepeats: [0],
+    });
+
+    expect(after.players.p1.trash).toContain("x");
+    expect(after.permanents.ogre?.damage).toBe(4);
+  });
+
+  /** R422.3 — a cost that cannot be completed is not paid. */
+  it("cannot be paid with nothing to discard", () => {
+    expect(
+      applyAction(handOf([]), {
+        type: "playSpell",
+        playerId: "p1",
+        cardId: "bolt",
+        targets: ["ogre", "ogre"],
+        payRepeats: [0],
+      }),
+    ).toEqual({ ok: false, reason: "cannotAffordCost" });
+  });
+
+  it("is still playable without paying it", () => {
+    const after = resolve(handOf([]), {
+      type: "playSpell",
+      playerId: "p1",
+      cardId: "bolt",
+      targets: ["ogre"],
+    });
+
+    expect(after.permanents.ogre?.damage).toBe(2);
   });
 });
 

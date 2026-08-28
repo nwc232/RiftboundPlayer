@@ -72,6 +72,7 @@ describe("[Flow] (R829)", () => {
       {
         source: "trash",
         alternateCost: { ...FREE, energy: 3 },
+        extraCosts: [],
         banishOnLeave: true,
       },
     ]);
@@ -207,8 +208,8 @@ describe("[Flow] (R829)", () => {
 
     it("reads them all off the card", () => {
       expect(flowCostsOf(board(twoWays()), "torch")).toEqual([
-        { ...FREE, energy: 3 },
-        { ...FREE, energy: 1, anyPower: 2 },
+        [{ kind: "pay", cost: { ...FREE, energy: 3 } }],
+        [{ kind: "pay", cost: { ...FREE, energy: 1, anyPower: 2 } }],
       ]);
     });
 

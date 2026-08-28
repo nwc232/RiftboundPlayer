@@ -44,7 +44,9 @@ describe("keywords whose value is a Cost", () => {
   }
 
   it("grants a Repeat cost that reads like a printed one", () => {
-    expect(repeatCostsOf(board(), "ally")).toEqual([{ ...FREE, energy: 2 }]);
+    expect(repeatCostsOf(board(), "ally")).toEqual([
+      [{ kind: "pay", cost: { ...FREE, energy: 2 } }],
+    ]);
   });
 
   it("leaves a card the passive does not reach alone", () => {
@@ -64,7 +66,7 @@ describe("keywords whose value is a Cost", () => {
   it("stacks a granted instance onto a printed one", () => {
     const printed: CardInstance = {
       ...unit("ally", { might: 2 }),
-      abilities: [{ kind: "repeat", cost: { ...FREE, energy: 5 } }],
+      abilities: [{ kind: "repeat", costs: [{ kind: "pay", cost: { ...FREE, energy: 5 } }] }],
     };
     const state = makeState({
       p1: { mainDeck: ["a"], runePool: pool({ energy: 9 }) },
@@ -77,8 +79,8 @@ describe("keywords whose value is a Cost", () => {
     });
 
     expect(repeatCostsOf(state, "ally")).toEqual([
-      { ...FREE, energy: 5 },
-      { ...FREE, energy: 2 },
+      [{ kind: "pay", cost: { ...FREE, energy: 5 } }],
+      [{ kind: "pay", cost: { ...FREE, energy: 2 } }],
     ]);
   });
 
@@ -113,12 +115,15 @@ describe("keywords whose value is a Cost", () => {
       ],
     };
 
-    expect(flowCostsOf(granted, "bolt")).toEqual([{ ...FREE, energy: 3 }]);
+    expect(flowCostsOf(granted, "bolt")).toEqual([
+      [{ kind: "pay", cost: { ...FREE, energy: 3 } }],
+    ]);
     // And the trash becomes a zone it can be played from, at the granted cost.
     expect(playZonesFor(granted, "p1", "bolt")).toEqual([
       {
         source: "trash",
         alternateCost: { ...FREE, energy: 3 },
+        extraCosts: [],
         banishOnLeave: true,
       },
     ]);

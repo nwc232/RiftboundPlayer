@@ -713,11 +713,12 @@ built when a card asks for it.
   legality is right (a short hand cannot pay); only the choice is missing.
   Closing it means letting finalization suspend, which is a bigger change than
   the two cards printing it justify.
-- **Keyword costs are still resources only.** `AbilityCost` can now hold a
-  discard or a disempower, but the `Cost` a [Repeat], [Flow] or [Empower]
-  carries is still a resource cost by type (R820.1.c, R827.1.c.2, R829.1.c.2),
-  so Square Up's "[Repeat] — Discard 1" cannot be authored. The actions exist
-  now; what is left is widening those three to hold an `AbilityCost[]`.
+- **An *additional* cost is still resources only.** R356.2's `AdditionalCost`
+  carries a bare `Cost`, so Atakhan's "you may kill a friendly unit as an
+  additional cost to play me" cannot be authored. [Repeat], [Flow] and
+  [Empower] were widened to `AbilityCost[]`; R356.2 wants the same treatment,
+  and additionally a *choice* — which friendly unit — that a cost paid inside
+  finalization has nowhere to ask for.
 - **"Your Sand Soldiers" is read as the Shurima tag.** Emperor of the Sands
   says "your Sand Soldiers have [Weaponmaster]", and R187.3 gives the Sand
   Soldier token the Shurima tag — but a *card* with the Shurima tag is not a

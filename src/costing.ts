@@ -1,5 +1,11 @@
 import { addCosts } from "./cost.js";
-import { characteristicsOf, controllerOf, keywordsOf } from "./layers.js";
+import type { AbilityCost } from "./abilities.js";
+import {
+  characteristicsOf,
+  controllerOf,
+  keywordsOf,
+  resourcePartOf,
+} from "./layers.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 import type { CardId, Cost, GameState, PlayerId, PowerCount } from "./state.js";
@@ -143,7 +149,10 @@ export function additionalCostsOf(
  * them, which is what `payRepeats` indexes into. R820.1.c.2 makes them
  * independent: Curtain Call's three are paid or not paid one at a time.
  */
-export function repeatCostsOf(state: GameState, cardId: CardId): Cost[] {
+export function repeatCostsOf(
+  state: GameState,
+  cardId: CardId,
+): AbilityCost[][] {
   return costKeywordsOf(state, cardId, "repeat");
 }
 
@@ -152,7 +161,10 @@ export function repeatCostsOf(state: GameState, cardId: CardId): Cost[] {
  * "If a spell has multiple instances of the Flow keyword with different costs,
  * its controller may choose which cost to apply as they play it."
  */
-export function flowCostsOf(state: GameState, cardId: CardId): Cost[] {
+export function flowCostsOf(
+  state: GameState,
+  cardId: CardId,
+): AbilityCost[][] {
   return costKeywordsOf(state, cardId, "flow");
 }
 
@@ -166,10 +178,10 @@ function costKeywordsOf(
   state: GameState,
   cardId: CardId,
   keyword: "repeat" | "flow" | "empower",
-): Cost[] {
+): AbilityCost[][] {
   return characteristicsOf(state, cardId)
     .costKeywords.filter((each) => each.keyword === keyword)
-    .map((each) => each.cost);
+    .map((each) => each.costs);
 }
 
 export interface CostOptions {
@@ -222,10 +234,12 @@ export function totalCostOf(
   }
   // R820.1.c.1 — a Repeat cost is "an Additional Cost to be paid during the
   // steps of playing the spell", so it lands in step 2 beside the others.
+  // Only the resource half is priced here; R820.1.c.2's non-resource costs are
+  // paid as the card is played, like any other ability cost.
   const repeats = repeatCostsOf(state, cardId);
   for (const index of new Set(options.payRepeats ?? [])) {
     const repeat = repeats[index];
-    if (repeat !== undefined) total = addCosts(total, repeat);
+    if (repeat !== undefined) total = addCosts(total, resourcePartOf(repeat));
   }
 
   // R356.2.a.2 / R809 — Deflect is a Mandatory Additional Cost, once per time

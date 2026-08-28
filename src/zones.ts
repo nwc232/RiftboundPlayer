@@ -1,4 +1,6 @@
+import type { AbilityCost } from "./abilities.js";
 import { flowCostsOf } from "./costing.js";
+import { resourcePartOf } from "./layers.js";
 import { clearFacedown, facedownAt, playableFromFacedown } from "./hidden.js";
 import type {
   CardId,
@@ -35,6 +37,12 @@ export interface PlayZone {
    * rather than being added to it or zeroing it.
    */
   alternateCost?: Cost;
+  /**
+   * R829.1.c.2 — a Flow cost "may include both resource costs and non-resource
+   * costs". The resource half is `alternateCost`; these are the rest, paid as
+   * the card is played the way any other ability cost is.
+   */
+  extraCosts?: AbilityCost[];
   /** R811.1.d.1 — "A hidden permanent must be played to that battlefield." */
   destination?: Location;
   /**
@@ -81,9 +89,10 @@ export function playZonesFor(
   // banish it." R829.1.b.2 is the limit of what the keyword changes: the zone,
   // and nothing about timing or any other permission.
   if (player.trash.includes(cardId)) {
-    return flowCostsOf(state, cardId).map((cost) => ({
+    return flowCostsOf(state, cardId).map((costs) => ({
       source: "trash" as const,
-      alternateCost: cost,
+      alternateCost: resourcePartOf(costs),
+      extraCosts: costs.filter((each) => each.kind !== "pay"),
       banishOnLeave: true as const,
     }));
   }

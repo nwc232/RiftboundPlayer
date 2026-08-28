@@ -466,8 +466,8 @@ export function legionCostReduction(reduce: Partial<Cost>): CostModifierAbility 
  * R820 — "[Repeat] [Cost]". Several on one card are independent of each other
  * (R820.1.c.2), so a card that prints three carries three of these.
  */
-export function repeat(cost: Partial<Cost>): RepeatAbility {
-  return { kind: "repeat", cost: { ...FREE, ...cost } };
+export function repeat(...costs: (Partial<Cost> | AbilityCost)[]): RepeatAbility {
+  return { kind: "repeat", costs: costs.map(asAbilityCost) };
 }
 
 /**
@@ -477,14 +477,22 @@ export function repeat(cost: Partial<Cost>): RepeatAbility {
  */
 export function grantCostKeyword(
   keyword: CostKeyword["keyword"],
-  cost: Partial<Cost>,
+  ...costs: (Partial<Cost> | AbilityCost)[]
 ): Modification {
   return {
     layer: "ability",
     op: "grantCostKeyword",
     keyword,
-    cost: { ...FREE, ...cost },
+    costs: costs.map(asAbilityCost),
   };
+}
+
+/**
+ * A bare resource amount is the common case, so the cost-keyword builders take
+ * one directly; anything else is already an `AbilityCost`.
+ */
+function asAbilityCost(each: Partial<Cost> | AbilityCost): AbilityCost {
+  return "kind" in each ? each : { kind: "pay", cost: { ...FREE, ...each } };
 }
 
 /** One arm of a "Choose one —", with whatever that arm chooses for itself. */
@@ -496,8 +504,10 @@ export function mode(effect: Effect, targeting?: Targeting): Mode {
  * R827 — "[Empower] [Cost]": an activated ability that Empowers its own
  * source, playable only while it is not already Empowered (R827.1.c.1).
  */
-export function empower(cost: Partial<Cost>): EmpowerAbility {
-  return { kind: "empower", cost: { ...FREE, ...cost } };
+export function empower(
+  ...costs: (Partial<Cost> | AbilityCost)[]
+): EmpowerAbility {
+  return { kind: "empower", costs: costs.map(asAbilityCost) };
 }
 
 /**
@@ -533,8 +543,8 @@ export function level(n: number, ability: Ability): PassiveAbility {
  * R829 — "[Flow] [Cost]": play it from your trash for this instead of its
  * printed cost, then it is banished rather than trashed again.
  */
-export function flow(cost: Partial<Cost>): FlowAbility {
-  return { kind: "flow", cost: { ...FREE, ...cost } };
+export function flow(...costs: (Partial<Cost> | AbilityCost)[]): FlowAbility {
+  return { kind: "flow", costs: costs.map(asAbilityCost) };
 }
 
 export function additionalCost(

@@ -1,4 +1,9 @@
-import type { Ability, Effect, PassiveAbility } from "./abilities.js";
+import type {
+  Ability,
+  AbilityCost,
+  Effect,
+  PassiveAbility,
+} from "./abilities.js";
 import { sameLocation } from "./state.js";
 import type {
   CardId,
@@ -10,6 +15,7 @@ import type {
   Keyword,
   PermanentState,
   PlayerId,
+  PowerCount,
 } from "./state.js";
 
 /**
@@ -34,7 +40,35 @@ import type {
  */
 export interface CostKeyword {
   keyword: "repeat" | "flow" | "empower";
-  cost: Cost;
+  /**
+   * R820.1.c.2, R827.1.c.2 and R829.1.c.2 all allow non-resource costs, so
+   * this is what an ability costs generally rather than a bare `Cost`. The
+   * resource half is priced through R356; the rest is paid as the card is
+   * played, the way any other ability cost is.
+   */
+  costs: AbilityCost[];
+}
+
+/**
+ * The resource half of a compound cost, which is the only half R356's pricing
+ * pipeline can see. `payAbilityCost` handles the rest.
+ */
+export function resourcePartOf(costs: AbilityCost[]): Cost {
+  let total: Cost = { energy: 0, power: {}, anyPower: 0 };
+  for (const each of costs) {
+    if (each.kind !== "pay") continue;
+    const power: PowerCount = { ...total.power };
+    for (const [domain, amount] of Object.entries(each.cost.power)) {
+      const key = domain as keyof PowerCount;
+      power[key] = (power[key] ?? 0) + amount;
+    }
+    total = {
+      energy: total.energy + each.cost.energy,
+      power,
+      anyPower: total.anyPower + each.cost.anyPower,
+    };
+  }
+  return total;
 }
 
 export interface Characteristics {
@@ -140,7 +174,7 @@ export type Modification =
       layer: "ability";
       op: "grantCostKeyword";
       keyword: CostKeyword["keyword"];
-      cost: Cost;
+      costs: AbilityCost[];
     }
   /** R477.3 — the mathematics of raising and lowering Might. */
   | { layer: "arithmetic"; op: "addMight"; amount: number }
@@ -509,7 +543,7 @@ function printedCostKeywords(card: CardInstance | undefined): CostKeyword[] {
       ability.kind === "flow" ||
       ability.kind === "empower"
     ) {
-      out.push({ keyword: ability.kind, cost: ability.cost });
+      out.push({ keyword: ability.kind, costs: ability.costs });
     }
   }
   return out;
@@ -555,7 +589,7 @@ export function characteristicsOf(
         ? [
             {
               keyword: modifier.modification.keyword,
-              cost: modifier.modification.cost,
+              costs: modifier.modification.costs,
             },
           ]
         : [],
@@ -750,7 +784,7 @@ export function characteristicsOf(
               ...costKeywords,
               {
                 keyword: entry.modification.keyword,
-                cost: entry.modification.cost,
+                costs: entry.modification.costs,
               },
             ];
             break;
@@ -900,7 +934,7 @@ export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
     derived.push({
       kind: "activated",
       timing: "default",
-      costs: [{ kind: "pay", cost: each.cost }],
+      costs: each.costs,
       effect: { op: "empowerSelf" },
       // R441.1.b — "an Empowered Game Object can not be Empowered", which is
       // a legality gate on playing the ability rather than a no-op on
