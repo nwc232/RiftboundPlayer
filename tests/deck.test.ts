@@ -41,7 +41,8 @@ function mainDeckCards(prefix: string): CardInstance[] {
         ...unit(`${prefix}-u${i}`, { might: 2 }),
         name: `${prefix} Unit ${i}`,
         // R103.2.a.2 — `buildDeck` chooses the first of these as the Chosen
-        // Champion, so it has to share the Legend's tag.
+        // Champion, so it has to be a champion unit sharing the Legend's tag.
+        supertypes: ["champion" as const],
         tags: [CHAMPION_TAG],
       },
       3,

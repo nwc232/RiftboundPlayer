@@ -55,6 +55,7 @@ export const pridestalker: CardInstance = {
 export const rengarTrophyHunter: CardInstance = {
   id: "rengar-trophy-hunter",
   name: "Rengar, Trophy Hunter",
+  supertypes: ["champion"],
   tags: ["Cat", "Rengar", "Ixtal"],
   text: "[Ambush] I can be played to a battlefield where there are enemy units.",
   type: "unit",
@@ -164,6 +165,7 @@ export const pitRookie: CardInstance = {
 export const thrillOfTheHunt: CardInstance = {
   id: "thrill-of-the-hunt",
   name: "Thrill of the Hunt",
+  supertypes: ["signature"],
   tags: ["Rengar"],
   text: "[Reaction] Banish a friendly unit, then its owner plays it to any battlefield, ignoring its cost.",
   type: "spell",
@@ -257,6 +259,7 @@ export const kinkouInitiate: CardInstance = {
 export const pyke: CardInstance = {
   id: "pyke",
   name: "Pyke, Dockside Butcher",
+  supertypes: ["champion"],
   tags: ["Pyke", "Bilgewater"],
   text: "[Hidden] [Ganking] You may pay [Fury] as an additional cost to play me. When you play me, if you paid the additional cost, ready me and give me +2 [M] this turn.",
   type: "unit",
@@ -308,6 +311,7 @@ export const rampage: CardInstance = {
 export const nidalee: CardInstance = {
   id: "nidalee",
   name: "Nidalee, Cat Form",
+  supertypes: ["champion"],
   tags: ["Cat", "Ixtal", "Nidalee"],
   text: "[Ambush] When I win a combat, draw 1.",
   type: "unit",
@@ -327,6 +331,7 @@ export const nidalee: CardInstance = {
 export const kaisa: CardInstance = {
   id: "kaisa",
   name: "Kai'Sa, Survivor",
+  supertypes: ["champion"],
   tags: ["Kai'Sa"],
   text: "[Accelerate] When I conquer, draw 1.",
   type: "unit",

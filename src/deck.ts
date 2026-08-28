@@ -22,6 +22,9 @@ export type DeckError =
   | "legendNotALegend"
   | "championNotInMainDeck"
   | "championTagMismatch"
+  | "championNotAChampionUnit"
+  | "tooManySignatureCards"
+  | "signatureTagMismatch"
   | "mainDeckTooSmall"
   | "tooManyCopies"
   | "tooManyUniqueCopies"
@@ -35,16 +38,15 @@ export const MAIN_DECK_MINIMUM = 40;
 export const RUNE_DECK_SIZE = 12;
 export const BATTLEFIELDS_PER_DECK = 3;
 export const MAX_COPIES = 3;
+/** R103.2.d.1 — "a sum total of 3 Signature cards", regardless of name. */
+export const MAX_SIGNATURE_CARDS = 3;
 /** R116 — "Players each draw 4." */
 export const OPENING_HAND = 4;
 
 /**
- * R103's countable requirements. Domain Identity (R103.1.b) is *not* checked.
- *
- * R103.2.a.2 is checked by tag but not by category: "must be a champion unit
- * with a champion tag that matches the tag on your Champion Legend" has two
- * halves, and the community card data carries no champion-unit/signature-unit
- * distinction to check the first with. Tibbers would pass here. See the survey.
+ * R103's countable requirements. Domain Identity (R103.1.b) is *not* checked;
+ * everything else in R103.2 is, including both halves of R103.2.a.2 and all of
+ * R103.2.d's Signature-card limits.
  */
 export function validateDeck(
   deck: Deck,
@@ -67,16 +69,42 @@ export function validateDeck(
   }
 
   // R103.2.a.2 — the Chosen Champion "must be a champion unit with a champion
-  // tag that matches the tag on your Champion Legend". R133.8.b is what makes
-  // the Legend's own tags the champion tags: they are the ones that link a
-  // Legend to its Champion Units and Signature cards.
-  const legendTags = cards[deck.legend]?.tags ?? [];
-  const championTags = cards[deck.champion]?.tags ?? [];
+  // tag that matches the tag on your Champion Legend". Two requirements, and
+  // the rule's own example turns on the first: Tibbers has the Annie tag but
+  // is a *signature* unit, so it cannot be a Chosen Champion even under an
+  // Annie Legend. R133.8.b is what makes the Legend's own tags the champion
+  // tags — they are the ones that link a Legend to its Champion Units and
+  // Signature cards.
+  const legend = cards[deck.legend];
+  const champion = cards[deck.champion];
+  const legendTags = legend?.tags ?? [];
+
+  if (champion !== undefined) {
+    if (champion.supertypes?.includes("champion") !== true) {
+      errors.push("championNotAChampionUnit");
+    }
+    if (!(champion.tags ?? []).some((tag) => legendTags.includes(tag))) {
+      errors.push("championTagMismatch");
+    }
+  }
+
+  // R103.2.d — "Your deck may only contain 3 total Signature cards that have
+  // the same Champion tag as your Champion Legend." R103.2.d.1 makes the cap a
+  // sum across names, unlike R103.2.b's per-name three.
+  const signatures = deck.mainDeck.filter((id) =>
+    cards[id]?.supertypes?.includes("signature"),
+  );
+  if (signatures.length > MAX_SIGNATURE_CARDS) {
+    errors.push("tooManySignatureCards");
+  }
+  // R103.2.d.2 — "All of the Signature cards must have the Champion tag that
+  // corresponds to the Champion Legend of the deck."
   if (
-    cards[deck.champion] !== undefined &&
-    !championTags.some((tag) => legendTags.includes(tag))
+    signatures.some(
+      (id) => !(cards[id]?.tags ?? []).some((tag) => legendTags.includes(tag)),
+    )
   ) {
-    errors.push("championTagMismatch");
+    errors.push("signatureTagMismatch");
   }
   if (deck.mainDeck.length < MAIN_DECK_MINIMUM) errors.push("mainDeckTooSmall");
 

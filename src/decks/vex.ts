@@ -62,6 +62,7 @@ export const gloomist: CardInstance = {
 export const vexApathetic: CardInstance = {
   id: "vex-apathetic",
   name: "Vex, Apathetic",
+  supertypes: ["champion"],
   tags: ["Yordle", "Vex", "Shadow Isles"],
   text: "[Deflect] When an opponent plays a unit while I'm at a battlefield, [Stun] it. They can't move it this turn.",
   type: "unit",
@@ -86,6 +87,7 @@ export const vexApathetic: CardInstance = {
 export const evelynn: CardInstance = {
   id: "evelynn",
   name: "Evelynn, Entrancing",
+  supertypes: ["champion"],
   tags: ["Evelynn", "Demon"],
   text: "[Hidden] [Backline] When you play me from face down on your turn, you may move an enemy unit at a different location to my battlefield.",
   type: "unit",
@@ -359,6 +361,7 @@ export const starCrossed: CardInstance = {
 export const khazix: CardInstance = {
   id: "khazix",
   name: "Kha'Zix, Mutating Horror",
+  supertypes: ["champion"],
   tags: ["Kha'Zix", "The Void"],
   text: "[Ambush] When I attack or defend, if an enemy unit is alone here, give me +2 [M] this turn and gain 2 XP.",
   type: "unit",

@@ -303,8 +303,10 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
    all; [Ganking] was reading the printed card rather than the
    characteristic.
 
-9. ~~**Tags** (R133.8)~~ — built, and with them R103.2.a.2's
-   Champion/Legend link, R150's Equipment tag, and tag-scoped passives.
+9. ~~**Tags** (R133.8) and supertypes (R133.7)~~ — built, and with them
+   R103.2.a.2 *in full* (both the champion tag and the Champion supertype),
+   all of R103.2.d's Signature-card limits, R150's Equipment tag, and
+   tag-scoped passives.
 
 10. **Tier 4** — the effect ops the card vocabulary still wants. `choose`
     is the big one: modes ("Choose one —") are what Rocket Barrage and

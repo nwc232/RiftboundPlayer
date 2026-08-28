@@ -540,8 +540,9 @@ Recorded as they're found, so they don't get lost between slices.
   something to enforce rather than something that falls out.
 - ~~**Tags.**~~ Built. R133.8's tags are a string list on the card, copyable
   through the layer pipeline (R477.1.b.1.a), narrowing both target filters
-  and passive scopes. R187's token tags are transcribed, and R103.2.a.2's
-  Champion/Legend link is checked. Two of R187's keywords were transcribed
+  and passive scopes. R187's token tags are transcribed. R133.7's supertypes
+  came with them, so R103.2.a.2 is enforced in full — both the champion tag
+  and the Champion supertype — along with all of R103.2.d's Signature limits. Two of R187's keywords were transcribed
   as unmodelled at the same time and are modelled now: the Sprite's
   [Temporary] (R187.2) and the Bird's [Deflect] (R187.7).
 - **Temporary runs off the chain (R816.1).** The rules make Temporary a
@@ -696,13 +697,6 @@ built when a card asks for it.
   keyword whose value is a Cost, and a cost modifier that can name a Flow cost
   specifically. R829.1.c.2 also allows non-resource Flow costs; none is
   printed. The 14 cards with a plain printed Flow cost work.
-- **R103.2.a.2 is checked by tag but not by category.** "Must be a champion
-  unit with a champion tag that matches the tag on your Champion Legend" has
-  two halves. The tag half is enforced. The first half is not: the community
-  card data carries no champion-unit/signature-unit distinction, so Tibbers —
-  the rules' own counter-example, a signature unit with the Annie tag — would
-  pass. Not a modelling shortcut but a gap in the source data; see
-  `CARD-DATA-SOURCE.md`.
 - **"Your Sand Soldiers" is read as the Shurima tag.** Emperor of the Sands
   says "your Sand Soldiers have [Weaponmaster]", and R187.3 gives the Sand
   Soldier token the Shurima tag — but a *card* with the Shurima tag is not a

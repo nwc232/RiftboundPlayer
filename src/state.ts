@@ -11,6 +11,9 @@ export type PlayerId = "p1" | "p2";
 export type CardId = string;
 export type CardType = "unit" | "spell" | "gear" | "battlefield" | "legend" | "rune";
 
+/** R133.7 — the two supertypes, both of which matter only at deck building. */
+export type Supertype = "champion" | "signature";
+
 export type Domain = "fury" | "calm" | "mind" | "body" | "chaos" | "order";
 
 export const DOMAINS: readonly Domain[] = [
@@ -78,6 +81,17 @@ export interface CardInstance {
    * about what a rune *produces*.
    */
   domains?: Domain[];
+  /**
+   * R133.7 — supertypes. Two of them, and both exist only to constrain deck
+   * building (R103.2.a.2, R103.2.d): **Champion** "applies exclusively to
+   * units", **Signature** "may apply to game objects of any card type".
+   *
+   * Distinct from tags, which are R133.8 and carry no rules meaning at all,
+   * and from `isToken`, which R185.1 makes an intrinsic category rather than a
+   * supertype. The card data marks runes `basic` and tokens `token` in the
+   * same field; both are already expressed here by `type` and `isToken`.
+   */
+  supertypes?: Supertype[];
   /**
    * R133.8 — "Categories that may apply to game objects of multiple types.
    * They are listed after a card's type." R133.8.a: they have no innate rules

@@ -184,7 +184,11 @@ describe("the Champion/Legend tag link (R103.2.a.2)", () => {
       abilities: [],
     };
     const champion: CardInstance = {
-      ...unit("vex", { might: 4, tags: championTags }),
+      ...unit("vex", {
+        might: 4,
+        tags: championTags,
+        supertypes: ["champion"],
+      }),
       name: "Vex, Apathetic",
     };
     const filler = Array.from({ length: 39 }, (_, i) => ({
@@ -232,6 +236,112 @@ describe("the Champion/Legend tag link (R103.2.a.2)", () => {
   it("rejects a champion with no tags at all", () => {
     const { deck, cards } = decked([]);
     expect(validateDeck(deck, cards)).toContain("championTagMismatch");
+  });
+
+  /**
+   * R103.2.a.2's other half, and the rule's own counter-example: "Tibbers has
+   * the tag Annie, but it is a signature unit, not a champion unit. It cannot
+   * be your Chosen Champion, even if your Champion Legend has the tag Annie."
+   */
+  it("rejects a signature unit even when the tag matches", () => {
+    const { deck, cards } = decked(["Vex"]);
+    const tibbers = { ...cards[deck.champion]!, supertypes: ["signature" as const] };
+
+    const errors = validateDeck(deck, { ...cards, [tibbers.id]: tibbers });
+
+    expect(errors).toContain("championNotAChampionUnit");
+    // The tag half is satisfied — it is the supertype that disqualifies it.
+    expect(errors).not.toContain("championTagMismatch");
+  });
+
+  it("rejects a unit carrying no supertype at all", () => {
+    const { deck, cards } = decked(["Vex"]);
+    // `exactOptionalPropertyTypes` is on, so the key is dropped rather than
+    // set to undefined — which is also what an untagged card really looks like.
+    const { supertypes: _none, ...plain } = cards[deck.champion]!;
+
+    expect(validateDeck(deck, { ...cards, [plain.id]: plain })).toContain(
+      "championNotAChampionUnit",
+    );
+  });
+});
+
+/** R103.2.d — "your deck may only contain 3 total Signature cards". */
+describe("Signature cards (R103.2.d)", () => {
+  function withSignatures(
+    count: number,
+    tags: string[] = ["Vex"],
+  ): { deck: Deck; cards: Record<CardId, CardInstance> } {
+    const legend: CardInstance = {
+      id: "gloomist",
+      name: "Gloomist",
+      type: "legend",
+      cost: FREE,
+      keywords: [],
+      tags: ["Vex"],
+      abilities: [],
+    };
+    const champion: CardInstance = {
+      ...unit("vex", { might: 4, tags: ["Vex"], supertypes: ["champion"] }),
+      name: "Vex, Apathetic",
+    };
+    const signatures = Array.from({ length: count }, (_, i) => ({
+      ...unit(`sig${i}`, { might: 2, tags, supertypes: ["signature" as const] }),
+      name: `Signature ${i}`,
+    }));
+    const filler = Array.from({ length: 39 - count }, (_, i) => ({
+      ...unit(`f${i}`, { might: 1 }),
+      name: `Filler ${i}`,
+    }));
+    const runes = Array.from({ length: 12 }, (_, i) => ({
+      ...unit(`r${i}`),
+      type: "rune" as const,
+      domain: "chaos" as const,
+      name: `Rune ${i}`,
+    }));
+    const bfs = ["one", "two", "three"].map((n) => ({
+      ...unit(`bf-${n}`),
+      type: "battlefield" as const,
+      name: n,
+    }));
+
+    const cards: Record<CardId, CardInstance> = {};
+    for (const card of [legend, champion, ...signatures, ...filler, ...runes, ...bfs]) {
+      cards[card.id] = card;
+    }
+    return {
+      cards,
+      deck: {
+        legend: legend.id,
+        champion: champion.id,
+        mainDeck: [
+          champion.id,
+          ...signatures.map((c) => c.id),
+          ...filler.map((c) => c.id),
+        ],
+        runeDeck: runes.map((c) => c.id),
+        battlefields: bfs.map((c) => c.id),
+      },
+    };
+  }
+
+  it("accepts three", () => {
+    const { deck, cards } = withSignatures(3);
+    expect(validateDeck(deck, cards)).toEqual([]);
+  });
+
+  /** R103.2.d.1 — "Regardless of name, a sum total of 3." */
+  it("rejects a fourth, even under four different names", () => {
+    const { deck, cards } = withSignatures(4);
+    expect(validateDeck(deck, cards)).toContain("tooManySignatureCards");
+    // Not R103.2.b's per-name limit — every one of them is a different name.
+    expect(validateDeck(deck, cards)).not.toContain("tooManyCopies");
+  });
+
+  /** R103.2.d.2 — they must carry the Legend's Champion tag. */
+  it("rejects one belonging to another champion", () => {
+    const { deck, cards } = withSignatures(1, ["Annie"]);
+    expect(validateDeck(deck, cards)).toContain("signatureTagMismatch");
   });
 });
 
