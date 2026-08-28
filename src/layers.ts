@@ -89,6 +89,17 @@ export type Modification =
   | { layer: "ability"; op: "restrictMovement" }
   /** Vilemaw — "…don't deal combat damage." See `Characteristics.silenced`. */
   | { layer: "ability"; op: "silenceCombatDamage" }
+  /**
+   * R824.1.b.1 / R828.1.b.1 — a Dependent Keyword's "this card gains
+   * '[Text]'". [Level N] and [Empowered] are the same sentence with different
+   * conditions, so both are this modification under a `PassiveCondition`
+   * rather than two mechanisms.
+   *
+   * R477.2 puts granting rules text in the ability layer beside granting a
+   * keyword, which is also why a granted ability can itself grant Might: the
+   * fixpoint runs the arithmetic layer again after it.
+   */
+  | { layer: "ability"; op: "grantAbility"; ability: Ability }
   /** R477.3 — the mathematics of raising and lowering Might. */
   | { layer: "arithmetic"; op: "addMight"; amount: number }
   /**
@@ -170,7 +181,15 @@ export type PassiveScope =
 export type PassiveCondition =
   | { when: "attacking" }
   | { when: "defending" }
-  | { when: "mighty" };
+  | { when: "mighty" }
+  /** R441.2 — the Empowered status, which R441.1.a makes strictly binary. */
+  | { when: "empowered" }
+  /**
+   * R824.1.b.1 — "[Level N]": "while you have [N] or more XP". Asked of the
+   * *current controller* (R824.1.c.1), so a unit changing hands can gain or
+   * lose the ability without anything else happening.
+   */
+  | { when: "xpAtLeast"; amount: number };
 
 interface PendingModification {
   modification: Modification;
@@ -289,6 +308,7 @@ function inScope(
 }
 
 function holds(
+  state: GameState,
   condition: PassiveCondition | undefined,
   subject: PermanentState,
   might: number,
@@ -296,6 +316,15 @@ function holds(
   if (condition === undefined) return true;
 
   switch (condition.when) {
+    // R441.1.a — "Empowered is a binary state."
+    case "empowered":
+      return subject.empowered === true;
+    // R824.1.c.1 — read against whoever controls it *now*.
+    case "xpAtLeast":
+      return (
+        state.players[controllerOf(state, subject.cardId)].xp >=
+        condition.amount
+      );
     // R807.1.d.1 / R814.1.d.1 — tied to the designation, not to being in combat.
     case "attacking":
       return subject.designation === "attacker";
@@ -505,6 +534,7 @@ export function characteristicsOf(
 
   let baseMight = printedMight;
   let keywords = [...printedKeywords];
+  let granted: Ability[] = [];
   let copyable = {
     name: card.name,
     type: card.type,
@@ -543,7 +573,7 @@ export function characteristicsOf(
       for (const entry of pending) {
         if (entry.applied) continue;
         if (entry.modification.layer !== layer) continue;
-        if (!holds(entry.condition, subject, currentMight())) continue;
+        if (!holds(state, entry.condition, subject, currentMight())) continue;
 
         switch (entry.modification.op) {
           case "setMight":
@@ -591,6 +621,31 @@ export function characteristicsOf(
             // Read directly off the modifier list by `movementRestricted`; it
             // is a restriction on an action, not a characteristic.
             break;
+          // R828.1.c — "As long as the Game Object has the Empowered status,
+          // the Dependent Ability will be active." Appended rather than
+          // replacing: R828.1.b.1's "this card *gains*" is additive, and the
+          // card keeps everything it printed.
+          case "grantAbility": {
+            const gained = entry.modification.ability;
+            granted = [...granted, gained];
+            // A granted passive that modifies *this* permanent has to join the
+            // pending list by hand. `passivesFor` ran before the grant existed,
+            // and it could not have seen a self-scoped one in any case: R711's
+            // `seen` guard hands back printed values for the very permanent
+            // being derived. R476.2's loop then runs it like any other.
+            if (
+              gained.kind === "passive" &&
+              inScope(state, gained, subject, subject, nested)
+            ) {
+              pending.push({
+                modification: gained.modification,
+                condition: gained.condition,
+                applied: false,
+              });
+            }
+            break;
+          }
+
           case "grantKeyword": {
             const { keyword, value } = entry.modification;
             if (!keywords.includes(keyword)) keywords = [...keywords, keyword];
@@ -631,9 +686,11 @@ export function characteristicsOf(
     silenced,
     ...copyable,
     abilities:
+      // R718.2 — an Attached card's own Rules Text is Inactive while it is
+      // attached, so it contributes nothing, granted or otherwise.
       subject.attachedTo !== undefined
         ? []
-        : [...copyable.abilities, ...appended],
+        : [...copyable.abilities, ...appended, ...granted],
   };
 }
 
@@ -715,6 +772,23 @@ const VISION: Ability = {
 export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
   const now = characteristicsOf(state, cardId);
   const derived: Ability[] = [];
+
+  // R827.1.c.1 — "[Empower] [Cost]" is short for "[Cost]: Empower this. Play
+  // only if not Empowered." R827.3 makes several instances "equivalent to
+  // multiple activated abilities", so each expands on its own.
+  for (const ability of now.abilities) {
+    if (ability.kind !== "empower") continue;
+    derived.push({
+      kind: "activated",
+      timing: "default",
+      costs: [{ kind: "pay", cost: ability.cost }],
+      effect: { op: "empowerSelf" },
+      // R441.1.b — "an Empowered Game Object can not be Empowered", which is
+      // a legality gate on playing the ability rather than a no-op on
+      // resolution.
+      when: { kind: "notEmpowered" },
+    });
+  }
   if (now.keywords.includes("temporary")) derived.push(TEMPORARY);
   if (now.keywords.includes("vision")) derived.push(VISION);
   // R819.2 — "Multiple instances of Quick-Draw do not trigger separately", so

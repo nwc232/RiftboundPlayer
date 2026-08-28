@@ -3,6 +3,7 @@ import type { Action } from "./actions.js";
 import { flowCostsOf, repeatCostsOf } from "./costing.js";
 import { playZonesFor } from "./zones.js";
 import { legalTargets } from "./decisions.js";
+import { abilitiesOf } from "./layers.js";
 import type { TargetFilter } from "./decisions.js";
 import { MULLIGAN_MAX } from "./tasks.js";
 import type { CardId, GameState, Location, PlayerId } from "./state.js";
@@ -295,7 +296,11 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     ...player.runes,
   ];
   for (const sourceId of sources) {
-    const abilities = state.cards[sourceId]?.abilities ?? [];
+    // Read through the layers, not off the printed card: `activateAbility`
+    // indexes `abilitiesOf`, so anything else here would disagree with it. It
+    // did — a keyword that expands into an *activated* ability ([Empower]) was
+    // playable but never offered, and a copied one indexed the wrong ability.
+    const abilities = abilitiesOf(state, sourceId);
     abilities.forEach((ability, abilityIndex) => {
       // R355.5 — an ability that chooses something is offered once per choice.
       const filters =

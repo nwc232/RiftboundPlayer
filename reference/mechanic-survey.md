@@ -711,6 +711,17 @@ built when a card asks for it.
 - **Multiple instances of [Weaponmaster] trigger once (R821.1.c.7/R821.1.d).**
   The same keyword-set deduplication as [Vision] below, and the same fix would
   close both.
+- **Dependent-keyword conditions are duplicated in two places.**
+  `PassiveCondition` (layers.ts) gained `xpAtLeast` for [Level] even though
+  `Condition` (conditions.ts) already has `hasXP` saying the same thing.
+  conditions.ts imports layers.ts, so layers.ts cannot import it back at value
+  level, and the layer pipeline is where a dependent keyword has to be
+  evaluated. Merging the two condition types would fix it and is worth doing
+  once a third caller wants it.
+- **An [Empower] cost is resources only, and nothing alters it.** R827.1.c.2
+  allows non-resource Empower costs; R827.1.c.3 and R827.1.c.4 allow printed
+  text that alters an Empower ability's cost or timing. None is built — the
+  same two gaps [Repeat] and [Flow] have, and one fix covers all three.
 - **[Repeat] is on printed spells only.** R820.1.a puts it on "Spells and
   Abilities", and three cards *grant* it: Syndra, Transcendent ("your spells
   have [Repeat] [2][Chaos]"), Temporal Portal and The Academy ("give your next

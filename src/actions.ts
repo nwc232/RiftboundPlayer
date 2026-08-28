@@ -32,6 +32,7 @@ import {
   keywordsOf,
   movementRestricted,
 } from "./layers.js";
+import { holds as conditionHolds } from "./conditions.js";
 import { leaveZone, playZonesFor } from "./zones.js";
 import { entersReady } from "./replacements.js";
 import { legalTargets } from "./decisions.js";
@@ -1441,6 +1442,20 @@ export function activateAbility(
   // turn restriction is enforceable here.
   if (ability.timing === "default" && state.turn.player !== playerId) {
     return rejected("notYourTurn");
+  }
+
+  // R827.1.c.1 — "Play only if not Empowered." A printed restriction on
+  // playing the ability at all, so it is checked before anything is chosen or
+  // paid, and `legalActions` stops offering the move once it fails.
+  if (
+    ability.when !== undefined &&
+    !conditionHolds(state, ability.when, {
+      controller: playerId,
+      sourceId,
+      targets,
+    })
+  ) {
+    return rejected("abilityNotFound");
   }
 
   // R355.5 / R818.1.b.1 — an activated ability's choices are made as it is

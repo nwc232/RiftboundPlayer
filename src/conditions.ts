@@ -43,6 +43,11 @@ export type Condition =
   /** R728 — "[Level N]" and anything else gated on a player's XP. */
   | { kind: "hasXP"; atLeast: number }
   /**
+   * R441.1.b / R827.1.c.1 — "an Empowered Game Object can not be Empowered",
+   * which the [Empower] keyword spells out as "Play only if not Empowered".
+   */
+  | { kind: "notEmpowered" }
+  /**
    * Back Off — "If you played this from your hand, draw 1"; Evelynn,
    * Entrancing — "When you play me from face down". R811.3 is what makes the
    * question worth asking: a [Hidden] card may always be played normally
@@ -167,6 +172,11 @@ export function holds(
 
     case "hasXP":
       return state.players[context.controller].xp >= condition.atLeast;
+
+    // R441.1.b — asked of the ability's own source, which is what R827.1.b.1
+    // means by "the source game object is not a target of the Empower ability".
+    case "notEmpowered":
+      return state.permanents[context.sourceId]?.empowered !== true;
 
     case "legion":
       // R812.2 — one other card satisfies every Legion ability at once, which

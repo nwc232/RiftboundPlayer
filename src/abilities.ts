@@ -171,6 +171,12 @@ export type Effect =
    */
   | { op: "equipChosen"; targetIndex: number; reduce: Cost }
   /**
+   * R441 — the Empower game action, which R827.1.b has the [Empower] keyword
+   * perform on its own source. R441.1.b/c: Empowering something already
+   * Empowered does nothing at all, rather than being illegal.
+   */
+  | { op: "empowerSelf" }
+  /**
    * Stacked Deck — "Look at the top 3 cards of your Main Deck. Put 1 into your
    * hand and recycle the rest." The choice is made on resolution, not at
    * finalization, so this enqueues a task the queue can suspend on.
@@ -258,6 +264,12 @@ export interface ActivatedAbility {
    * R355.8 only demands valid choices exist for what is actually asked for.
    */
   targeting?: Targeting;
+  /**
+   * R827.1.c.1 — "Play only if not Empowered." A printed restriction on
+   * *playing* the ability rather than on what it does, so `legalActions` stops
+   * offering it once it no longer holds.
+   */
+  when?: Condition;
 }
 
 /**
@@ -333,6 +345,20 @@ export interface FlowAbility {
 }
 
 /**
+ * R827 — "[Empower] [Cost]". R827.1.c.1 makes it short for "[Cost]: Empower
+ * this. Play only if not Empowered."
+ *
+ * Its own ability kind rather than a keyword, for the same reason [Repeat] and
+ * [Flow] are: the value it carries is a `Cost`, and the layer system grants
+ * keywords whose values are numbers. R827.3 makes several of them "equivalent
+ * to multiple activated abilities", so a card may carry more than one.
+ */
+export interface EmpowerAbility {
+  kind: "empower";
+  cost: Cost;
+}
+
+/**
  * R369.3 — "I enter ready", and the conditional forms of it. Read off a card
  * in hand like the other non-resolving kinds, because it has to be known
  * before the permanent exists.
@@ -359,6 +385,7 @@ export type Ability =
   | AdditionalCostAbility
   | RepeatAbility
   | FlowAbility
+  | EmpowerAbility
   | TriggeredAbility
   | PassiveAbility
   | PlayPermissionAbility
@@ -1702,6 +1729,33 @@ export function execute(
             playerId: context.controller,
             cardId: gearId,
             to: context.sourceId,
+          },
+        ],
+      };
+    }
+
+    case "empowerSelf": {
+      const permanent = state.permanents[context.sourceId];
+      // R441.1.c — "if a Game Object is instructed to be Empowered when it is
+      // already Empowered, nothing additional happens."
+      if (permanent === undefined || permanent.empowered === true) {
+        return { state, events: [] };
+      }
+      return {
+        state: {
+          ...state,
+          permanents: {
+            ...state.permanents,
+            [context.sourceId]: { ...permanent, empowered: true },
+          },
+        },
+        // R827.2.a — becoming Empowered "is an event other Game Effects and
+        // Triggered Abilities can reference", so it is reported.
+        events: [
+          {
+            type: "empowered",
+            playerId: context.controller,
+            cardId: context.sourceId,
           },
         ],
       };

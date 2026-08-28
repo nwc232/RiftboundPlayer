@@ -156,6 +156,8 @@ export type GameEvent =
   | { type: "attached"; playerId: PlayerId; cardId: CardId; to: CardId }
   | { type: "buffed"; playerId: PlayerId; cardId: CardId }
   | { type: "stunned"; playerId: PlayerId; cardId: CardId }
+  /** R827.2.a — becoming Empowered is its own referenceable event (R441). */
+  | { type: "empowered"; playerId: PlayerId; cardId: CardId }
   | { type: "damageDealt"; playerId: PlayerId; cardId: CardId; amount: number }
   /** R369.2 — damage altered on its way in: doubled, or prevented (R437). */
   | { type: "damageReplaced"; cardId: CardId; from: number; to: number }

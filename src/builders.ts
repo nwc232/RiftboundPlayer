@@ -3,6 +3,8 @@ import type {
   AbilityTiming,
   ActivatedAbility,
   AdditionalCostAbility,
+  Ability,
+  EmpowerAbility,
   FlowAbility,
   RepeatAbility,
   Effect,
@@ -411,6 +413,43 @@ export function legionCostReduction(reduce: Partial<Cost>): CostModifierAbility 
  */
 export function repeat(cost: Partial<Cost>): RepeatAbility {
   return { kind: "repeat", cost: { ...FREE, ...cost } };
+}
+
+/**
+ * R827 — "[Empower] [Cost]": an activated ability that Empowers its own
+ * source, playable only while it is not already Empowered (R827.1.c.1).
+ */
+export function empower(cost: Partial<Cost>): EmpowerAbility {
+  return { kind: "empower", cost: { ...FREE, ...cost } };
+}
+
+/**
+ * R828 — "[Empowered][>] [Text]": "While I have the Empowered status, this
+ * card gains '[Text]'."
+ *
+ * R828.1.d is why the granted ability is usually a trigger: an Empowered
+ * ability whose condition is "when I become Empowered" is active in time to
+ * fire on the event that switched it on.
+ */
+export function empowered(ability: Ability): PassiveAbility {
+  return passive(
+    { target: "self" },
+    { layer: "ability", op: "grantAbility", ability },
+    { when: "empowered" },
+  );
+}
+
+/**
+ * R824 — "[Level N][>] [Text]": "While you have [N] or more XP, this card
+ * gains '[Text]'." The same sentence as [Empowered] with a different
+ * condition, so it is the same modification.
+ */
+export function level(n: number, ability: Ability): PassiveAbility {
+  return passive(
+    { target: "self" },
+    { layer: "ability", op: "grantAbility", ability },
+    { when: "xpAtLeast", amount: n },
+  );
 }
 
 /**

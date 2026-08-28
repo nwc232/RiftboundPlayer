@@ -308,6 +308,15 @@ export interface PermanentState {
    * needs its full Might in damage to die (R423.1.c).
    */
   stunned?: true;
+  /**
+   * R441.1.a — "Empowered is a binary state. A Game Object is Empowered or it
+   * isn't." R441.1.b forbids Empowering one that already is, which is what
+   * R827.1.c.1's "play only if not Empowered" enforces at the ability.
+   *
+   * A status on the permanent rather than a modifier with a duration: R441.2
+   * calls it "a state for Game Objects on the board", and nothing expires it.
+   */
+  empowered?: true;
 }
 
 export interface PlayerState {

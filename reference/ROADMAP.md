@@ -12,7 +12,7 @@ rather than what is subtly wrong.
 
 ## 1. Where the engine stands
 
-Built and tested (613 tests):
+Built and tested (635 tests):
 
 | Area | State |
 |---|---|
@@ -45,7 +45,9 @@ Built and tested (613 tests):
 | [Weaponmaster] (R821) | Equip on the way in, at a discount, ignoring timing |
 | [Flow] (R829) | Played from the trash for an alternate cost, then banished |
 | Play zones | Hand, Champion Zone, Facedown Zone, trash — one shape |
-| Tags (R133.8) | Copyable; narrow target filters and passive scopes |
+| Tags (R133.8) + supertypes (R133.7) | Copyable; deck construction, filters, scopes |
+| Dependent keywords (R824, R828) | [Level N] and [Empowered], one mechanism |
+| [Empower] (R827) + the Empower action (R441) | A binary status on the permanent |
 
 The decision mechanism matters more than its size suggests: **it is the
 same shape a UI needs.** "Engine stops, offers a legal set, waits" maps
@@ -79,7 +81,7 @@ their foundations (XP is a number now; [Level] is one Condition away).
 | **Conditional effects** (`if X then Y`) | 102 clauses | Second most common structural word after "when". Needed by the Poros, LeBlanc, Renekton. |
 | **[Equip] / attachments (R718, R818, R821)** | 50 | Attached cards append rules text (R477.2.c) and Might bonuses (R477.3.d) — the layer system already has the slots. |
 | **[Hidden] (R811)** | 44 | Needs a hidden zone and a second play timing. |
-| **[Empower] / [Empowered] (R827–828)** | 42 / 39 | A status plus a conditional-ability gate. |
+| ~~**[Empower] / [Empowered] (R827–828)**~~ | 46 / 42 | Done — a status plus a conditional-ability gate, which is exactly what it turned out to be. |
 | **[Deflect] (R809)** | 39 | A targeting tax — interacts with target legality. |
 | **XP / [Level] / [Hunt]** | ~10 | A per-player resource the engine has no concept of. |
 
@@ -308,18 +310,38 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
    all of R103.2.d's Signature-card limits, R150's Equipment tag, and
    tag-scoped passives.
 
-10. **Tier 4** — the effect ops the card vocabulary still wants. `choose`
+10. ~~**Dependent keywords**~~ — done. [Empowered] (R828.1.b.1) and
+    [Level N] (R824.1.b.1) are the same sentence with different conditions —
+    "while X, this card gains '[Text]'" — so both are one new layer
+    modification, `grantAbility`. [Empower] (R827) and R441's Empower action
+    came with them, because without a way to *become* Empowered the other
+    half can never switch on. 103 cards between them.
+
+    It turned up two bugs, both first exposed by [Empower] being the first
+    keyword to expand into an *activated* ability: `legalActions` enumerated
+    abilities off the printed card while `activateAbility` indexed
+    `abilitiesOf`, so a derived activated ability was playable but never
+    offered — and on a copied card the two indexed different abilities
+    entirely. And a passive granted to the permanent granting it was
+    collected too late to apply to itself.
+
+11. **Tier 4** — the effect ops the card vocabulary still wants. `choose`
     is the big one: modes ("Choose one —") are what Rocket Barrage and
     Curtain Call need to finish [Repeat], and 47 clauses use the word.
     Then `spend`, `recycle`, `use`.
 
-11. **Granting a keyword whose value is a Cost.** Three cards grant
-    [Repeat] and two grant or reduce [Flow]. Both keywords are abilities
-    carrying a `Cost`, and the layer system grants keywords whose values
-    are numbers. R820.4 and R829.2 both call them characteristics, so the
-    honest fix is keywords with richer values — which would also close
-    R817.2's and R821.1.c.7's "multiple instances trigger separately",
-    since a set of keywords cannot count to two.
+12. **Granting a keyword whose value is a Cost.** Three cards grant
+    [Repeat] and two grant or reduce [Flow]; [Empower] is a third of the
+    same shape. All three are abilities carrying a `Cost`, and the layer
+    system grants keywords whose values are numbers. R820.4 and R829.2 both
+    call them characteristics, so the honest fix is keywords with richer
+    values — which would also close R817.2's, R821.1.c.7's and R808.2's
+    "multiple instances trigger separately", since a set of keywords cannot
+    count to two.
+
+13. **[Hunt]** (R823, 12 cards) — "when I Conquer or Hold, gain X XP". The
+    trigger, the XP and the summed-keyword-value machinery all exist; it is
+    [Vision]-shaped and small.
 
 **Deferred by decision, not dropped:** replacement-effect Tier C
 (R373.2's sequences across simultaneous events). Written up at the end of

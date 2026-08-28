@@ -57,6 +57,13 @@ export type TriggerCondition =
   | { on: "combatStarted"; subject: "here" }
   | { on: "permanentKilled"; subject: TriggerSubject }
   /**
+   * R827.2.a — becoming Empowered "is an event other Game Effects and
+   * Triggered Abilities can reference". R828.1.d singles this one out: an
+   * Empowered ability that is itself a "when I become Empowered" trigger is
+   * active in time to fire on the very event that switched it on.
+   */
+  | { on: "empowered"; subject: TriggerSubject }
+  /**
    * R471.2 — Score abilities trigger "at the Battlefield that Scored", so
    * `here` covers both the battlefield card itself and a unit standing on it.
    * A Legend scores nothing "here" (R107.4.b: the Legend Zone is not a
@@ -205,6 +212,18 @@ function matches(
         controller,
       );
     }
+    case "empowered":
+      return (
+        event.type === "empowered" &&
+        subjectMatches(
+          condition.subject,
+          event.cardId,
+          event.playerId,
+          sourceId,
+          controller,
+        )
+      );
+
     case "cardPlayed":
       return (
         (event.type === "unitPlayed" || event.type === "spellPlayed") &&
