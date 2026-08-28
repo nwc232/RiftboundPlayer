@@ -1,5 +1,5 @@
-import { execute, shiftTargets } from "./abilities.js";
-import type { AbilityCost, EffectContext } from "./abilities.js";
+import { execute, modeOf, shiftTargets } from "./abilities.js";
+import type { AbilityCost, Effect, EffectContext } from "./abilities.js";
 import { FREE, spend } from "./cost.js";
 import {
   additionalCostsOf,
@@ -99,6 +99,11 @@ export type Action =
       /** R820.1.c.2 — which of the card's [Repeat] costs to pay, by index. */
       payRepeats?: number[];
       /**
+       * "Choose one —": which arm each execution takes. One entry per
+       * execution (R820.2.a), so a repeated modal spell carries two.
+       */
+      modes?: number[];
+      /**
        * Which of `playZonesFor`'s ways of playing this card is being used.
        * Only [Flow] (R829.1.c.3) ever offers more than one.
        */
@@ -114,6 +119,8 @@ export type Action =
   | {
       type: "activateAbility";
       targets?: CardId[];
+      /** "Choose one —": which arm this activation takes. */
+      mode?: number;
       playerId: PlayerId;
       sourceId: CardId;
       abilityIndex: number;
@@ -140,6 +147,8 @@ export type RejectionReason =
   | "abilityNotFound"
   | "sourceNotControlled"
   | "cannotPayAbilityCost"
+  | "wrongModeCount"
+  | "invalidMode"
   | "notAPermanent"
   | "notOnBoard"
   | "alreadyExhausted"
@@ -247,10 +256,23 @@ function nextDecision(state: GameState): PendingDecision | null {
     };
   }
 
+  // "Choose one —" comes before the targets, because which targets the ability
+  // even wants depends on which arm was taken.
+  if (ability.modes !== undefined && item.mode === undefined) {
+    return {
+      player: item.controller,
+      prompt: {
+        kind: "chooseMode",
+        chainIndex,
+        legal: ability.modes.map((_, index) => index),
+      },
+    };
+  }
+
   // R355.5 — one target at a time, in the order the card names them. Each has
   // its own filter, so "a friendly unit and an enemy unit" cannot be answered
   // by two friendly ones.
-  const filters = ability.targeting?.filters ?? [];
+  const filters = modeOf(ability, item.mode ?? 0).targeting?.filters ?? [];
   const index = item.targets.length;
   const filter = filters[index];
   if (filter !== undefined) {
@@ -296,14 +318,41 @@ function deflectTax(
 }
 
 /** The filters a spell's own rules text names, if it names any (R355.5). */
-function spellTargeting(
-  state: GameState,
-  cardId: CardId,
-): TargetFilter[] | undefined {
+function spellAbility(state: GameState, cardId: CardId) {
   const ability = abilitiesOf(state, cardId).find(
     (each) => each.kind === "activated" || each.kind === "triggered",
   );
-  return ability === undefined ? undefined : ability.targeting?.filters;
+  return ability === undefined ||
+    (ability.kind !== "activated" && ability.kind !== "triggered")
+    ? undefined
+    : ability;
+}
+
+/**
+ * What a spell chooses, for one execution taking `mode`. Modal cards ask for
+ * different things per arm — Rocket Barrage's "a unit in a base" against "a
+ * gear" — so the filters cannot be read once for the whole play.
+ */
+function spellTargeting(
+  state: GameState,
+  cardId: CardId,
+  mode = 0,
+): TargetFilter[] | undefined {
+  const ability = spellAbility(state, cardId);
+  return ability === undefined ? undefined : modeOf(ability, mode).targeting?.filters;
+}
+
+/** R355.5 — how many choices one execution of this spell owes. */
+function targetCountFor(state: GameState, cardId: CardId, mode: number): number {
+  return spellTargeting(state, cardId, mode)?.length ?? 0;
+}
+
+/**
+ * How many modes a card offers. Zero means it is not modal, which is not the
+ * same as one: a non-modal card's single implicit mode is index 0.
+ */
+export function modeCountOf(state: GameState, cardId: CardId): number {
+  return spellAbility(state, cardId)?.modes?.length ?? 0;
 }
 
 /**
@@ -552,6 +601,30 @@ export function decide(
     }
     const worked = runTasks(applyResumeAnswer(state, chosen));
     return afterTasks(worked.state, worked.events);
+  }
+
+  // "Choose one —" on a trigger. The answer is a mode index rather than a
+  // card, so it arrives on `targets` as a number in string form.
+  if (prompt.kind === "chooseMode") {
+    const chosen = choice.targets ?? [];
+    if (chosen.length !== 1) return rejected("wrongTargetCount");
+    const mode = Number(chosen[0]);
+    if (!Number.isInteger(mode) || !prompt.legal.includes(mode)) {
+      return rejected("invalidMode");
+    }
+    const item = state.chain[prompt.chainIndex];
+    if (item === undefined || item.kind !== "trigger") return rejected("noDecision");
+    return awaitDecisions({
+      ok: true,
+      state: {
+        ...state,
+        chain: state.chain.map((each, i) =>
+          i === prompt.chainIndex ? { ...each, mode } : each,
+        ),
+        pending: null,
+      },
+      events: [],
+    });
   }
 
   if (prompt.kind === "chooseFromRevealed") {
@@ -983,6 +1056,7 @@ export function playSpell(
   payOptional = false,
   payRepeats: number[] = [],
   playFrom = 0,
+  modes: number[] = [],
 ): ActionResult {
   const player = state.players[playerId];
   const card = state.cards[cardId];
@@ -1027,6 +1101,29 @@ export function playSpell(
   // R820.3 — one additional execution for each instance paid for.
   const executions = 1 + payRepeats.length;
 
+  // "Choose one —". R820.2 makes the mode one of the Relevant Choices made as
+  // the card is played, and R820.2.a lets each execution choose for itself, so
+  // there is one entry per execution rather than one per card.
+  const modeCount = modeCountOf(state, cardId);
+  const chosenModes =
+    modeCount === 0
+      ? Array.from({ length: executions }, () => 0)
+      : modes.length === executions
+        ? modes
+        : undefined;
+  if (chosenModes === undefined) return rejected("wrongModeCount");
+  if (modeCount > 0 && chosenModes.some((m) => m < 0 || m >= modeCount)) {
+    return rejected("invalidMode");
+  }
+  // Curtain Call — "Choose one you haven't already chosen". Only bites when a
+  // [Repeat] gives the same play more than one execution.
+  if (
+    spellAbility(state, cardId)?.distinctModes === true &&
+    new Set(chosenModes).size !== chosenModes.length
+  ) {
+    return rejected("invalidMode");
+  }
+
   // R356.1.b — a hidden card is played "ignoring its base cost", which
   // R356.1.b.3 still lets an additional cost raise back above zero.
   const cost = totalCostOf(state, playerId, cardId, {
@@ -1048,18 +1145,19 @@ export function playSpell(
 
   // R355.5/R355.8 — a spell's choices are made as it is played, and each one
   // has to be valid for the filter the card names in that position.
-  const filters = spellTargeting(state, cardId);
-  if (filters !== undefined) {
-    if (targets.length !== filters.length * executions) {
-      return rejected("wrongTargetCount");
-    }
+  if (spellTargeting(state, cardId, chosenModes[0]!) !== undefined) {
     // Each execution's choices are judged on their own. R820.2.a is explicit
     // that a repeat "may choose the same target or a different one", so the
     // no-reusing-an-object rule binds inside one execution and not across two.
-    for (let run = 0; run < executions; run += 1) {
+    // The stride is per-execution rather than fixed: two modes of the same card
+    // can want different numbers of things.
+    let offset = 0;
+    for (const mode of chosenModes) {
+      const filters = spellTargeting(state, cardId, mode) ?? [];
       const chosen: CardId[] = [];
       for (const [index, filter] of filters.entries()) {
-        const targetId = targets[run * filters.length + index]!;
+        const targetId = targets[offset + index];
+        if (targetId === undefined) return rejected("wrongTargetCount");
         const legal = legalTargets(state, playerId, filter, cardId);
         // R355.5.a-style uniqueness: two filters naming two things cannot both
         // be answered with the same object.
@@ -1068,7 +1166,9 @@ export function playSpell(
         }
         chosen.push(targetId);
       }
+      offset += filters.length;
     }
+    if (targets.length !== offset) return rejected("wrongTargetCount");
   } else {
     for (const targetId of targets) {
       const isOnBoard = state.permanents[targetId] !== undefined;
@@ -1102,6 +1202,7 @@ export function playSpell(
           ...(payOptional ? { paidAdditionalCost: true as const } : {}),
           // R820.3 — how many *additional* times the instructions run.
           ...(payRepeats.length > 0 ? { repeats: payRepeats.length } : {}),
+          ...(modeCount > 0 ? { modes: chosenModes } : {}),
           // R829.1.b.1 — the replacement belongs to this play, so the chain
           // item is what carries it off the chain.
           ...(zone.banishOnLeave === true ? { banishOnLeave: true as const } : {}),
@@ -1188,11 +1289,11 @@ export function passPriority(
     // Neither a passive (read live by the layer pipeline) nor a play permission
     // (read off a card in hand) ever resolves, so both contribute nothing here
     // even if one is somehow reached.
-    const printed =
+    const resolving =
       ability !== undefined &&
       (ability.kind === "activated" || ability.kind === "triggered")
-        ? ability.effect
-        : { op: "seq" as const, steps: [] };
+        ? ability
+        : undefined;
 
     // R820.1.d — "execute the instructions of this chain item one additional
     // time during resolution", once per [Repeat] cost paid. Expressed as a
@@ -1200,21 +1301,28 @@ export function passPriority(
     // (R321): `seq` folds its remaining steps into the paused effect, so the
     // second execution waits for the first to finish answering.
     //
-    // R820.2.a lets each execution choose for itself, so the later copies read
-    // later slices of the same flat `targets` list.
-    const executions =
-      1 + (item.kind === "spell" ? (item.repeats ?? 0) : 0);
-    const stride =
-      executions > 1 ? item.targets.length / executions : item.targets.length;
-    const effect =
-      executions === 1
-        ? printed
-        : {
-            op: "seq" as const,
-            steps: Array.from({ length: executions }, (_, run) =>
-              shiftTargets(printed, run * stride),
-            ),
-          };
+    // R820.2.a lets each execution choose for itself — both its mode and its
+    // targets — so the later copies read later slices of the same flat
+    // `targets` list, and the offsets are accumulated rather than a fixed
+    // stride: two modes of the same card can want different numbers of things.
+    const chosenModes =
+      item.kind === "spell"
+        ? (item.modes ??
+          Array.from({ length: 1 + (item.repeats ?? 0) }, () => 0))
+        : [item.mode ?? 0];
+
+    const steps: Effect[] = [];
+    let offset = 0;
+    for (const mode of chosenModes) {
+      if (resolving === undefined) break;
+      const arm = modeOf(resolving, mode);
+      steps.push(shiftTargets(arm.effect, offset));
+      offset += arm.targeting?.filters.length ?? 0;
+    }
+    const effect: Effect =
+      steps.length === 1
+        ? steps[0]!
+        : { op: "seq" as const, steps };
 
     const sourceLocation = sourceLocationOf(current, item);
 
@@ -1420,6 +1528,7 @@ export function activateAbility(
   sourceId: CardId,
   abilityIndex: number,
   targets: CardId[] = [],
+  mode = 0,
 ): ActionResult {
   const card = state.cards[sourceId];
   if (card === undefined) {
@@ -1458,9 +1567,16 @@ export function activateAbility(
     return rejected("abilityNotFound");
   }
 
+  // "Choose one —" is one of those choices too, and it comes first: which
+  // targets the ability wants depends on the arm taken.
+  if (ability.modes !== undefined) {
+    if (mode < 0 || mode >= ability.modes.length) return rejected("invalidMode");
+  }
+
   // R355.5 / R818.1.b.1 — an activated ability's choices are made as it is
   // activated, and Equip's chosen unit is one of them.
-  const filters = ability.targeting?.filters ?? [];
+  const arm = modeOf(ability, mode);
+  const filters = arm.targeting?.filters ?? [];
   if (targets.length !== filters.length) return rejected("wrongTargetCount");
   for (const [index, filter] of filters.entries()) {
     const legal = legalTargets(state, playerId, filter, sourceId);
@@ -1485,7 +1601,7 @@ export function activateAbility(
     events.push(...paid.events);
   }
 
-  const parked = park(execute(current, ability.effect, context));
+  const parked = park(execute(current, arm.effect, context));
 
   return {
     ok: true,
@@ -1541,6 +1657,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
           action.payOptional,
           action.payRepeats,
           action.playFrom,
+          action.modes,
         ),
       );
     case "endTurn":
@@ -1553,6 +1670,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
         action.sourceId,
         action.abilityIndex,
         action.targets,
+        action.mode,
       ));
     default: {
       const unhandled: never = action;

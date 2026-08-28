@@ -5,6 +5,7 @@ import type {
   AdditionalCostAbility,
   Ability,
   EmpowerAbility,
+  Mode,
   FlowAbility,
   RepeatAbility,
   Effect,
@@ -14,6 +15,7 @@ import type {
   PlayPermissionAbility,
   ReplacementAbility,
 } from "./abilities.js";
+import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type {
   DelayedTiming,
@@ -413,6 +415,11 @@ export function legionCostReduction(reduce: Partial<Cost>): CostModifierAbility 
  */
 export function repeat(cost: Partial<Cost>): RepeatAbility {
   return { kind: "repeat", cost: { ...FREE, ...cost } };
+}
+
+/** One arm of a "Choose one —", with whatever that arm chooses for itself. */
+export function mode(effect: Effect, targeting?: Targeting): Mode {
+  return { effect, ...(targeting !== undefined ? { targeting } : {}) };
 }
 
 /**

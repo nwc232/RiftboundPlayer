@@ -735,10 +735,12 @@ built when a card asks for it.
   the engine has. Marai Spire's "friendly [Repeat] costs cost [1] less" wants a
   cost modifier aimed at Repeat costs specifically, which `costModifier`
   abilities cannot name.
-- **Modal effects are absent, which two Repeat cards lean on.** Rocket Barrage
-  ("Choose one —") and Curtain Call ("Choose one you haven't already chosen")
-  are what R820.2.a's example is about. The independent *targets* per execution
-  are built; independent *modes* need modes to exist first.
+- **"Choose one you haven't already chosen" is enforced per *play*, not per
+  turn.** Curtain Call's is genuinely per play — its arms are distinguished
+  across the executions one [Repeat] buys — and that is what `distinctModes`
+  does. Aphelios, Exalted ("that hasn't been chosen this turn") and Udyr,
+  Wildman ("you've not chosen this turn") mean something wider: a tally across
+  separate activations, which nothing records. Neither card is authored.
 - **`legalActions` stops enumerating a repeat's choices past 64 combinations.**
   R820.2.a lets every execution choose freely, so k executions over n target
   tuples is n^k answers. Past the bound each execution is offered the same

@@ -444,6 +444,8 @@ export function Prompt({ state }: { state: GameState }) {
         )} (${prompt.amount} damage incoming)`;
       case "orderReplacements":
         return `which replacement applies to ${nameOf(state, prompt.subject)}?`;
+      case "chooseMode":
+        return `choose one — ${prompt.legal.length} to pick from`;
       case "chooseFromRevealed":
         return prompt.keep > 0
           ? `keep ${prompt.keep}`

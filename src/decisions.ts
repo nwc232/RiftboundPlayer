@@ -39,6 +39,12 @@ export type DecisionPrompt =
    */
   | { kind: "mulligan"; max: number; legal: CardId[] }
   /**
+   * "Choose one —" on a triggered ability. Asked *before* its targets, because
+   * which targets it wants depends on the arm taken: Rocket Barrage's two want
+   * a unit and a gear respectively. `legal` is mode indices, not card ids.
+   */
+  | { kind: "chooseMode"; chainIndex: number; legal: number[] }
+  /**
    * R323.12/13 — when more than one showdown or combat is staged, the Turn
    * Player chooses which battlefield opens. Only raised when there is a genuine
    * choice; a single staged battlefield opens without asking.

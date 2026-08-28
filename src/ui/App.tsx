@@ -49,8 +49,12 @@ export function App() {
    */
   const legal = useMemo(() => {
     const prompt = state.pending?.prompt;
+    // `chooseMode` answers with an index rather than a card, so nothing on the
+    // board is highlighted for it — the prompt bar offers the arms instead.
     return new Set<CardId>(
-      prompt !== undefined && "legal" in prompt ? prompt.legal : [],
+      prompt !== undefined && "legal" in prompt && prompt.kind !== "chooseMode"
+        ? prompt.legal
+        : [],
     );
   }, [state]);
 

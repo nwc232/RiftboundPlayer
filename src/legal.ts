@@ -1,5 +1,8 @@
 import { applyAction } from "./actions.js";
 import type { Action } from "./actions.js";
+import { modeCountOf } from "./actions.js";
+import { modeOf } from "./abilities.js";
+import type { ActivatedAbility } from "./abilities.js";
 import { flowCostsOf, repeatCostsOf } from "./costing.js";
 import { playZonesFor } from "./zones.js";
 import { legalTargets } from "./decisions.js";
@@ -51,11 +54,17 @@ function targetable(state: GameState): CardId[] {
  * The filters a card's own rules text names, if any (R355.5). Read off the
  * printed card, because it is still in hand.
  */
-function filtersOf(state: GameState, cardId: CardId): TargetFilter[] {
+function filtersOf(
+  state: GameState,
+  cardId: CardId,
+  mode = 0,
+): TargetFilter[] {
   const ability = state.cards[cardId]?.abilities.find(
     (each) => each.kind === "activated" || each.kind === "triggered",
   );
-  return ability?.targeting?.filters ?? [];
+  if (ability === undefined) return [];
+  if (ability.kind !== "activated" && ability.kind !== "triggered") return [];
+  return modeOf(ability, mode).targeting?.filters ?? [];
 }
 
 /**
@@ -68,8 +77,9 @@ function targetTuples(
   state: GameState,
   playerId: PlayerId,
   cardId: CardId,
+  mode = 0,
 ): CardId[][] {
-  const filters = filtersOf(state, cardId);
+  const filters = filtersOf(state, cardId, mode);
   if (filters.length === 0) return [[]];
 
   let tuples: CardId[][] = [[]];
@@ -96,28 +106,53 @@ function targetTuples(
 const REPEAT_TUPLE_MAX = 64;
 
 /**
+ * Every combination of arms a play could take. `count` of 0 means the card is
+ * not modal, which still has exactly one way to be played.
+ */
+function modeChoices(count: number, executions: number): number[][] {
+  if (count === 0) return [Array.from({ length: executions }, () => 0)];
+  let out: number[][] = [[]];
+  for (let run = 0; run < executions; run += 1) {
+    out = out.flatMap((prefix) =>
+      Array.from({ length: count }, (_, mode) => [...prefix, mode]),
+    );
+  }
+  return out;
+}
+
+/**
  * R820.2 — with [Repeat] paid, the choices for every execution are made as the
  * spell is played, so one action carries them all: one tuple per execution,
- * laid end to end.
+ * laid end to end. The tuples are per *mode*, because two arms of the same
+ * card can want different things.
  */
 function repeatedTargetTuples(
   state: GameState,
   playerId: PlayerId,
   cardId: CardId,
-  executions: number,
+  modes: number[],
 ): CardId[][] {
-  const single = targetTuples(state, playerId, cardId);
-  if (executions <= 1) return single;
+  const perRun = modes.map((mode) =>
+    targetTuples(state, playerId, cardId, mode),
+  );
+  const first = perRun[0] ?? [[]];
+  if (perRun.length <= 1) return first;
 
-  if (Math.pow(single.length, executions) > REPEAT_TUPLE_MAX) {
-    return single.map((tuple) =>
-      Array.from({ length: executions }, () => tuple).flat(),
-    );
+  const total = perRun.reduce((product, each) => product * each.length, 1);
+  if (total > REPEAT_TUPLE_MAX) {
+    // Past the bound every execution repeats the first one's choice, which
+    // only works when the arms want the same things; otherwise the first
+    // tuple alone is offered and the rest is left to the UI.
+    return perRun.every((each) => each.length === first.length)
+      ? first.map((tuple) =>
+          Array.from({ length: perRun.length }, () => tuple).flat(),
+        )
+      : [perRun.flatMap((each) => each[0] ?? [])];
   }
 
-  let out = single;
-  for (let run = 1; run < executions; run += 1) {
-    out = out.flatMap((prefix) => single.map((next) => [...prefix, ...next]));
+  let out = first;
+  for (const next of perRun.slice(1)) {
+    out = out.flatMap((prefix) => next.map((tuple) => [...prefix, ...tuple]));
   }
   return out;
 }
@@ -203,6 +238,13 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
           playerId,
           targets,
         }));
+      // A mode index rather than a card, but the same shape of answer.
+      case "chooseMode":
+        return prompt.legal.map((mode) => ({
+          type: "decide",
+          playerId,
+          targets: [String(mode)],
+        }));
       case "orderReplacements":
       case "chooseFromRevealed":
       case "assignCombatDamage":
@@ -267,23 +309,30 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
       const repeats = repeatCostsOf(state, cardId).map((_, index) => index);
       // R829.1.c.3 — and a spell with several [Flow] costs is several plays.
       const zones = Math.max(1, playZonesFor(state, playerId, cardId).length);
+      // "Choose one —": every arm is a different play, and with [Repeat] every
+      // *combination* of arms is (R820.2.a).
+      const modeCount = modeCountOf(state, cardId);
       for (let playFrom = 0; playFrom < zones; playFrom += 1) {
         for (const payRepeats of subsets(repeats, repeats.length)) {
-          for (const chosen of repeatedTargetTuples(
-            state,
-            playerId,
-            cardId,
-            1 + payRepeats.length,
-          )) {
-            out.push({
-              type: "playSpell",
+          const executions = 1 + payRepeats.length;
+          for (const modes of modeChoices(modeCount, executions)) {
+            for (const chosen of repeatedTargetTuples(
+              state,
               playerId,
               cardId,
-              targets: chosen,
-              payOptional,
-              payRepeats,
-              playFrom,
-            });
+              modes,
+            )) {
+              out.push({
+                type: "playSpell",
+                playerId,
+                cardId,
+                targets: chosen,
+                payOptional,
+                payRepeats,
+                playFrom,
+                ...(modeCount > 0 ? { modes } : {}),
+              });
+            }
           }
         }
       }
@@ -302,21 +351,38 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     // playable but never offered, and a copied one indexed the wrong ability.
     const abilities = abilitiesOf(state, sourceId);
     abilities.forEach((ability, abilityIndex) => {
-      // R355.5 — an ability that chooses something is offered once per choice.
-      const filters =
-        ability.kind === "activated" ? (ability.targeting?.filters ?? []) : [];
-      if (filters.length === 0) {
-        out.push({ type: "activateAbility", playerId, sourceId, abilityIndex });
-        return;
-      }
-      for (const chosen of targetTuples(state, playerId, sourceId)) {
-        out.push({
-          type: "activateAbility",
+      if (ability.kind !== "activated") return;
+      // "Choose one —": one offer per arm, each with its own choices.
+      const arms = ability.modes?.map((_, index) => index) ?? [0];
+      for (const mode of arms) {
+        const filters = modeOf(ability, mode).targeting?.filters ?? [];
+        const modeField = ability.modes !== undefined ? { mode } : {};
+        if (filters.length === 0) {
+          out.push({
+            type: "activateAbility",
+            playerId,
+            sourceId,
+            abilityIndex,
+            ...modeField,
+          });
+          continue;
+        }
+        for (const chosen of abilityTargetTuples(
+          state,
           playerId,
           sourceId,
-          abilityIndex,
-          targets: chosen,
-        });
+          ability,
+          mode,
+        )) {
+          out.push({
+            type: "activateAbility",
+            playerId,
+            sourceId,
+            abilityIndex,
+            targets: chosen,
+            ...modeField,
+          });
+        }
       }
     });
   }
@@ -328,4 +394,30 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
   }
 
   return out;
+}
+
+/**
+ * The tuples an *activated* ability's chosen arm could take. Separate from
+ * `targetTuples`, which reads a card's first ability off the printed card: an
+ * ability being offered here is already in hand, mode and all.
+ */
+function abilityTargetTuples(
+  state: GameState,
+  playerId: PlayerId,
+  sourceId: CardId,
+  ability: ActivatedAbility,
+  mode: number,
+): CardId[][] {
+  const filters = modeOf(ability, mode).targeting?.filters ?? [];
+  if (filters.length === 0) return [[]];
+
+  let tuples: CardId[][] = [[]];
+  for (const filter of filters) {
+    const legal = legalTargets(state, playerId, filter, sourceId);
+    tuples = tuples.flatMap((prefix) =>
+      legal.filter((id) => !prefix.includes(id)).map((id) => [...prefix, id]),
+    );
+    if (tuples.length === 0) break;
+  }
+  return tuples;
 }

@@ -89,6 +89,9 @@ export function describe(state: GameState, action: Action): string {
     case "playSpell":
       return (
         "cast" +
+        ((action.modes ?? []).length > 0
+          ? ` (mode ${(action.modes ?? []).map((m) => m + 1).join("/")})`
+          : "") +
         (action.targets && action.targets.length > 0
           ? ` at ${action.targets.map(label).join(" + ")}`
           : "") +
@@ -114,6 +117,11 @@ export function describe(state: GameState, action: Action): string {
     case "decide":
       if (action.perform === true) return "yes";
       if (action.perform === false) return "no";
+      // "Choose one —" answers with an index, so the label has to come from
+      // the arm rather than from a card name.
+      if (state.pending?.prompt.kind === "chooseMode") {
+        return `mode ${Number(action.targets?.[0] ?? 0) + 1}`;
+      }
       if ((action.targets ?? []).length === 0) {
         // The only two prompts that accept nothing, and they mean opposite
         // things: R117.1 keeps the opening hand, R436.1 keeps the top card.

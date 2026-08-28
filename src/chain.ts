@@ -34,6 +34,12 @@ export type ChainItem =
        */
       repeats?: number;
       /**
+       * Which arm of a "Choose one —" each execution took. One entry per
+       * execution, because R820.2.a lets a repeat "choose the same mode or a
+       * different one". Absent on a card with no modes.
+       */
+      modes?: number[];
+      /**
        * R829.1.b.1 — [Flow]'s delayed replacement: "if the spell would leave
        * the chain after becoming a finalized chain item, and leaving the chain
        * wasn't instructed by its own execution, banish it instead". Recorded
@@ -59,6 +65,8 @@ export type ChainItem =
       targets: CardId[];
       /** R383.3.a — set once the controller has answered the "you may". */
       optionalResolved?: boolean;
+      /** Which arm of a "Choose one —" was taken, chosen before its targets. */
+      mode?: number;
       /** R383.3.b.1 — set once the ability's base cost has been paid. */
       costsPaid?: true;
       /**

@@ -253,11 +253,34 @@ export type AbilityCost =
 /** Recorded from the card, but not yet enforced — that needs the chain. */
 export type AbilityTiming = "reaction" | "action" | "default";
 
+/**
+ * One arm of a "Choose one —". A mode is an effect *plus its own choices*:
+ * Rocket Barrage's two are "deal 4 to a unit in a base" and "kill a gear",
+ * which want different things, so the targeting travels with the mode rather
+ * than sitting on the ability.
+ */
+export interface Mode {
+  effect: Effect;
+  targeting?: Targeting;
+}
+
 export interface ActivatedAbility {
   kind: "activated";
   timing: AbilityTiming;
   costs: AbilityCost[];
+  /** Ignored when `modes` is present — the chosen mode supplies it instead. */
   effect: Effect;
+  /**
+   * "Choose one — A. [or] B." R820.2 makes the choice one of the Relevant
+   * Choices made as the card is played, alongside targets, not something asked
+   * on resolution.
+   */
+  modes?: Mode[];
+  /**
+   * Curtain Call — "Choose one **you haven't already chosen**". Only bites
+   * when a [Repeat] gives one play more than one execution (R820.2.a).
+   */
+  distinctModes?: true;
   /**
    * R355.5 — a spell's own choices, made as it is played. Absent means the
    * ability chooses nothing, which is not the same as choosing zero things:
@@ -410,6 +433,26 @@ const TARGET_INDEX_FIELDS = ["targetIndex", "otherIndex", "destinationIndex"];
  * the indices rather than a second context, which is what lets the whole
  * repeat be expressed as one `seq` — pauses and all.
  */
+/**
+ * What an ability actually does and chooses, once its mode is known. A card
+ * with no "Choose one —" has one implicit mode: its own effect and targeting.
+ *
+ * Everything downstream — finalization, `legalActions`, resolution — asks this
+ * rather than reading `effect` directly, so a modal card is not a special case
+ * at any of those sites.
+ */
+export function modeOf(
+  ability: { effect: Effect; targeting?: Targeting; modes?: Mode[] },
+  index = 0,
+): Mode {
+  const chosen = ability.modes?.[index];
+  if (chosen !== undefined) return chosen;
+  return {
+    effect: ability.effect,
+    ...(ability.targeting !== undefined ? { targeting: ability.targeting } : {}),
+  };
+}
+
 export function shiftTargets<T>(effect: T, offset: number): T {
   if (offset === 0 || effect === null || typeof effect !== "object") {
     return effect;

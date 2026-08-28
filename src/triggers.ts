@@ -4,6 +4,7 @@ import type { Targeting } from "./decisions.js";
 import { abilitiesOf, controllerOf } from "./layers.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
+import type { Mode } from "./abilities.js";
 import type { GameEvent } from "./events.js";
 import type { ScoreMethod } from "./scoring.js";
 import type { Phase } from "./turn.js";
@@ -105,7 +106,16 @@ export interface TriggeredAbility {
    * reaction to the ability, "it will still resolve".
    */
   requires?: Condition;
+  /** Ignored when `modes` is present — the chosen mode supplies it instead. */
   effect: Effect;
+  /**
+   * Minah Swiftfoot — "when I move to a battlefield, choose one — …". Chosen
+   * as the trigger finalizes, before its targets, because which targets it
+   * even wants depends on the mode.
+   */
+  modes?: Mode[];
+  /** Aphelios — "choose one that hasn't been chosen this turn". */
+  distinctModes?: true;
   /**
    * R383.3.a — "you may" as the *first* clause of the effect makes performing
    * the ability itself optional, decided at finalization. A "you may" later in
