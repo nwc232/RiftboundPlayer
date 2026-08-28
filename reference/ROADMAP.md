@@ -361,9 +361,69 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
     split rests on is a test: `legalActions(viewOf(state, p), p)` equals
     `legalActions(state, p)`, so a view is a complete world to play from.
 
-16. **The online server.** The end product, and the one structural decision
-    left. `viewOf` is the half that every transport needs; what remains is
-    where the authority runs and how two clients reach it. See §4.
+16. **The online server.** Deferred by decision (2026-08-28) until the
+    engine is complete, and wanted as a piece of work in its own right —
+    caching, sockets, authentication — rather than the smallest transport
+    that would work. `viewOf` is the half every transport needs and is
+    done. See §4 and §6 below.
+
+---
+
+## 6. What a complete engine still needs
+
+Measured against the 1180-card pool on 2026-08-28, not estimated. Counts are
+distinct card *names* whose printed text matches; treat them as close rather
+than exact, since a regex cannot tell every idiom apart.
+
+### 6a. Named game actions the engine does not have
+
+Each of these is an action the Core Rules define in its own R4xx section, so
+none is a card-specific special case.
+
+| Action | Rule | Cards | Note |
+|---|---|---|---|
+| **Discard** | R422 | 34 | The largest single gap left. R422.3 makes it a *cost* as well as an effect, and R422.4's "discard as many as possible" is a real branch. |
+| **Reveal** | R424 | 26 | Half present — `lookAtTop` reveals to its own controller. "Reveal the top card; if it's a unit…" needs revealing as an action with a condition on what was seen. |
+| **Disempower** | R442 | 12 | R441's inverse, and mostly an *ability cost*: "Disempower me, [1]: …". The status exists, so this is small. |
+| **Burn** | R440 | 8 | "Move X from the top of the Main Deck to the trash." R440.4 runs it into Burn Out when the deck is short. |
+| **Skip** | R443 | 1 | A replacement that replaces an event *with nothing* — including a whole phase. |
+
+### 6b. Costs
+
+The engine's costs are resources, almost everywhere. Several rules say
+otherwise, and this one fix closes five separate deviations at once.
+
+| Gap | Rule | Cards |
+|---|---|---|
+| **Non-resource costs** — discard, kill, recycle, banish as a cost | R356.2, R422.3, R820.1.c.2, R827.1.c.2, R829.1.c.2, R818 | ~15 |
+| **Cost *increases*** — "costs [2] more" | R356.3 | 20 |
+| **Reducing a keyword's cost** — Marai Spire, Stargazer | R812 | 2 |
+
+`costing.ts` already names the second one: "Step 3, cost increases, has no card
+yet." Twenty of them do.
+
+### 6c. Vocabulary the pool uses and the engine cannot say
+
+| Shape | Cards | Note |
+|---|---|---|
+| **"Can't" / "cannot"** restrictions | 24 | Only `restrictMovement` exists. A general restriction layer would cover playing, moving, scoring and being chosen. |
+| **Players as subjects** — "each player", "choose a player" | ~25 | Targets are cards; a player is not a legal target, so "choose an opponent. They discard 1" cannot be expressed at all. |
+| **Score a point** as an effect | 12 | Scoring exists as a *consequence* (R470); a card that simply scores does not. |
+| **Gain control of a card** | 3 | `takeControl` exists — the inverse ("they gain control") does not. |
+
+### 6d. Structural deviations worth closing
+
+Thirty-seven are on the running list at the end of `mechanic-survey.md`. The
+ones that block whole card families rather than single cards:
+
+- **A passive cannot reach a card that is not a permanent.** R711 reads
+  off-board objects on printed values. Syndra's "your spells have [Repeat]",
+  Marai Spire's cost reduction and §3b's cost modification all want the same
+  scope.
+- **Burn Out does not route through a chokepoint** (R369.2 calls it a
+  replacement effect).
+- **Temporary runs off the chain** (R816.1), so no [Reaction] can answer it.
+- **Tier C chained replacements** (R370.2, R373.2) — deferred by decision.
 
 **Deferred by decision, not dropped:** replacement-effect Tier C
 (R373.2's sequences across simultaneous events). Written up at the end of
