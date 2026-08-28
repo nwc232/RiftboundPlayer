@@ -144,9 +144,7 @@ export function additionalCostsOf(
  * independent: Curtain Call's three are paid or not paid one at a time.
  */
 export function repeatCostsOf(state: GameState, cardId: CardId): Cost[] {
-  return (state.cards[cardId]?.abilities ?? [])
-    .filter((ability) => ability.kind === "repeat")
-    .map((ability) => ability.cost);
+  return costKeywordsOf(state, cardId, "repeat");
 }
 
 /**
@@ -155,9 +153,23 @@ export function repeatCostsOf(state: GameState, cardId: CardId): Cost[] {
  * its controller may choose which cost to apply as they play it."
  */
 export function flowCostsOf(state: GameState, cardId: CardId): Cost[] {
-  return (state.cards[cardId]?.abilities ?? [])
-    .filter((ability) => ability.kind === "flow")
-    .map((ability) => ability.cost);
+  return costKeywordsOf(state, cardId, "flow");
+}
+
+/**
+ * Read through the layer pipeline, not off the printed card: R820.4 and R829.2
+ * make these characteristics, so Syndra's "your spells have [Repeat] [2][C]"
+ * has to count for as much as a printed one. R711 still applies — a card in
+ * hand has no permanent, so the pipeline hands back its printed values.
+ */
+function costKeywordsOf(
+  state: GameState,
+  cardId: CardId,
+  keyword: "repeat" | "flow" | "empower",
+): Cost[] {
+  return characteristicsOf(state, cardId)
+    .costKeywords.filter((each) => each.keyword === keyword)
+    .map((each) => each.cost);
 }
 
 export interface CostOptions {

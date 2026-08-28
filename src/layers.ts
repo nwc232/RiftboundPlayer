@@ -2,6 +2,7 @@ import type { Ability, Effect, PassiveAbility } from "./abilities.js";
 import { sameLocation } from "./state.js";
 import type {
   CardId,
+  CardInstance,
   CardType,
   Cost,
   Domain,
@@ -22,9 +23,36 @@ import type {
  * a buff raises Might in the arithmetic layer, which makes her Mighty, which
  * grants keywords back in the ability layer, which can add Might again.
  */
+/**
+ * R820.4 / R829.2 / R827.4 — [Repeat], [Flow] and [Empower] are characteristics
+ * like any other keyword, but the value each carries is a `Cost` rather than a
+ * number, which is why they cannot ride in `keywords` beside [Assault 2].
+ *
+ * A list rather than a map: R820.1.c.2 and R829.1.c.3 both let one card carry
+ * several with different costs, and R827.3 makes several [Empower]s "equivalent
+ * to multiple activated abilities".
+ */
+export interface CostKeyword {
+  keyword: "repeat" | "flow" | "empower";
+  cost: Cost;
+}
+
 export interface Characteristics {
   might: number;
+  /**
+   * Which keywords this has, deduplicated — R8xx's "whether or not it has X is
+   * a characteristic" is a yes/no question, and most keywords are redundant in
+   * multiples (R816.2, R819.2, R822.2).
+   */
   keywords: Keyword[];
+  /**
+   * How many instances of each, for the keywords where that matters: R817.2
+   * ([Vision]) and R821.1.c.7 ([Weaponmaster]) both say multiple instances
+   * trigger separately, which a set cannot express.
+   */
+  keywordCounts: Partial<Record<Keyword, number>>;
+  /** R820/R827/R829 — the keywords whose value is a Cost. */
+  costKeywords: CostKeyword[];
   /** R807.2 — Assault values from every source are summed, not redundant. */
   assault: number;
   /** R814.2 — likewise for Shield. */
@@ -102,6 +130,18 @@ export type Modification =
    * fixpoint runs the arithmetic layer again after it.
    */
   | { layer: "ability"; op: "grantAbility"; ability: Ability }
+  /**
+   * Syndra, Transcendent — "your spells have [Repeat] [2][Chaos]"; Kennen —
+   * "[Flow] equal to its cost this turn". Separate from `grantKeyword` because
+   * the value is a Cost, and R820.1.c.2 makes each instance independent rather
+   * than redundant.
+   */
+  | {
+      layer: "ability";
+      op: "grantCostKeyword";
+      keyword: CostKeyword["keyword"];
+      cost: Cost;
+    }
   /** R477.3 — the mathematics of raising and lowering Might. */
   | { layer: "arithmetic"; op: "addMight"; amount: number }
   /**
@@ -456,6 +496,34 @@ export function expireModifiers(
  * the keyword does its work while the card is still in hand, where R711 leaves
  * nothing but printed values to read.
  */
+/**
+ * The cost-valued keywords a card prints. Authored as ability entries rather
+ * than as a card field, because each carries a whole `Cost` and a card may
+ * print several of the same one.
+ */
+function printedCostKeywords(card: CardInstance | undefined): CostKeyword[] {
+  const out: CostKeyword[] = [];
+  for (const ability of card?.abilities ?? []) {
+    if (
+      ability.kind === "repeat" ||
+      ability.kind === "flow" ||
+      ability.kind === "empower"
+    ) {
+      out.push({ keyword: ability.kind, cost: ability.cost });
+    }
+  }
+  return out;
+}
+
+/** R802 — one instance of each printed keyword to start with. */
+function printedCounts(keywords: Keyword[]): Partial<Record<Keyword, number>> {
+  const counts: Partial<Record<Keyword, number>> = {};
+  for (const keyword of keywords) {
+    counts[keyword] = (counts[keyword] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function withDerivedKeywords(keywords: Keyword[]): Keyword[] {
   return keywords.includes("quickDraw") && !keywords.includes("reaction")
     ? [...keywords, "reaction"]
@@ -471,10 +539,34 @@ export function characteristicsOf(
   const printedMight = card?.might ?? 0;
   const printedKeywords = card?.keywords ?? [];
 
+  /**
+   * R711 reads anything off the board on printed values, and that is right for
+   * *modification* — a unit in the trash is Mighty on printed Might alone. An
+   * explicit grant aimed at a card where it lies is a different thing, and
+   * cards do it: Kennen, Storm of Shuriken gives "a spell in your trash [Flow]
+   * equal to its cost this turn", which is worthless if the trash cannot hold
+   * it. Only cost keywords, because only they are granted that way.
+   */
+  const storedCostKeywords: CostKeyword[] = state.modifiers
+    .filter((modifier) => modifier.targetId === cardId)
+    .flatMap((modifier) =>
+      modifier.modification.layer === "ability" &&
+      modifier.modification.op === "grantCostKeyword"
+        ? [
+            {
+              keyword: modifier.modification.keyword,
+              cost: modifier.modification.cost,
+            },
+          ]
+        : [],
+    );
+
   const printed = (): Characteristics => ({
     might: printedMight,
     baseMight: printedMight,
     keywords: withDerivedKeywords([...printedKeywords]),
+    keywordCounts: printedCounts(printedKeywords),
+    costKeywords: [...printedCostKeywords(card), ...storedCostKeywords],
     assault: 0,
     shield: 0,
     deflect: 0,
@@ -537,6 +629,8 @@ export function characteristicsOf(
 
   let baseMight = printedMight;
   let keywords = [...printedKeywords];
+  let keywordCounts = printedCounts(printedKeywords);
+  let costKeywords = printedCostKeywords(card);
   let granted: Ability[] = [];
   let copyable = {
     name: card.name,
@@ -651,9 +745,25 @@ export function characteristicsOf(
             break;
           }
 
+          case "grantCostKeyword":
+            costKeywords = [
+              ...costKeywords,
+              {
+                keyword: entry.modification.keyword,
+                cost: entry.modification.cost,
+              },
+            ];
+            break;
+
           case "grantKeyword": {
             const { keyword, value } = entry.modification;
             if (!keywords.includes(keyword)) keywords = [...keywords, keyword];
+            // R817.2 / R821.1.c.7 — a *second* instance is not redundant for
+            // every keyword, so the tally is kept whether or not the set grew.
+            keywordCounts = {
+              ...keywordCounts,
+              [keyword]: (keywordCounts[keyword] ?? 0) + 1,
+            };
             if (keyword === "assault") assault += value ?? 1;
             if (keyword === "shield") shield += value ?? 1;
             if (keyword === "deflect") deflect += value ?? 1;
@@ -686,6 +796,8 @@ export function characteristicsOf(
     // Derived after the fixpoint, so a *granted* Quick-Draw brings its
     // Reaction with it.
     keywords: withDerivedKeywords(keywords),
+    keywordCounts,
+    costKeywords,
     assault,
     shield,
     deflect,
@@ -783,12 +895,12 @@ export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
   // R827.1.c.1 — "[Empower] [Cost]" is short for "[Cost]: Empower this. Play
   // only if not Empowered." R827.3 makes several instances "equivalent to
   // multiple activated abilities", so each expands on its own.
-  for (const ability of now.abilities) {
-    if (ability.kind !== "empower") continue;
+  for (const each of now.costKeywords) {
+    if (each.keyword !== "empower") continue;
     derived.push({
       kind: "activated",
       timing: "default",
-      costs: [{ kind: "pay", cost: ability.cost }],
+      costs: [{ kind: "pay", cost: each.cost }],
       effect: { op: "empowerSelf" },
       // R441.1.b — "an Empowered Game Object can not be Empowered", which is
       // a legality gate on playing the ability rather than a no-op on
@@ -797,11 +909,20 @@ export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
     });
   }
   if (now.keywords.includes("temporary")) derived.push(TEMPORARY);
-  if (now.keywords.includes("vision")) derived.push(VISION);
+  // R817.2 — "Multiple instances of Vision trigger separately", unlike
+  // R819.2's Quick-Draw and R816.2's Temporary, which are redundant. The tally
+  // is what tells the three apart.
+  for (let i = 0; i < (now.keywordCounts.vision ?? 0); i += 1) {
+    derived.push(VISION);
+  }
   // R819.2 — "Multiple instances of Quick-Draw do not trigger separately", so
   // asking whether the keyword is present is the whole of it.
   if (now.keywords.includes("quickDraw")) derived.push(QUICK_DRAW);
-  if (now.keywords.includes("weaponmaster")) derived.push(WEAPONMASTER);
+  // R821.1.c.7 — "Multiple instances of Weaponmaster trigger separately, and
+  // can choose different targets."
+  for (let i = 0; i < (now.keywordCounts.weaponmaster ?? 0); i += 1) {
+    derived.push(WEAPONMASTER);
+  }
   // R823.1.c.1 — "When I Conquer or Hold, my controller gains X XP." R823.1.b
   // makes it both a Conquer and a Hold effect, which is what omitting `method`
   // says. The value is read here rather than baked into a constant, because

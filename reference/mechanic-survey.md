@@ -689,13 +689,26 @@ built when a card asks for it.
   choice is offered per *source card*, so two damage replacements from the
   same source apply in creation order relative to each other. No printed
   card does that.
-- **[Flow] is on printed spells only, and its costs are resources.** Two cards
-  do something else: Kennen, Storm of Shuriken *grants* "[Flow] equal to its
-  cost this turn", and Stargazer reduces Flow costs ("[Flow] you play from your
-  trash cost [2] less"). Both are the same two gaps [Repeat] has — granting a
-  keyword whose value is a Cost, and a cost modifier that can name a Flow cost
-  specifically. R829.1.c.2 also allows non-resource Flow costs; none is
-  printed. The 14 cards with a plain printed Flow cost work.
+- **A passive cannot grant a cost keyword to a card off the board.** R820.4,
+  R827.4 and R829.2 make [Repeat], [Flow] and [Empower] characteristics, and
+  they are read through the layer pipeline now, so an *explicit* grant lands
+  wherever the card lies — Kennen, Storm of Shuriken's "give a spell in your
+  trash [Flow] equal to its cost this turn" works. A **passive** aimed at cards
+  that are not permanents does not: Syndra, Transcendent's "your spells have
+  [Repeat] [2][Chaos]" wants a scope reaching into a hand, which R711 otherwise
+  reads on printed values alone. The same shape as ROADMAP §3b's cost
+  modification, and it wants the same answer.
+- **"Your *next* spell this turn" has nowhere to live.** Temporal Portal and
+  The Academy both grant [Repeat] to a spell that has not been chosen yet.
+  `pendingDiscounts` is exactly this shape for cost reductions (Astral Heron)
+  and a `pendingGrants` beside it would serve all three.
+- **Nothing reduces a Repeat or Flow cost.** Marai Spire ("friendly [Repeat]
+  costs cost [1] less") and Stargazer ("spells with [Flow] you play from your
+  trash cost [2] less") both modify a *keyword's* cost, which `costModifier`
+  cannot name — it reduces a card's own cost.
+- **Repeat, Flow and Empower costs are resources only.** Square Up prints
+  "[Repeat] — Discard 1"; R829.1.c.2 and R827.1.c.2 allow the same. None of
+  those are ability costs the engine has.
 - **"Your Sand Soldiers" is read as the Shurima tag.** Emperor of the Sands
   says "your Sand Soldiers have [Weaponmaster]", and R187.3 gives the Sand
   Soldier token the Shurima tag — but a *card* with the Shurima tag is not a
@@ -708,9 +721,6 @@ built when a card asks for it.
   the engine has, so `equipChosen` treats them as unpayable, which R821.1.c.5
   already covers: the card stays where it was. The resource-only Equip costs,
   which is every other Equipment, work.
-- **Multiple instances of [Weaponmaster] trigger once (R821.1.c.7/R821.1.d).**
-  The same keyword-set deduplication as [Vision] below, and the same fix would
-  close both.
 - **Dependent-keyword conditions are duplicated in two places.**
   `PassiveCondition` (layers.ts) gained `xpAtLeast` for [Level] even though
   `Condition` (conditions.ts) already has `hasXP` saying the same thing.
@@ -722,19 +732,6 @@ built when a card asks for it.
   allows non-resource Empower costs; R827.1.c.3 and R827.1.c.4 allow printed
   text that alters an Empower ability's cost or timing. None is built — the
   same two gaps [Repeat] and [Flow] have, and one fix covers all three.
-- **[Repeat] is on printed spells only.** R820.1.a puts it on "Spells and
-  Abilities", and three cards *grant* it: Syndra, Transcendent ("your spells
-  have [Repeat] [2][Chaos]"), Temporal Portal and The Academy ("give your next
-  spell [Repeat] equal to its cost"). Repeat is an ability carrying a `Cost`,
-  and the layer system grants *keywords*, whose values are numbers — so
-  granting one needs either ability-granting or keywords with richer values.
-  R820.4 says Repeat is a characteristic, so the second is probably the honest
-  shape; neither is built. The 21 cards that print their own work.
-- **A Repeat cost is resources only.** Square Up prints "[Repeat] — Discard 1",
-  and R820.1.c.2 allows non-resource costs. Discarding is not an ability cost
-  the engine has. Marai Spire's "friendly [Repeat] costs cost [1] less" wants a
-  cost modifier aimed at Repeat costs specifically, which `costModifier`
-  abilities cannot name.
 - **"Choose one you haven't already chosen" is enforced per *play*, not per
   turn.** Curtain Call's is genuinely per play — its arms are distinguished
   across the executions one [Repeat] buys — and that is what `distinctModes`
@@ -747,13 +744,6 @@ built when a card asks for it.
   choice as the first, which keeps the play discoverable where the full space
   is not. `applyAction` still accepts any legal combination the UI builds. Same
   reasoning, and the same limitation, as the ordering bound below.
-- **A second instance of [Vision] does not trigger again (R817.2).** R817.2 is
-  explicit that multiple instances trigger separately — a Mech with printed
-  [Vision] under Forecaster's "your Mechs have [Vision]" should Predict twice.
-  The keyword list is a *set*: `characteristicsOf` skips a keyword it already
-  has, which is right for R819.2 ([Quick-Draw]) and R816.2 ([Temporary]) and
-  wrong only here. Expressing it needs keyword *multiplicity*, which nothing
-  else in the pool wants.
 - **`legalActions` enumerates orderings only up to four cards.** A prompt
   answered with a whole order — R372's damage ordering, R436.1.a's "put the
   rest back in any order" — has n! answers. Past four the only candidate

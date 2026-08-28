@@ -18,6 +18,7 @@ import type {
 import type { Targeting } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type {
+  CostKeyword,
   DelayedTiming,
   Duration,
   Modification,
@@ -415,6 +416,23 @@ export function legionCostReduction(reduce: Partial<Cost>): CostModifierAbility 
  */
 export function repeat(cost: Partial<Cost>): RepeatAbility {
   return { kind: "repeat", cost: { ...FREE, ...cost } };
+}
+
+/**
+ * Syndra, Transcendent — "While I'm in a showdown, your spells have [Repeat]
+ * [2][Chaos]"; Kennen — "give it [Flow] equal to its cost this turn". Granting
+ * a keyword whose value is a Cost rather than a number.
+ */
+export function grantCostKeyword(
+  keyword: CostKeyword["keyword"],
+  cost: Partial<Cost>,
+): Modification {
+  return {
+    layer: "ability",
+    op: "grantCostKeyword",
+    keyword,
+    cost: { ...FREE, ...cost },
+  };
 }
 
 /** One arm of a "Choose one —", with whatever that arm chooses for itself. */

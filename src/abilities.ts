@@ -346,6 +346,10 @@ export interface AdditionalCostAbility {
  * R820.1.c.2 makes several of them independent of each other: Curtain Call
  * prints three, each payable on its own, and R820.1.c.3 caps each at one
  * payment. Which subset was paid is therefore the answer, not a count.
+ *
+ * R820.4 makes it a *characteristic*, so this entry is only how a card
+ * declares its printed instances: `characteristicsOf` collects them into
+ * `costKeywords`, where a granted one is indistinguishable from a printed one.
  */
 export interface RepeatAbility {
   kind: "repeat";
