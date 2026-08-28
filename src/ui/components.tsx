@@ -51,7 +51,9 @@ function Card({
   return (
     <button className={classes} onClick={() => pick.onSelect(cardId)} title={cardId}>
       <span className="card-name">{now.name}</span>
-      {now.type === "unit" && (
+      {/* A card whose Might is neither printed nor on the board has none worth
+          showing — a concealed card in an opponent's hand is the case. */}
+      {now.type === "unit" && (printed !== undefined || permanent !== undefined) && (
         <span className="card-might">
           {now.might}
           {printed !== undefined && printed !== now.might && (

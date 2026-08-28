@@ -2,7 +2,8 @@ import { useCallback, useMemo, useState } from "react";
 import { renderEvent } from "../event-text.js";
 import type { GameEvent } from "../events.js";
 import type { Action, RejectionReason } from "../actions.js";
-import type { CardId, GameState } from "../state.js";
+import type { CardId, GameState, PlayerId } from "../state.js";
+import { viewOf } from "../view.js";
 import {
   Battlefields,
   CardDetail,
@@ -37,8 +38,21 @@ export function App() {
   const [staged, setStaged] = useState<CardId[]>([]);
   const [rejected, setRejected] = useState<RejectionReason | null>(null);
 
+  /**
+   * R107 — whose eyes to render through. `null` is hotseat: one screen, both
+   * hands visible, which is what a single person testing wants. Choosing a
+   * seat runs the state through `viewOf` first, so the screen is shown exactly
+   * what a client on the other end of a socket would receive — the opponent's
+   * hand is not hidden by the renderer, it never arrives.
+   */
+  const [seat, setSeat] = useState<PlayerId | null>(null);
+
   const here = history[history.length - 1]!;
-  const state = here.state;
+  const truth = here.state;
+  const state = useMemo(
+    () => (seat === null ? truth : viewOf(truth, seat)),
+    [truth, seat],
+  );
   const acting = actingPlayer(state);
   const moves = useMemo(() => movesFor(state, acting), [state, acting]);
 
@@ -164,6 +178,23 @@ export function App() {
         </span>
         <span className="acting">acting: {acting}</span>
         <span className="spacer" />
+        <label className="seat">
+          seat
+          <select
+            value={seat ?? "both"}
+            onChange={(event) =>
+              setSeat(
+                event.target.value === "both"
+                  ? null
+                  : (event.target.value as PlayerId),
+              )
+            }
+          >
+            <option value="both">hotseat</option>
+            <option value="p1">p1 only</option>
+            <option value="p2">p2 only</option>
+          </select>
+        </label>
         <label className="seed">
           seed
           <input

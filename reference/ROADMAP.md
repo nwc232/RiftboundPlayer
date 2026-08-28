@@ -12,7 +12,7 @@ rather than what is subtly wrong.
 
 ## 1. Where the engine stands
 
-Built and tested (677 tests):
+Built and tested (686 tests):
 
 | Area | State |
 |---|---|
@@ -52,6 +52,7 @@ Built and tested (677 tests):
 | Modal effects | "Choose one —", per arm targeting, per execution |
 | Cost-valued keywords | Granted [Repeat]/[Flow]/[Empower]; instance counts |
 | Tier 4 verbs | Recycle from hand, spend XP, spend a buff, once per turn |
+| Per-player views (R107) | `viewOf` — hands, decks and facedown cards hidden |
 
 The decision mechanism matters more than its size suggests: **it is the
 same shape a UI needs.** "Engine stops, offers a legal set, waits" maps
@@ -257,7 +258,8 @@ rewriting. What is missing is the seam:
 |---|---|
 | ~~`legalActions(state, playerId)`~~ | Done. Enumerates candidates and filters them through `applyAction`, so it cannot disagree with the dispatcher. The demo's action list is driven by it. |
 | ~~**Serialization**~~ | Done — `tests/decks.test.ts` round-trips every authored card through JSON, so "abilities are data" stays true rather than being a claim. |
-| **Client/server boundary** | Even single-machine, deciding now whether the UI holds state or asks an authority avoids a rewrite. Hidden information (hands, [Hidden] cards) makes a per-player *view* of state necessary, not optional. |
+| ~~Per-player views~~ | Done — `viewOf(state, player)` in `src/view.ts`, and the UI can render through one. |
+| **Client/server boundary** | The remaining half: where the authority runs, and how two clients reach it. `viewOf` is what makes it a filter on what is *sent* rather than a rewrite. |
 | **Animation-friendly events** | The event stream already exists and is ordered — it is what a UI animates from. |
 
 **Click-to-select maps onto the decision mechanism directly.** `pending`
@@ -352,7 +354,16 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
     cost, and §3b's cost modification. R711 reads off-board objects on
     printed values, so this needs a scope the rules allow explicitly.
 
-15. **`viewOf` + the online server.** The end product.
+15. ~~**`viewOf`**~~ — done. R107's private zones filtered out of the state
+    by the *engine*, so a client that never receives a card's identity
+    cannot leak it however it is written. `npm run ui` has a seat selector;
+    hotseat is still the default. The property the whole client/server
+    split rests on is a test: `legalActions(viewOf(state, p), p)` equals
+    `legalActions(state, p)`, so a view is a complete world to play from.
+
+16. **The online server.** The end product, and the one structural decision
+    left. `viewOf` is the half that every transport needs; what remains is
+    where the authority runs and how two clients reach it. See §4.
 
 **Deferred by decision, not dropped:** replacement-effect Tier C
 (R373.2's sequences across simultaneous events). Written up at the end of
