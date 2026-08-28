@@ -351,6 +351,23 @@ export function scorePoint(amount = 1, targetIndex?: number): Effect {
   };
 }
 
+/**
+ * R424 — "Reveal N cards from [zone]". Omit `count` for R424.3.a's whole zone
+ * ("reveal your hand"); omit `targetIndex` for your own.
+ */
+export function reveal(
+  from: "mainDeck" | "hand",
+  count?: number,
+  targetIndex?: number,
+): Effect {
+  return {
+    op: "reveal",
+    from,
+    ...(count !== undefined ? { count } : {}),
+    ...(targetIndex !== undefined ? { targetIndex } : {}),
+  };
+}
+
 /** R422 — "Discard X". Omit `targetIndex` for "discard X" (yourself). */
 export function discard(count: number, targetIndex?: number): Effect {
   return {

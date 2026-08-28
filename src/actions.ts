@@ -1365,6 +1365,11 @@ export function passPriority(
     }
   }
 
+  // R424.1.a.3 — the Revealed state "lasts until the resolution of that spell
+  // or ability finishes". This is that moment, so it ends here rather than
+  // lingering into whatever resolves next.
+  if (current.revealed.length > 0) current = { ...current, revealed: [] };
+
   // R340.2/340.4 — an empty chain reopens the state; otherwise the controller
   // of the new top item receives priority.
   const stillUp = current.chain.length > 0;

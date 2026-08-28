@@ -95,6 +95,8 @@ export type GameEvent =
   | { type: "pointGained"; playerId: PlayerId; points: number }
   /** R730.1 — XP is a plain number on the player, and public (R729.2). */
   | { type: "xpGained"; playerId: PlayerId; amount: number }
+  /** R424 — a card presented to all players, without leaving its zone. */
+  | { type: "cardRevealed"; playerId: PlayerId; cardId: CardId }
   /** R422 — a card moved from a hand to its owner's trash. */
   | { type: "cardDiscarded"; playerId: PlayerId; cardId: CardId }
   /** R440 — a card moved from the top of a Main Deck to its owner's trash. */

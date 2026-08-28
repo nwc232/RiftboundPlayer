@@ -141,6 +141,8 @@ export function renderEvent(event: GameEvent): string {
       return `combat opens at ${event.battlefieldId}`;
     case "designated":
       return `${event.cardId} is an ${event.designation}`;
+    case "cardRevealed":
+      return `${event.playerId} reveals ${event.cardId}`;
     case "cardDiscarded":
       return `${event.playerId} discards ${event.cardId}`;
     case "cardBurned":

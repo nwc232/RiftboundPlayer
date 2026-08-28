@@ -2,6 +2,7 @@ import { controllerOf, mightOf } from "./layers.js";
 import { permanentsAt } from "./state.js";
 import type {
   CardId,
+  CardType,
   GameState,
   Location,
   PlayerId,
@@ -47,6 +48,13 @@ export type Condition =
    * which the [Empower] keyword spells out as "Play only if not Empowered".
    */
   | { kind: "notEmpowered" }
+  /**
+   * R424.1.a.1 — "other cards … can reference the act of being Revealed".
+   * "Then if you revealed a Bird, Cat, Dog, or Poro, do this: …" asks by tag;
+   * "if it's a unit" asks by type. Both read the cards revealed so far by the
+   * spell that is resolving (R424.1.a.3).
+   */
+  | { kind: "revealed"; type?: CardType; tag?: string }
   /**
    * Back Off — "If you played this from your hand, draw 1"; Evelynn,
    * Entrancing — "When you play me from face down". R811.3 is what makes the
@@ -175,6 +183,19 @@ export function holds(
 
     // R441.1.b — asked of the ability's own source, which is what R827.1.b.1
     // means by "the source game object is not a target of the Empower ability".
+    case "revealed":
+      return state.revealed.some((cardId) => {
+        const card = state.cards[cardId];
+        if (card === undefined) return false;
+        if (condition.type !== undefined && card.type !== condition.type) {
+          return false;
+        }
+        return (
+          condition.tag === undefined ||
+          (card.tags ?? []).includes(condition.tag)
+        );
+      });
+
     case "notEmpowered":
       return state.permanents[context.sourceId]?.empowered !== true;
 

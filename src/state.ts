@@ -421,6 +421,13 @@ export interface GameState {
    */
   pendingDiscounts: { player: PlayerId; reduce: Cost }[];
   /**
+   * R424.1.a — "Revealed is a temporary state and is not a zone." The cards
+   * stay where they are (R424.1.a.2); this is only the note that everyone has
+   * seen them, and R424.1.a.3 makes it last "until the resolution of that
+   * spell or ability finishes", which is where it is cleared.
+   */
+  revealed: CardId[];
+  /**
    * R369.2 — "Preventing Damage is a replacement effect." These are the ones
    * with a lifetime, made by a spell rather than printed on a permanent:
    * Lotus Trap's "double all damage that would be dealt to it this turn",

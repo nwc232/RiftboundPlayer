@@ -236,6 +236,22 @@ export type Effect =
    */
   | { op: "burn"; count: number; targetIndex?: number }
   /**
+   * R424 — "Reveal cards from [zone]". R424.1.a.2 is what makes this its own
+   * op rather than a move: "cards remain in the zone they are being Revealed
+   * from", so nothing changes hands. All it does is make them known, which is
+   * what "if you revealed a unit" then asks about.
+   *
+   * R424.3.a — omitting the count reveals the whole zone, which is what
+   * "reveal your hand" means.
+   */
+  | {
+      op: "reveal";
+      from: "mainDeck" | "hand";
+      count?: number;
+      /** Whose zone. Omitted is the effect's own controller. */
+      targetIndex?: number;
+    }
+  /**
    * A continuation: `recycleFromHand` once the player has said which. They
    * arrive on `context.answer`.
    */
@@ -1603,6 +1619,36 @@ export function execute(
         events: chosen.map((cardId) => ({
           type: "cardRecycled" as const,
           playerId: context.controller,
+          cardId,
+        })),
+      };
+    }
+
+    case "reveal": {
+      const chosen =
+        effect.targetIndex === undefined
+          ? context.controller
+          : context.targets[effect.targetIndex];
+      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+
+      const player = state.players[chosen];
+      const zone = effect.from === "hand" ? player.hand : player.mainDeck;
+      // R424.3.a — "when the zone is instructed to be Revealed without
+      // indicating a number, that refers to all cards currently in the zone."
+      const shown =
+        effect.count === undefined ? [...zone] : zone.slice(0, effect.count);
+      if (shown.length === 0) return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          // R424.1.a.2 — the cards do not move. This is the note that they are
+          // known, and nothing else (R424.1.b).
+          revealed: [...state.revealed, ...shown],
+        },
+        events: shown.map((cardId) => ({
+          type: "cardRevealed" as const,
+          playerId: chosen,
           cardId,
         })),
       };

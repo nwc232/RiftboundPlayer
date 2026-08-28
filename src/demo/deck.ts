@@ -252,6 +252,7 @@ function emptyBoard(): GameState {
     playedThisTurn: { p1: [], p2: [] },
     triggeredThisTurn: {},
     pendingDiscounts: [],
+    revealed: [],
     damageReplacements: [],
     showdown: null,
     winner: null,

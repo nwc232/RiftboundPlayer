@@ -12,7 +12,7 @@ rather than what is subtly wrong.
 
 ## 1. Where the engine stands
 
-Built and tested (686 tests):
+Built and tested (724 tests):
 
 | Area | State |
 |---|---|
@@ -53,6 +53,8 @@ Built and tested (686 tests):
 | Cost-valued keywords | Granted [Repeat]/[Flow]/[Empower]; instance counts |
 | Tier 4 verbs | Recycle from hand, spend XP, spend a buff, once per turn |
 | Per-player views (R107) | `viewOf` — hands, decks and facedown cards hidden |
+| Players as subjects (R133) | A card can choose a player, not just a card |
+| Discard (R422), Burn (R440), Reveal (R424), Disempower (R442) | Effects and costs |
 
 The decision mechanism matters more than its size suggests: **it is the
 same shape a UI needs.** "Engine stops, offers a legal set, waits" maps
@@ -382,10 +384,10 @@ none is a card-specific special case.
 
 | Action | Rule | Cards | Note |
 |---|---|---|---|
-| **Discard** | R422 | 34 | The largest single gap left. R422.3 makes it a *cost* as well as an effect, and R422.4's "discard as many as possible" is a real branch. |
-| **Reveal** | R424 | 26 | Half present — `lookAtTop` reveals to its own controller. "Reveal the top card; if it's a unit…" needs revealing as an action with a condition on what was seen. |
-| **Disempower** | R442 | 12 | R441's inverse, and mostly an *ability cost*: "Disempower me, [1]: …". The status exists, so this is small. |
-| **Burn** | R440 | 8 | "Move X from the top of the Main Deck to the trash." R440.4 runs it into Burn Out when the deck is short. |
+| ~~**Discard**~~ | R422 | 34 | Done — both halves. R422.4's effect discards as many as it can; R422.3's cost cannot be paid short. |
+| ~~**Reveal**~~ | R424 | 26 | Done — a temporary *state* (R424.1.a), not a move, cleared when the spell finishes resolving (R424.1.a.3). |
+| ~~**Disempower**~~ | R442 | 12 | Done — silent as an effect (R442.1.a.1), a refusal as a cost. |
+| ~~**Burn**~~ | R440 | 8 | Done, including R440.4's burn-out-then-continue. |
 | **Skip** | R443 | 1 | A replacement that replaces an event *with nothing* — including a whole phase. |
 
 ### 6b. Costs
@@ -407,8 +409,8 @@ yet." Twenty of them do.
 | Shape | Cards | Note |
 |---|---|---|
 | **"Can't" / "cannot"** restrictions | 24 | Only `restrictMovement` exists. A general restriction layer would cover playing, moving, scoring and being chosen. |
-| **Players as subjects** — "each player", "choose a player" | ~25 | Targets are cards; a player is not a legal target, so "choose an opponent. They discard 1" cannot be expressed at all. |
-| **Score a point** as an effect | 12 | Scoring exists as a *consequence* (R470); a card that simply scores does not. |
+| ~~**Players as subjects**~~ | ~50 | Done — `TargetFilter` can name a player, and `PlayerId` is a `CardId` structurally, so nothing downstream needed widening. |
+| ~~**Score a point** as an effect~~ | 12 | Done — and R471.1's near-victory restriction does not catch it, because it is not a conquer. |
 | **Gain control of a card** | 3 | `takeControl` exists — the inverse ("they gain control") does not. |
 
 ### 6d. Structural deviations worth closing
