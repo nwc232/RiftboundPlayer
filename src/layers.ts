@@ -31,6 +31,8 @@ export interface Characteristics {
   shield: number;
   /** R809.2 — likewise for Deflect: granted values are summed, not redundant. */
   deflect: number;
+  /** R823.2 — and likewise for Hunt. */
+  hunt: number;
   /**
    * Printed-or-copied Might, before the ability and arithmetic layers. This is
    * the value a copy effect takes: RiftJudge's ruling on LeBlanc's Reflection
@@ -476,6 +478,7 @@ export function characteristicsOf(
     assault: 0,
     shield: 0,
     deflect: 0,
+    hunt: 0,
     name: card?.name ?? cardId,
     type: card?.type ?? "unit",
     cost: card?.cost ?? { energy: 0, power: {}, anyPower: 0 },
@@ -548,6 +551,8 @@ export function characteristicsOf(
   let shield = printedKeywords.includes("shield") ? (card.shield ?? 1) : 0;
   // R809.1.b.3 — "If X is omitted, it is presumed to be 1."
   let deflect = printedKeywords.includes("deflect") ? (card.deflect ?? 1) : 0;
+  // R823.1.c.2 — "If X is omitted, it is presumed to be 1."
+  let hunt = printedKeywords.includes("hunt") ? (card.hunt ?? 1) : 0;
   const arithmetic: ArithmeticStep[] = [];
   let silenced = false;
 
@@ -652,6 +657,7 @@ export function characteristicsOf(
             if (keyword === "assault") assault += value ?? 1;
             if (keyword === "shield") shield += value ?? 1;
             if (keyword === "deflect") deflect += value ?? 1;
+            if (keyword === "hunt") hunt += value ?? 1;
             break;
           }
           case "addMight":
@@ -683,6 +689,7 @@ export function characteristicsOf(
     assault,
     shield,
     deflect,
+    hunt,
     silenced,
     ...copyable,
     abilities:
@@ -795,6 +802,17 @@ export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
   // asking whether the keyword is present is the whole of it.
   if (now.keywords.includes("quickDraw")) derived.push(QUICK_DRAW);
   if (now.keywords.includes("weaponmaster")) derived.push(WEAPONMASTER);
+  // R823.1.c.1 — "When I Conquer or Hold, my controller gains X XP." R823.1.b
+  // makes it both a Conquer and a Hold effect, which is what omitting `method`
+  // says. The value is read here rather than baked into a constant, because
+  // R823.2 sums granted Hunt Values onto the printed one.
+  if (now.hunt > 0) {
+    derived.push({
+      kind: "triggered",
+      trigger: { on: "battlefieldScored", subject: "here" },
+      effect: { op: "gainXP", amount: now.hunt },
+    });
+  }
   return derived.length === 0 ? now.abilities : [...now.abilities, ...derived];
 }
 

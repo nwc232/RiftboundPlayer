@@ -122,6 +122,8 @@ export interface CardInstance {
   shield?: number;
   /** R809.1.b.2 — the Deflect Value. Omitted means 1 (R809.1.b.3). */
   deflect?: number;
+  /** R823.1.c.3 — the Hunt Value. Omitted means 1 (R823.1.c.2). */
+  hunt?: number;
   /**
    * R185.1 — "token" is an intrinsic category: a token can never stop being
    * one, and a card can never become one. R186.1 is what it buys us — a token
@@ -183,6 +185,12 @@ export type Keyword =
   | "accelerate"
   /** R809 — "Deflect [X]": a mandatory additional cost on opposing targeting. */
   | "deflect"
+  /**
+   * R823 — "when I Conquer or Hold, my controller gains X XP". A value
+   * keyword like Assault and Shield: R823.2 sums granted Hunt Values rather
+   * than making duplicates redundant.
+   */
+  | "hunt"
   /**
    * R821 — a Triggered Ability keyword on units. A Play Effect that equips one
    * of your Equipment to the unit for [A] less, ignoring the Equip ability's
