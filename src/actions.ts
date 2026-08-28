@@ -967,7 +967,7 @@ export function standardMove(
     return rejected("alreadyExhausted");
   }
   // Vex, Apathetic — "They can't move it this turn."
-  if (movementRestricted(state, cardId)) {
+  if (movementRestricted(state, cardId, destination)) {
     return rejected("cannotMove");
   }
   if (sameLocation(permanent.location, destination)) {

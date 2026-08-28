@@ -507,6 +507,18 @@ export function costAura(
   return { kind: "costAura", ...spec };
 }
 
+/** "I can't be chosen by enemy spells and abilities." */
+export function untargetable(
+  by: "enemy" | "any" = "enemy",
+  when?: PassiveCondition,
+): PassiveAbility {
+  return passive(
+    { target: "self" },
+    { layer: "ability", op: "restrictTargeting", by },
+    when,
+  );
+}
+
 /** One arm of a "Choose one —", with whatever that arm chooses for itself. */
 export function mode(effect: Effect, targeting?: Targeting): Mode {
   return { effect, ...(targeting !== undefined ? { targeting } : {}) };

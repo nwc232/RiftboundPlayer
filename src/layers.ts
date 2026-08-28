@@ -13,6 +13,7 @@ import type {
   Domain,
   GameState,
   Keyword,
+  Location,
   PermanentState,
   PlayerId,
   PowerCount,
@@ -96,6 +97,16 @@ export interface Characteristics {
   /** R823.2 — and likewise for Hunt. */
   hunt: number;
   /**
+   * "I can't be chosen by enemy spells and abilities." Nine cards say it, and
+   * several add "unless…", which is why it is a characteristic under a
+   * `PassiveCondition` rather than a keyword.
+   *
+   * `null` is the ordinary case. It bites only where something *chooses*
+   * (R355.5), so combat damage assignment is untouched: R465.2.c assigns, it
+   * does not choose.
+   */
+  untargetableBy: "enemy" | "any" | null;
+  /**
    * Printed-or-copied Might, before the ability and arithmetic layers. This is
    * the value a copy effect takes: RiftJudge's ruling on LeBlanc's Reflection
    * is "the Reflection copies only the unit's copyable traits (printed Might
@@ -150,9 +161,20 @@ export type Modification =
    * a characteristic, but it lives here so it expires the same way everything
    * else with a duration does (R317.2.c).
    */
-  | { layer: "ability"; op: "restrictMovement" }
+  | {
+      layer: "ability";
+      op: "restrictMovement";
+      /**
+       * Vex, Apathetic's "they can't move it this turn" is every destination;
+       * "I can't move to base" and "units can't move from here to base" name
+       * one, so the restriction carries which.
+       */
+      to?: "base";
+    }
   /** Vilemaw — "…don't deal combat damage." See `Characteristics.silenced`. */
   | { layer: "ability"; op: "silenceCombatDamage" }
+  /** "I can't be chosen by enemy spells and abilities." */
+  | { layer: "ability"; op: "restrictTargeting"; by: "enemy" | "any" }
   /**
    * R824.1.b.1 / R828.1.b.1 — a Dependent Keyword's "this card gains
    * '[Text]'". [Level N] and [Empowered] are the same sentence with different
@@ -478,12 +500,34 @@ export function controllerOf(state: GameState, cardId: CardId): PlayerId {
  * scan for the same reason `controllerOf` is: this is asked while deciding
  * whether an action is legal, not while deriving a characteristic.
  */
-export function movementRestricted(state: GameState, cardId: CardId): boolean {
-  return state.modifiers.some(
-    (modifier) =>
-      modifier.targetId === cardId &&
-      modifier.modification.op === "restrictMovement",
-  );
+export function movementRestricted(
+  state: GameState,
+  cardId: CardId,
+  destination?: Location,
+): boolean {
+  return state.modifiers.some((modifier) => {
+    if (modifier.targetId !== cardId) return false;
+    if (modifier.modification.op !== "restrictMovement") return false;
+    // A restriction naming a destination only bites on that destination.
+    if (modifier.modification.to === undefined) return true;
+    return destination === undefined || destination.kind === "base";
+  });
+}
+
+/**
+ * Whether `chooser` may choose `cardId` at all (R355.5). Read through the
+ * layers, so a printed "I can't be chosen by enemy spells and abilities", a
+ * granted one, and one gated on "unless I'm in combat" are the same question.
+ */
+export function targetingRestricted(
+  state: GameState,
+  cardId: CardId,
+  chooser: PlayerId,
+): boolean {
+  const restriction = characteristicsOf(state, cardId).untargetableBy;
+  if (restriction === null) return false;
+  if (restriction === "any") return true;
+  return controllerOf(state, cardId) !== chooser;
 }
 
 /** R719 — every card Attached to `cardId`, which is its Top-Most Card. */
@@ -605,6 +649,7 @@ export function characteristicsOf(
     shield: 0,
     deflect: 0,
     hunt: 0,
+    untargetableBy: null,
     name: card?.name ?? cardId,
     type: card?.type ?? "unit",
     cost: card?.cost ?? { energy: 0, power: {}, anyPower: 0 },
@@ -681,6 +726,7 @@ export function characteristicsOf(
   let deflect = printedKeywords.includes("deflect") ? (card.deflect ?? 1) : 0;
   // R823.1.c.2 — "If X is omitted, it is presumed to be 1."
   let hunt = printedKeywords.includes("hunt") ? (card.hunt ?? 1) : 0;
+  let untargetableBy: "enemy" | "any" | null = null;
   const arithmetic: ArithmeticStep[] = [];
   let silenced = false;
 
@@ -749,6 +795,15 @@ export function characteristicsOf(
           }
           case "silenceCombatDamage":
             silenced = true;
+            break;
+
+          // "Any" outranks "enemy": something that cannot be chosen at all is
+          // not made choosable by a second, narrower restriction.
+          case "restrictTargeting":
+            untargetableBy =
+              untargetableBy === "any" || entry.modification.by === "any"
+                ? "any"
+                : "enemy";
             break;
           case "restrictMovement":
             // Read directly off the modifier list by `movementRestricted`; it
@@ -836,6 +891,7 @@ export function characteristicsOf(
     shield,
     deflect,
     hunt,
+    untargetableBy,
     silenced,
     ...copyable,
     abilities:

@@ -1,5 +1,11 @@
 import { chainItemCardId } from "./chain.js";
-import { characteristicsOf, controllerOf, mightOf, tagsOf } from "./layers.js";
+import {
+  characteristicsOf,
+  controllerOf,
+  mightOf,
+  tagsOf,
+  targetingRestricted,
+} from "./layers.js";
 import { sameLocation } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
@@ -211,6 +217,8 @@ export function legalTargets(
   return Object.values(state.permanents)
     .filter((permanent) => {
       if (state.cards[permanent.cardId]?.type !== filter.type) return false;
+      // "I can't be chosen by enemy spells and abilities" (R355.5).
+      if (targetingRestricted(state, permanent.cardId, controller)) return false;
       // R133.8 — a tag the card carries, or currently copies.
       if (
         filter.tag !== undefined &&

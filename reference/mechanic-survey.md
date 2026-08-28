@@ -729,6 +729,15 @@ built when a card asks for it.
   the engine has, so `equipChosen` treats them as unpayable, which R821.1.c.5
   already covers: the card stays where it was. The resource-only Equip costs,
   which is every other Equipment, work.
+- **The rarer "can't" restrictions are unbuilt.** The three families that
+  cover most of the twenty-four cards are built — "can't be chosen by enemy
+  spells and abilities", "can't move to base", "can't be countered". What is
+  left is one card each: "opponents can't play cards this turn", "players
+  can't score here until their third turn", "I can't be readied", "spells and
+  abilities can't ready enemy units", "I can't be dealt damage unless I'm in
+  combat", "units can't be played here", "opponents' [Hidden] cards can't be
+  revealed here". Each restricts a different action, so each wants its own
+  check at that action rather than one shared mechanism.
 - **A resource's usage restriction is only ever a card type.** `PaymentRestriction`
   has one shape, `onlyCardType`, and three more are printed: "Spend this Energy
   only during showdowns" (a timing), "Use only to play gear **or use gear

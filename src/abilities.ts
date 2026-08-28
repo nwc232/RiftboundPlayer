@@ -842,6 +842,12 @@ export function execute(
       );
       if (index === -1) return { state, events: [] };
 
+      // "This can't be countered." A spell on the chain is not a permanent, so
+      // R711 leaves the printed keyword as the thing to read.
+      if ((state.cards[targetId]?.keywords ?? []).includes("uncounterable")) {
+        return { state, events: [] };
+      }
+
       const countered = state.chain[index]!;
       // The second way off the chain, and it goes through the same door: a
       // [Flow] spell that is countered is banished too (R829.1.b.1).

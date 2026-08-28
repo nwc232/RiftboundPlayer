@@ -216,7 +216,13 @@ export type Keyword =
    * union rather than as a deck-list flag because R825.5 makes having it a
    * characteristic other cards may check.
    */
-  | "unique";
+  | "unique"
+  /**
+   * "This can't be countered" / "your spells and abilities can't be
+   * countered." Read off the printed card rather than through the layers,
+   * because a spell on the chain is not a permanent (R711).
+   */
+  | "uncounterable";
 
 /** R198 — the places permanents can be: each player's base, and each battlefield. */
 export type Location =
