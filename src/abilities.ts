@@ -191,6 +191,21 @@ export type Effect =
    */
   | { op: "predict"; count: number }
   /**
+   * R416 — "Recycle N cards from your hand": the chosen cards go to the bottom
+   * of the Main Deck. Distinct from `predict`, which recycles from the *top of
+   * the deck*, and from `takeRevealed`, which is a continuation.
+   *
+   * R416 is a game action a card names outright, and R383's "when you recycle
+   * one or more cards" watches for it, so it emits `cardRecycled` per card the
+   * same way every other route to the bottom of the deck does.
+   */
+  | { op: "recycleFromHand"; count: number }
+  /**
+   * A continuation: `recycleFromHand` once the player has said which. They
+   * arrive on `context.answer`.
+   */
+  | { op: "takeRecycled"; from: CardId[] }
+  /**
    * A continuation, not card vocabulary: `predict` once the player has said
    * which of the revealed cards to Recycle. They arrive on `context.answer`.
    */
@@ -248,7 +263,18 @@ export type AbilityCost =
   | { kind: "exhaustSelf" }
   | { kind: "recycleSelf" }
   /** Emperor's Dais — "you may pay [1] and…". R383.3.b makes it a base cost. */
-  | { kind: "pay"; cost: Cost };
+  | { kind: "pay"; cost: Cost }
+  /**
+   * R728–733 — "Spend 3 XP, [exhaust]: Draw 1." XP is a plain number on the
+   * player, so spending it is a cost like any other: unaffordable if the
+   * player is short, and gone once paid.
+   */
+  | { kind: "spendXP"; amount: number }
+  /**
+   * R701–705 — "Spend my buff: give me +4 [M] this turn." A buff is a binary
+   * status on the permanent, so spending it is removing it.
+   */
+  | { kind: "spendBuff" };
 
 /** Recorded from the card, but not yet enforced — that needs the chain. */
 export type AbilityTiming = "reaction" | "action" | "default";
@@ -293,6 +319,12 @@ export interface ActivatedAbility {
    * offering it once it no longer holds.
    */
   when?: Condition;
+  /**
+   * "Use only once per turn." R383.3.e keeps the same kind of tally for
+   * triggered abilities; this is the activated half, counted against the same
+   * `triggeredThisTurn` record and cleared as each turn opens.
+   */
+  usesPerTurn?: number;
 }
 
 /**
@@ -1469,6 +1501,63 @@ export function execute(
           resume: rest,
           context,
         },
+      };
+    }
+
+    case "recycleFromHand": {
+      const player = state.players[context.controller];
+      // R416 cannot recycle more than there is; a short hand recycles all of it.
+      const count = Math.min(effect.count, player.hand.length);
+      if (count === 0) return { state, events: [] };
+
+      const rest: Effect = { op: "takeRecycled", from: [...player.hand] };
+      // Nothing to ask when the whole hand is going.
+      if (count >= player.hand.length) {
+        return execute(state, rest, { ...context, answer: [...player.hand] });
+      }
+      return {
+        state,
+        events: [],
+        pause: {
+          decision: {
+            player: context.controller,
+            prompt: {
+              kind: "chooseFromRevealed",
+              legal: [...player.hand],
+              keep: count,
+            },
+          },
+          resume: rest,
+          context,
+        },
+      };
+    }
+
+    case "takeRecycled": {
+      const chosen = (context.answer ?? []).filter((id) =>
+        effect.from.includes(id),
+      );
+      if (chosen.length === 0) return { state, events: [] };
+      const player = state.players[context.controller];
+
+      // R416.1 — recycling puts a card on the *bottom* of the Main Deck.
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [context.controller]: {
+              ...player,
+              hand: player.hand.filter((id) => !chosen.includes(id)),
+              mainDeck: [...player.mainDeck, ...chosen],
+            },
+          },
+        },
+        events: chosen.map((cardId) => ({
+          type: "cardRecycled" as const,
+          playerId: context.controller,
+          cardId,
+        })),
       };
     }
 

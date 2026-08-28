@@ -162,13 +162,20 @@ function abilityWording(
   }
 
   const cost = ability.costs
-    .map((each) =>
-      each.kind === "exhaustSelf"
-        ? "exhaust"
-        : each.kind === "recycleSelf"
-          ? "recycle"
-          : `pay ${describeCost(each.cost)}`,
-    )
+    .map((each) => {
+      switch (each.kind) {
+        case "exhaustSelf":
+          return "exhaust";
+        case "recycleSelf":
+          return "recycle";
+        case "spendXP":
+          return `spend ${each.amount} XP`;
+        case "spendBuff":
+          return "spend its buff";
+        default:
+          return `pay ${describeCost(each.cost)}`;
+      }
+    })
     .join(" + ");
 
   const effect = ability.effect;

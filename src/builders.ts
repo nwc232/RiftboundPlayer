@@ -339,6 +339,11 @@ export function attachSelf(targetIndex = 0): Effect {
 }
 
 /** Stacked Deck — "Look at the top 3 … Put 1 into your hand and recycle the rest." */
+/** R416 — "Recycle N cards from your hand." */
+export function recycleFromHand(count: number): Effect {
+  return { op: "recycleFromHand", count };
+}
+
 /** R436.3 — "Predict X". [Vision] (R817) is `predict(1)`. */
 export function predict(count = 1): Effect {
   return { op: "predict", count };

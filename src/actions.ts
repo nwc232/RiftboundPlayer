@@ -1442,6 +1442,35 @@ function payAbilityCost(
       };
     }
 
+    // R728 — XP is a plain number on the player, so the cost is a subtraction
+    // that fails when the player is short.
+    case "spendXP": {
+      if (player.xp < cost.amount) return undefined;
+      return {
+        state: withPlayer(state, controller, {
+          ...player,
+          xp: player.xp - cost.amount,
+        }),
+        events: [
+          { type: "xpGained", playerId: controller, amount: -cost.amount },
+        ],
+      };
+    }
+
+    // R701–705 — "Spend my buff". The buff is the cost, so an unbuffed source
+    // simply cannot pay it.
+    case "spendBuff": {
+      if (permanent === undefined || permanent.buffed !== true) return undefined;
+      const { buffed: _spent, ...rest } = permanent;
+      return {
+        state: {
+          ...state,
+          permanents: { ...state.permanents, [sourceId]: rest },
+        },
+        events: [],
+      };
+    }
+
     case "exhaustSelf": {
       if (rune !== undefined) {
         if (rune.exhausted) return undefined;
@@ -1553,6 +1582,17 @@ export function activateAbility(
     return rejected("notYourTurn");
   }
 
+  // "Use only once per turn." R383.3.e.1's shape for an activated ability:
+  // once it has been used that many times it cannot be used again, so it stops
+  // being a legal move rather than resolving to nothing.
+  const useTally = `use:${sourceId}#${abilityIndex}`;
+  if (
+    ability.usesPerTurn !== undefined &&
+    (state.triggeredThisTurn[useTally] ?? 0) >= ability.usesPerTurn
+  ) {
+    return rejected("abilityNotFound");
+  }
+
   // R827.1.c.1 — "Play only if not Empowered." A printed restriction on
   // playing the ability at all, so it is checked before anything is chosen or
   // paid, and `legalActions` stops offering the move once it fails.
@@ -1585,7 +1625,16 @@ export function activateAbility(
 
   const context: EffectContext = { controller: playerId, sourceId, targets };
 
-  let current = state;
+  let current =
+    ability.usesPerTurn === undefined
+      ? state
+      : {
+          ...state,
+          triggeredThisTurn: {
+            ...state.triggeredThisTurn,
+            [useTally]: (state.triggeredThisTurn[useTally] ?? 0) + 1,
+          },
+        };
   const events: GameEvent[] = [];
   // R809.1.c — "Spells and abilities an opponent controls that target [me]
   // cost … more to play as an additional cost", so an ability pays it too.

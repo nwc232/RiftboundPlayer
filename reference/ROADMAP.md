@@ -12,7 +12,7 @@ rather than what is subtly wrong.
 
 ## 1. Where the engine stands
 
-Built and tested (635 tests):
+Built and tested (677 tests):
 
 | Area | State |
 |---|---|
@@ -48,6 +48,10 @@ Built and tested (635 tests):
 | Tags (R133.8) + supertypes (R133.7) | Copyable; deck construction, filters, scopes |
 | Dependent keywords (R824, R828) | [Level N] and [Empowered], one mechanism |
 | [Empower] (R827) + the Empower action (R441) | A binary status on the permanent |
+| [Hunt] (R823) | Conquer-or-Hold XP, with summed values |
+| Modal effects | "Choose one —", per arm targeting, per execution |
+| Cost-valued keywords | Granted [Repeat]/[Flow]/[Empower]; instance counts |
+| Tier 4 verbs | Recycle from hand, spend XP, spend a buff, once per turn |
 
 The decision mechanism matters more than its size suggests: **it is the
 same shape a UI needs.** "Engine stops, offers a legal set, waits" maps
@@ -325,23 +329,30 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
     entirely. And a passive granted to the permanent granting it was
     collected too late to apply to itself.
 
-11. **Tier 4** — the effect ops the card vocabulary still wants. `choose`
-    is the big one: modes ("Choose one —") are what Rocket Barrage and
-    Curtain Call need to finish [Repeat], and 47 clauses use the word.
-    Then `spend`, `recycle`, `use`.
+11. ~~**Tier 4 verbs**~~ — done, and smaller than the leading-verb count
+    suggested once each was read properly. `choose` was two things: 47
+    clauses of *targeting*, long built, and 11 cards of "Choose one —",
+    which is now built and finishes [Repeat]. `spend` was three: XP as an
+    ability cost, a buff as an ability cost, and a resource restriction
+    (still narrow — see the survey). `recycle` needed one op for "from your
+    hand"; every other route to the bottom of the deck already existed.
+    `use` was not a verb at all — twelve cards of *restrictions*, which
+    `when` and `usesPerTurn` now cover.
 
-12. **Granting a keyword whose value is a Cost.** Three cards grant
-    [Repeat] and two grant or reduce [Flow]; [Empower] is a third of the
-    same shape. All three are abilities carrying a `Cost`, and the layer
-    system grants keywords whose values are numbers. R820.4 and R829.2 both
-    call them characteristics, so the honest fix is keywords with richer
-    values — which would also close R817.2's, R821.1.c.7's and R808.2's
-    "multiple instances trigger separately", since a set of keywords cannot
-    count to two.
+12. ~~**Granting a keyword whose value is a Cost**~~ — done, and it closed
+    the multiplicity gap with it, because they were the same gap: a set can
+    neither hold a Cost nor count to two. `costKeywords` and
+    `keywordCounts` sit beside `keywords` in `Characteristics`.
 
-13. **[Hunt]** (R823, 12 cards) — "when I Conquer or Hold, gain X XP". The
-    trigger, the XP and the summed-keyword-value machinery all exist; it is
-    [Vision]-shaped and small.
+13. ~~**[Hunt]**~~ — done. The keyword glossary (R805–R829) is complete.
+
+14. **A passive that reaches cards which are not permanents.** The one
+    shape left over from everything above, and it has three claimants:
+    Syndra's "your spells have [Repeat]", Marai Spire reducing a Repeat
+    cost, and §3b's cost modification. R711 reads off-board objects on
+    printed values, so this needs a scope the rules allow explicitly.
+
+15. **`viewOf` + the online server.** The end product.
 
 **Deferred by decision, not dropped:** replacement-effect Tier C
 (R373.2's sequences across simultaneous events). Written up at the end of

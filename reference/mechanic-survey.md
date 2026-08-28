@@ -721,6 +721,12 @@ built when a card asks for it.
   the engine has, so `equipChosen` treats them as unpayable, which R821.1.c.5
   already covers: the card stays where it was. The resource-only Equip costs,
   which is every other Equipment, work.
+- **A resource's usage restriction is only ever a card type.** `PaymentRestriction`
+  has one shape, `onlyCardType`, and three more are printed: "Spend this Energy
+  only during showdowns" (a timing), "Use only to play gear **or use gear
+  abilities**" (a compound of type and ability source), and "Use only to play
+  spells". Six cards. The restriction plumbing exists — only the predicate is
+  narrow.
 - **Dependent-keyword conditions are duplicated in two places.**
   `PassiveCondition` (layers.ts) gained `xpAtLeast` for [Level] even though
   `Condition` (conditions.ts) already has `hasXP` saying the same thing.
