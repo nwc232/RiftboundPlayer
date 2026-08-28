@@ -732,6 +732,12 @@ built when a card asks for it.
   the engine has, so `equipChosen` treats them as unpayable, which R821.1.c.5
   already covers: the card stays where it was. The resource-only Equip costs,
   which is every other Equipment, work.
+- **"Each player" cannot contain a question.** `forEachPlayer` runs its inner
+  effect once per player, and a step that stopped to ask would strand the
+  players after it — the resumable `execute` returns one pause, not a queue of
+  them. Nothing printed needs it: every "each player" effect in the pool is a
+  draw, a reveal, a burn or a discard, and only the discard asks, which is
+  R422.1.a's choice by the discarding player rather than a shared prompt.
 - **The rarer "can't" restrictions are unbuilt.** The three families that
   cover most of the twenty-four cards are built — "can't be chosen by enemy
   spells and abilities", "can't move to base", "can't be countered". What is

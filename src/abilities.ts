@@ -51,7 +51,8 @@ export type Effect =
   | { op: "addPower"; domain: Domain | "selfDomain"; amount: number }
   /** `targetIndex` picks from the choices made when the item was played. */
   | { op: "dealDamage"; amount: number; targetIndex: number }
-  | { op: "draw"; count: number }
+  /** `targetIndex` names a chosen *player* — "each player draws 1". */
+  | { op: "draw"; count: number; targetIndex?: number }
   | { op: "counterSpell"; targetIndex: number }
   /**
    * R432.1 — modulate a target's Might for a duration. `min`/`max` are
@@ -145,6 +146,21 @@ export type Effect =
    * through `context.targets` exactly as a chosen card does.
    */
   | { op: "scorePoint"; amount: number; targetIndex?: number }
+  /**
+   * "Each player draws 1", "each opponent reveals the top card of their Main
+   * Deck". R133 makes each player a subject in turn, so this runs `each` once
+   * per player with that player supplied as its chosen one.
+   *
+   * The inner effect reads it at `targetIndex`, which is appended to whatever
+   * targets the outer effect already chose — so "each player discards 1" is
+   * `forEachPlayer(discard(1, 0))` with nothing else chosen.
+   */
+  | {
+      op: "forEachPlayer";
+      /** Relative to the effect's controller. */
+      who: "each" | "eachOpponent";
+      each: Effect;
+    }
   /**
    * R433 — Switcheroo's "Swap the Might of two units at the same battlefield
    * this turn." R433.1.b: find the difference and apply it as an increase to
@@ -848,8 +864,14 @@ export function execute(
     }
 
 
-    case "draw":
-      return drawCards(state, context.controller, effect.count);
+    case "draw": {
+      const chosen =
+        effect.targetIndex === undefined
+          ? context.controller
+          : context.targets[effect.targetIndex];
+      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+      return drawCards(state, chosen, effect.count);
+    }
 
     // R359.3.d — a countered spell never executes; it goes to its owner's
     // trash as if it had resolved. Cards like Abandon replace that destination.
@@ -2180,6 +2202,34 @@ export function execute(
           },
         ],
       };
+    }
+
+    case "forEachPlayer": {
+      const opponent: PlayerId = context.controller === "p1" ? "p2" : "p1";
+      // R318's turn order is the natural reading of "each player": the
+      // effect's controller acts first, then their opponent.
+      const players: PlayerId[] =
+        effect.who === "eachOpponent"
+          ? [opponent]
+          : [context.controller, opponent];
+
+      let current = state;
+      const events: GameEvent[] = [];
+      for (const player of players) {
+        // The chosen player is appended, so the inner effect names it by the
+        // index just past whatever the outer effect already chose.
+        const outcome = execute(current, effect.each, {
+          ...context,
+          targets: [...context.targets, player],
+        });
+        current = outcome.state;
+        events.push(...outcome.events);
+        // A step that stops to ask would strand the players after it. Nothing
+        // printed does — every "each player" effect in the pool is a draw, a
+        // reveal or a burn — so this is written up rather than built around.
+        if (outcome.pause !== undefined) break;
+      }
+      return { state: current, events };
     }
 
     case "scorePoint": {

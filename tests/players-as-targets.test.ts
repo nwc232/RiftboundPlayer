@@ -3,7 +3,12 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import { execute } from "../src/abilities.js";
 import type { EffectContext } from "../src/abilities.js";
-import { activated, draw, scorePoint } from "../src/builders.js";
+import {
+  activated,
+  draw,
+  forEachPlayer,
+  scorePoint,
+} from "../src/builders.js";
 import { legalTargets } from "../src/decisions.js";
 import { legalActions } from "../src/legal.js";
 import { FREE } from "../src/cost.js";
@@ -171,6 +176,64 @@ describe("a spell that chooses a player", () => {
     }
 
     expect(current.players.p2.points).toBe(1);
+  });
+});
+
+/** "Each player draws 1." / "Each opponent reveals the top card of their deck." */
+describe("running an effect for each player", () => {
+  function board(): GameState {
+    return makeState({
+      p1: { hand: [], mainDeck: ["a1", "a2"] },
+      p2: { hand: [], mainDeck: ["b1", "b2"] },
+      cards: ["a1", "a2", "b1", "b2"].map((id) => unit(id)),
+    });
+  }
+
+  it("runs it once for each of them", () => {
+    const after = execute(board(), forEachPlayer(draw(1, 0)), context());
+
+    expect(after.state.players.p1.hand).toEqual(["a1"]);
+    expect(after.state.players.p2.hand).toEqual(["b1"]);
+  });
+
+  it("can be narrowed to the opponents", () => {
+    const after = execute(
+      board(),
+      forEachPlayer(draw(1, 0), "eachOpponent"),
+      context(),
+    );
+
+    expect(after.state.players.p1.hand).toEqual([]);
+    expect(after.state.players.p2.hand).toEqual(["b1"]);
+  });
+
+  /** R318's turn order: the effect's controller acts first. */
+  it("acts for its controller first", () => {
+    const after = execute(board(), forEachPlayer(draw(1, 0)), context());
+    const drawn = after.events.filter((event) => event.type === "cardDrawn");
+
+    expect(drawn.map((event) => event.playerId)).toEqual(["p1", "p2"]);
+  });
+
+  it("is relative to whoever controls it", () => {
+    const after = execute(board(), forEachPlayer(draw(1, 0), "eachOpponent"), {
+      ...context(),
+      controller: "p2",
+    });
+
+    expect(after.state.players.p1.hand).toEqual(["a1"]);
+    expect(after.state.players.p2.hand).toEqual([]);
+  });
+
+  /** The chosen player is appended, so an outer choice keeps its own index. */
+  it("counts past whatever the outer effect already chose", () => {
+    const after = execute(
+      board(),
+      forEachPlayer(draw(1, 1), "eachOpponent"),
+      context(["ignored"]),
+    );
+
+    expect(after.state.players.p2.hand).toEqual(["b1"]);
   });
 });
 

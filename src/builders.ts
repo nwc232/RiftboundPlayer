@@ -75,8 +75,12 @@ export function dealDamage(amount: number, targetIndex = 0): Effect {
   return { op: "dealDamage", amount, targetIndex };
 }
 
-export function draw(count: number): Effect {
-  return { op: "draw", count };
+export function draw(count: number, targetIndex?: number): Effect {
+  return {
+    op: "draw",
+    count,
+    ...(targetIndex !== undefined ? { targetIndex } : {}),
+  };
 }
 
 export function counterSpell(targetIndex = 0): Effect {
@@ -519,6 +523,17 @@ export function keywordAura(
 ): KeywordAuraAbility {
   const { costs, ...rest } = spec;
   return { kind: "keywordAura", ...rest, costs: costs.map(asAbilityCost) };
+}
+
+/**
+ * "Each player draws 1." The inner effect names the player it is running for
+ * by `targetIndex`, counting past whatever the outer effect already chose.
+ */
+export function forEachPlayer(
+  each: Effect,
+  who: "each" | "eachOpponent" = "each",
+): Effect {
+  return { op: "forEachPlayer", who, each };
 }
 
 /** "I can't be chosen by enemy spells and abilities." */
