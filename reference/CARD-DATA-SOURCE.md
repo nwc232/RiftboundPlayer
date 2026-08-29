@@ -27,6 +27,14 @@ gameplay-simulation use of the official API).
   text (useful if HTML stripping is annoying later).
 - Card type lives at `cardType.type[0].id` (`unit`, `spell`, `gear`,
   `battlefield`, `legend`, `rune`).
+- **Supertype lives at `cardType.superType[*].id`** — a *sibling* of `type`,
+  easy to miss. Values: `champion` (303), `signature` (51), `basic` (18 runes),
+  `token` (14). R133.7's two real supertypes are the first pair, and they are
+  what R103.2.a.2 and R103.2.d turn on: Tibbers is `signature`, Jinx, Rebel is
+  `champion`. The engine models those two; `basic` and `token` are already
+  expressed by `type` and `isToken`.
+- Tags live at `tags.tags` — not `tags.value`, which is the shape the sibling
+  `rarity`, `set` and `domain` fields use.
 - Not affiliated with or endorsed by Riot Games. Card data, names, and
   images are Riot's property; used here for private engine-development
   reference only, not redistribution.

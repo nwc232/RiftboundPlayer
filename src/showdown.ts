@@ -1,0 +1,301 @@
+import {
+  assignDesignations,
+  combatSides,
+  isCombatAt,
+  killLethalUnits,
+} from "./combat.js";
+import type { GameEvent, Progress } from "./events.js";
+import { controllerOf } from "./layers.js";
+import { sweepFacedown } from "./hidden.js";
+import { checkForWinner, score } from "./scoring.js";
+import { permanentsAt, sameLocation } from "./state.js";
+import type { CardId, GameState, PlayerId } from "./state.js";
+
+/**
+ * R341–348. A showdown is a window where players alternate with Focus. The
+ * player who applied Contested gains Focus first (R345); in a combat that same
+ * player is the Attacker (R464.2.c.1) and seeds the Combat Chain (R464.2.e.1).
+ *
+ * Only non-combat showdowns exist so far — a combat needs units from opposing
+ * players at the same battlefield.
+ */
+export interface ShowdownState {
+  battlefieldId: CardId;
+  /** Whoever applied Contested. Not necessarily the turn player. */
+  attacker: PlayerId;
+  focus: PlayerId;
+  /** R347.2.a — the showdown ends once every player has passed in sequence. */
+  consecutivePasses: number;
+}
+
+function unitsAtByController(
+  state: GameState,
+  battlefieldId: CardId,
+): Map<PlayerId, number> {
+  const counts = new Map<PlayerId, number>();
+  for (const permanent of permanentsAt(state, {
+    kind: "battlefield",
+    id: battlefieldId,
+  })) {
+    if (state.cards[permanent.cardId]?.type !== "unit") continue;
+    const controller = controllerOf(state, permanent.cardId);
+    counts.set(controller, (counts.get(controller) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * R348.2 — on closing a non-combat showdown, if exactly one player has units
+ * there and doesn't already control it, they establish Control, which is a
+ * Conquer if they haven't scored that battlefield this turn (R348.2.a.1).
+ */
+function closeShowdown(state: GameState): Progress {
+  const showdown = state.showdown;
+  if (showdown === null) {
+    return { state, events: [] };
+  }
+
+  const battlefield = state.battlefields[showdown.battlefieldId];
+  const cleared: GameState = { ...state, showdown: null };
+  const events: GameEvent[] = [
+    { type: "showdownClosed", battlefieldId: showdown.battlefieldId },
+  ];
+
+  if (battlefield === undefined) {
+    return { state: cleared, events };
+  }
+
+  // R348.1 — a combat showdown proceeds into the remaining steps of combat.
+  // Queued rather than run inline: R465.2.c makes damage assignment a player
+  // decision, and a task can suspend for one where a function call cannot.
+  if (isCombatAt(cleared, showdown.battlefieldId)) {
+    // R323.2 before R465.2.a: the sides are summed *after* designations exist,
+    // so Assault and Shield are already in the Might they contribute.
+    // R464.2 — combat opens here, before R464.2.c hands out designations.
+    events.push({
+      type: "combatOpened",
+      battlefieldId: showdown.battlefieldId,
+      attacker: showdown.attacker,
+    });
+    const designated = assignDesignations(
+      cleared,
+      showdown.battlefieldId,
+      showdown.attacker,
+    );
+    // R464.2.e — the designations are what a "when I attack" trigger watches,
+    // and R335 makes the resulting chain item block the Combat Damage Step
+    // until it has resolved.
+    events.push(...designated.events);
+    const { attackerMight } = combatSides(
+      designated.state,
+      showdown.battlefieldId,
+      showdown.attacker,
+    );
+    return {
+      state: {
+        ...designated.state,
+        tasks: [
+          ...cleared.tasks,
+          {
+            kind: "combatDamage",
+            battlefieldId: showdown.battlefieldId,
+            attacker: showdown.attacker,
+            assigning: showdown.attacker,
+            remaining: attackerMight,
+            assigned: [],
+          },
+        ],
+      },
+      events,
+    };
+  }
+
+  const counts = unitsAtByController(cleared, showdown.battlefieldId);
+  const holders = [...counts.keys()];
+  const soleHolder = holders.length === 1 ? holders[0] : undefined;
+
+  if (soleHolder === undefined || battlefield.controller === soleHolder) {
+    // Nobody establishes control; contested simply lifts.
+    return {
+      state: {
+        ...cleared,
+        battlefields: {
+          ...cleared.battlefields,
+          [showdown.battlefieldId]: { ...battlefield, contestedBy: null },
+        },
+      },
+      events,
+    };
+  }
+
+  const controlled: GameState = {
+    ...cleared,
+    battlefields: {
+      ...cleared.battlefields,
+      [showdown.battlefieldId]: {
+        ...battlefield,
+        controller: soleHolder,
+        contestedBy: null,
+      },
+    },
+  };
+  events.push({
+    type: "battlefieldControlled",
+    playerId: soleHolder,
+    battlefieldId: showdown.battlefieldId,
+  });
+
+  const scored = score(controlled, soleHolder, showdown.battlefieldId, "conquer");
+  return { state: scored.state, events: [...events, ...scored.events] };
+}
+
+/**
+ * R323.8 — every contested battlefield has a showdown staged at it, and
+ * R323.12 opens one "at Battlefields *without a Combat staged*". A combat runs
+ * on past the showdown that opened it (R464.1) while Contested is still set, so
+ * without that exclusion the cleanup would open a second showdown on top of a
+ * combat already in progress.
+ */
+export function stagedBattlefields(state: GameState): CardId[] {
+  if (state.showdown !== null) return [];
+  return state.battlefieldOrder.filter(
+    (id) =>
+      state.battlefields[id]?.contestedBy != null &&
+      !combatInProgressAt(state, id),
+  );
+}
+
+/** A combat that has opened but not yet reached the end of R466. */
+function combatInProgressAt(state: GameState, battlefieldId: CardId): boolean {
+  return state.tasks.some(
+    (task) =>
+      (task.kind === "combatDamage" || task.kind === "combatResolution") &&
+      task.battlefieldId === battlefieldId,
+  );
+}
+
+/** R344.2/R323.12 — open a showdown at one of the staged battlefields. */
+export function openShowdown(state: GameState, battlefieldId: CardId): Progress {
+  const contestedBy = state.battlefields[battlefieldId]?.contestedBy;
+  if (contestedBy == null) return { state, events: [] };
+
+  return {
+    state: {
+      ...state,
+      showdown: {
+        battlefieldId,
+        attacker: contestedBy,
+        // R345 — the player who applied Contested gains Focus.
+        focus: contestedBy,
+        consecutivePasses: 0,
+      },
+    },
+    events: [{ type: "showdownOpened", battlefieldId, attacker: contestedBy }],
+  };
+}
+
+/** R347 — the player with Focus passes. Two passes in sequence close it. */
+export function passFocus(state: GameState, playerId: PlayerId): Progress {
+  const showdown = state.showdown;
+  if (showdown === null || showdown.focus !== playerId) {
+    return { state, events: [] };
+  }
+
+  const consecutivePasses = showdown.consecutivePasses + 1;
+  const events: GameEvent[] = [{ type: "focusPassed", playerId }];
+
+  if (consecutivePasses >= 2) {
+    const closed = closeShowdown(state);
+    return { state: closed.state, events: [...events, ...closed.events] };
+  }
+
+  return {
+    state: {
+      ...state,
+      showdown: {
+        ...showdown,
+        focus: playerId === "p1" ? "p2" : "p1",
+        consecutivePasses,
+      },
+    },
+    events,
+  };
+}
+
+/**
+ * A minimal Cleanup (R318/R323). Only the parts this slice needs: check for a
+ * winner, open a showdown at a contested battlefield, and drop control of a
+ * battlefield where the controller has no units left (R190.4.c).
+ *
+ * Combat staging (R323.9) is absent until combat exists.
+ */
+export function runCleanup(
+  state: GameState,
+  chosen: Record<CardId, CardId> = {},
+): Progress {
+  let current = state;
+  const events: GameEvent[] = [];
+
+  const won = checkForWinner(current);
+  current = won.state;
+  events.push(...won.events);
+  if (current.winner !== null) {
+    return { state: current, events };
+  }
+
+  // R428.1.a.2 — lethal damage from any source resolves into deaths here,
+  // unless a replacement intercedes (R369). `chosen` carries R372's ordering
+  // answer when the task had to stop and ask for one.
+  const dead = killLethalUnits(current, chosen);
+  current = dead.state;
+  events.push(...dead.events);
+
+  // R718.5.c / R434.4 — an Attached card "cannot be moved separately from the
+  // Top-Most Card", so its location follows. Detached if its host has left.
+  const attachments = { ...current.permanents };
+  let movedAny = false;
+  for (const [cardId, permanent] of Object.entries(current.permanents)) {
+    if (permanent.attachedTo === undefined) continue;
+    const host = current.permanents[permanent.attachedTo];
+    if (host === undefined) {
+      const { attachedTo: _detached, ...rest } = permanent;
+      attachments[cardId] = rest;
+      movedAny = true;
+    } else if (!sameLocation(host.location, permanent.location)) {
+      attachments[cardId] = { ...permanent, location: host.location };
+      movedAny = true;
+    }
+  }
+  if (movedAny) current = { ...current, permanents: attachments };
+
+  // R190.4.c — a controller with no units there loses control in the cleanup.
+  for (const battlefieldId of current.battlefieldOrder) {
+    const battlefield = current.battlefields[battlefieldId];
+    if (battlefield?.controller == null) continue;
+    const counts = unitsAtByController(current, battlefieldId);
+    if ((counts.get(battlefield.controller) ?? 0) === 0) {
+      current = {
+        ...current,
+        battlefields: {
+          ...current.battlefields,
+          [battlefieldId]: { ...battlefield, controller: null },
+        },
+      };
+      events.push({
+        type: "battlefieldControlLost",
+        playerId: battlefield.controller,
+        battlefieldId,
+      });
+    }
+  }
+
+  // R323.7, step 5 — "Remove all Hidden cards from all Battlefields that are
+  // not controlled by the same player". It follows step 4's control loss above,
+  // in that order, so losing a battlefield costs you what you hid there in the
+  // same cleanup rather than the next one.
+  const swept = sweepFacedown(current);
+  current = swept.state;
+  events.push(...swept.events);
+
+  return { state: current, events };
+}
