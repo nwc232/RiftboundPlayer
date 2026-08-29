@@ -374,8 +374,14 @@ unchanged in a browser. React or Svelte over the same `applyAction`.
 ## 6. What a complete engine still needs
 
 Measured against the 1180-card pool on 2026-08-28, not estimated. Counts are
-distinct card *names* whose printed text matches; treat them as close rather
-than exact, since a regex cannot tell every idiom apart.
+distinct card *names* whose printed text matches.
+
+**Treat every count here as a lower bound on error, not a fact.** Two were
+materially wrong when checked against the actual clauses: cost increases were
+4, not 20 (most matches were "costs *no more than* X", a target filter built
+months earlier), and modal effects were 11, not 47 (most `choose` clauses are
+"choose a unit", which is targeting). A regex counts idioms, not mechanics.
+Read the clauses before trusting a number to plan with.
 
 ### 6a. Named game actions the engine does not have
 

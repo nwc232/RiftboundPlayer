@@ -579,12 +579,15 @@ Recorded as they're found, so they don't get lost between slices.
   destination but not the targeting narrowing, so a hidden Blastcone Fae
   could currently reach a unit somewhere else. Needs `TargetFilter` to
   take a location, and R811.1.d.2.a says each target is judged separately.
-- **Facedown privacy (R107.3.f).** "Facedown Zones are Public Zones,
-  though facedown cards located there are Private." `GameState` holds the
-  card id in the open and the `cardHidden` event carries it. Nothing is
-  wrong for a local two-player engine, but a per-player *view* of state is
-  what makes this real — the same seam the roadmap's §4 calls out for
-  hands. Deliberately one problem, solved once.
+- **Facedown privacy (R107.3.f) — half closed.** "Facedown Zones are Public
+  Zones, though facedown cards located there are Private." `viewOf` closes
+  the *state* half: an opponent sees that a card is hidden at a battlefield
+  and never receives its identity, and the definition is dropped from the
+  registry rather than merely undrawn. The **event stream** is still open —
+  `cardHidden` carries the card id, so a seat-filtered log leaks what a
+  seat-filtered board does not. `viewOf` filters state and nothing else. The
+  same is true of every other private-zone event: a per-player *event* view
+  is the missing companion to the per-player state view.
 - **Facedown occupancy is fixed at one (R107.3.b.1).** The maximum "can
   increase or decrease", and R107.3.b.2 says a decrease trashes the
   excess. No card in the pool changes it, so the zone holds exactly one.
@@ -719,9 +722,15 @@ built when a card asks for it.
   work. What is left is the shapes that *choose*: Atakhan's "you may kill a
   friendly unit as an additional cost", "you may spend a buff" where the buff
   is any friendly unit's, and R422.1.a's choice of *which* cards a discard
-  cost sends. R355.1 puts those choices at the start of playing a card, and
-  the engine has no way to suspend inside finalization — a paused effect is a
-  resolution-time mechanism. Three cards.
+  cost sends. Three cards.
+
+  **This was first written up as structurally blocked, and that was wrong.**
+  The reasoning was that finalization cannot suspend, which is true and
+  irrelevant: R355.1 puts these choices at the *start* of playing a card,
+  which is exactly when the action is submitted. A spell's targets already
+  ride in the action and are enumerated by `legalActions`; a cost's chosen
+  unit is another field on the same action, found the same way. No suspension
+  is involved. Normal-sized work, not structural.
 - **R443's Skip is not built, and the one card printing it needs three other
   things.** Endless Riches is the only card in the pool that skips anything
   ("skip your Draw Phase"), and it also wants playing cards from a trash
