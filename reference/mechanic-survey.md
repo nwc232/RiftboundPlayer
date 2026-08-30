@@ -579,15 +579,6 @@ Recorded as they're found, so they don't get lost between slices.
   destination but not the targeting narrowing, so a hidden Blastcone Fae
   could currently reach a unit somewhere else. Needs `TargetFilter` to
   take a location, and R811.1.d.2.a says each target is judged separately.
-- **Facedown privacy (R107.3.f) — half closed.** "Facedown Zones are Public
-  Zones, though facedown cards located there are Private." `viewOf` closes
-  the *state* half: an opponent sees that a card is hidden at a battlefield
-  and never receives its identity, and the definition is dropped from the
-  registry rather than merely undrawn. The **event stream** is still open —
-  `cardHidden` carries the card id, so a seat-filtered log leaks what a
-  seat-filtered board does not. `viewOf` filters state and nothing else. The
-  same is true of every other private-zone event: a per-player *event* view
-  is the missing companion to the per-player state view.
 - **Facedown occupancy is fixed at one (R107.3.b.1).** The maximum "can
   increase or decrease", and R107.3.b.2 says a decrease trashes the
   excess. No card in the pool changes it, so the zone holds exactly one.
@@ -724,6 +715,19 @@ built when a card asks for it.
   is a timing gate on a card in hand. Both were counted with the "can't"
   family and neither belongs to it; they wait for a permission that can
   exclude and a play-timing condition respectively.
+- **A seat view still computes the *acting* player's moves.** `viewOf` and
+  `eventsFor` close R107 on both the state and the log, so a p2 client is not
+  sent p1's hand. It is still offered p1's moves, over the stand-ins — "play
+  to base" against a card called *hidden card*. Harmless while the UI is one
+  screen with a seat selector; it is the thing the two-windows front-end has
+  to fix, by asking `legalActions` for the *seat* rather than for whoever
+  holds the turn.
+- **`eventsFor` over-redacts one case.** Sabotage recycles a card chosen out
+  of the opponent's *revealed* hand — the chooser saw it, and still gets the
+  event redacted, because the redaction reads the event alone rather than
+  R424's Revealed state at the time it was logged. Erring towards withholding
+  is the right failure mode for a privacy filter, and un-erring it means
+  giving `eventsFor` the state each event was emitted against.
 - **R372's ordering is not asked for a kill paid as a cost.** A cost that
   kills something you choose ("kill a friendly unit as an additional cost") is
   a real kill, so death replacements apply — but R372's "the controller of the

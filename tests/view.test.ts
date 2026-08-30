@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { HIDDEN_CARD, viewOf } from "../src/view.js";
+import { HIDDEN_CARD, eventsFor, viewOf } from "../src/view.js";
+import { renderEvent } from "../src/event-text.js";
+import type { GameEvent } from "../src/events.js";
 import { hide } from "../src/hidden.js";
 import { applyAction } from "../src/actions.js";
 import { startGame } from "../src/deck.js";
@@ -186,5 +188,107 @@ describe("viewOf", () => {
     expect(view.battlefieldOrder).toEqual(state.battlefieldOrder);
     expect(view.players.p1.runePool).toEqual(state.players.p1.runePool);
     expect(view.players.p2.points).toBe(state.players.p2.points);
+  });
+});
+
+
+/**
+ * R107's other half. `viewOf` filters the state; the event stream is the
+ * second place a card's identity travels, and it used to carry `cardHidden`'s
+ * `cardId` to both players.
+ */
+describe("the event stream through one player's eyes", () => {
+  const drew: GameEvent = { type: "cardDrawn", playerId: "p1", cardId: "secret" };
+  const hid: GameEvent = {
+    type: "cardHidden",
+    playerId: "p1",
+    cardId: "secret",
+    battlefieldId: "bf-north",
+  };
+  const recycled: GameEvent = {
+    type: "cardRecycled",
+    playerId: "p1",
+    cardId: "secret",
+  };
+
+  it("leaves the owner's own log intact", () => {
+    expect(eventsFor([drew, hid, recycled], "p1")).toEqual([drew, hid, recycled]);
+  });
+
+  /** R107.2 / R107.3.f — the opponent learns that it happened, not what. */
+  it("withholds the card from everyone else", () => {
+    const seen = eventsFor([drew, hid, recycled], "p2");
+
+    for (const event of seen) {
+      expect("cardId" in event && event.cardId).toBe(HIDDEN_CARD);
+    }
+    // What happened, and where, is public.
+    expect(seen[1]).toMatchObject({ type: "cardHidden", battlefieldId: "bf-north" });
+  });
+
+  /** A discard and a burn both land in a public trash, so neither is withheld. */
+  it("leaves the events that make a card public alone", () => {
+    const public_: GameEvent[] = [
+      { type: "cardDiscarded", playerId: "p1", cardId: "secret" },
+      { type: "cardBurned", playerId: "p1", cardId: "secret" },
+      { type: "cardRevealed", playerId: "p1", cardId: "secret" },
+    ];
+
+    expect(eventsFor(public_, "p2")).toEqual(public_);
+  });
+
+  it("reads as a card rather than as an id", () => {
+    expect(renderEvent(eventsFor([drew], "p2")[0]!)).toBe("p1 drew a card");
+  });
+});
+
+/**
+ * R320.1 — a decision belongs to one player. That it is outstanding is public;
+ * a Mulligan's or a Predict's options come out of a private zone and are not.
+ */
+describe("an outstanding decision through one player's eyes", () => {
+  function waiting(): GameState {
+    const state = makeState({
+      p1: { hand: ["h1", "h2"], mainDeck: ["d1"] },
+      p2: { mainDeck: ["d2"] },
+      cards: [unit("h1"), unit("h2"), unit("d1"), unit("d2")],
+    });
+    return {
+      ...state,
+      pending: {
+        player: "p1",
+        prompt: { kind: "mulligan", max: 2, legal: ["h1", "h2"] },
+      },
+    };
+  }
+
+  it("leaves the holder their own options", () => {
+    const mine = viewOf(waiting(), "p1").pending;
+
+    expect(mine?.prompt).toEqual({ kind: "mulligan", max: 2, legal: ["h1", "h2"] });
+  });
+
+  it("withholds them from everyone else, keeping the count", () => {
+    const theirs = viewOf(waiting(), "p2").pending;
+
+    expect(theirs?.player).toBe("p1");
+    expect(theirs?.prompt.kind).toBe("mulligan");
+    const legal = theirs?.prompt && "legal" in theirs.prompt ? theirs.prompt.legal : [];
+    expect(legal).toHaveLength(2);
+    expect(legal).not.toContain("h1");
+    expect(legal).not.toContain("h2");
+  });
+
+  /** Every stand-in it hands out is a card the client can render. */
+  it("supplies a blank for each stand-in", () => {
+    const view = viewOf(waiting(), "p2");
+    const legal =
+      view.pending?.prompt && "legal" in view.pending.prompt
+        ? view.pending.prompt.legal
+        : [];
+
+    for (const stand of legal) {
+      expect(view.cards[stand as string]).toBeDefined();
+    }
   });
 });

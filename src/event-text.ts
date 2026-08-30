@@ -1,5 +1,6 @@
 import type { GameEvent } from "./events.js";
 import type { Cost, Location } from "./state.js";
+import { isHiddenCard } from "./view.js";
 
 /**
  * One sentence per event, in plain text. This is domain wording, not
@@ -26,9 +27,16 @@ export function locationName(location: Location): string {
 }
 
 export function renderEvent(event: GameEvent): string {
+  /**
+   * R107 — a card the reader is not entitled to see arrives from `eventsFor`
+   * as a stand-in, so the sentence has to name it as one. "p2 drew a card" is
+   * the whole of what an opponent's draw is allowed to say.
+   */
+  const named = (cardId: string) => (isHiddenCard(cardId) ? "a card" : cardId);
+
   switch (event.type) {
     case "cardDrawn":
-      return `${event.playerId} drew ${event.cardId}`;
+      return `${event.playerId} drew ${named(event.cardId)}`;
     case "unitPlayed":
       return `${event.playerId} played ${event.cardId}`;
     case "runeChanneled":
@@ -134,7 +142,7 @@ export function renderEvent(event: GameEvent): string {
     case "facedownRemoved":
       return `${event.cardId} is trashed from ${event.battlefieldId}'s facedown zone`;
     case "cardRecycled":
-      return `${event.playerId} recycles ${event.cardId}`;
+      return `${event.playerId} recycles ${named(event.cardId)}`;
     case "attached":
       return `${event.cardId} attaches to ${event.to}`;
     case "combatOpened":

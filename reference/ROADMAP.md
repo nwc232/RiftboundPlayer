@@ -434,6 +434,10 @@ ones that block whole card families rather than single cards:
   off-board objects on printed values. Syndra's "your spells have [Repeat]",
   Marai Spire's cost reduction and §3b's cost modification all want the same
   scope.
+- ~~**`viewOf` filters state but not events.**~~ Closed — `eventsFor` is the
+  companion, and the UI keeps raw events so the seat filter applies at display
+  time rather than once at dispatch. `viewOf` also stopped handing an
+  opponent's pending decision its options.
 - **Burn Out does not route through a chokepoint** (R369.2 calls it a
   replacement effect).
 - **Temporary runs off the chain** (R816.1), so no [Reaction] can answer it.

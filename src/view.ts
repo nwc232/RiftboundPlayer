@@ -1,3 +1,4 @@
+import type { GameEvent } from "./events.js";
 import type { CardId, CardInstance, GameState, PlayerId } from "./state.js";
 
 /**
@@ -23,6 +24,11 @@ import type { CardId, CardInstance, GameState, PlayerId } from "./state.js";
 
 /** The stand-in a hidden card is replaced by. Stable per zone and position. */
 export const HIDDEN_CARD = "hidden";
+
+/** Whether an id is a stand-in rather than a real card. */
+export function isHiddenCard(cardId: CardId): boolean {
+  return cardId === HIDDEN_CARD || cardId.startsWith(`${HIDDEN_CARD}:`);
+}
 
 function hiddenId(zone: string, index: number): CardId {
   return `${HIDDEN_CARD}:${zone}:${index}`;
@@ -119,5 +125,85 @@ export function viewOf(state: GameState, viewer: PlayerId): GameState {
     if (card !== undefined) cards[cardId] = card;
   }
 
-  return { ...state, players, facedown, cards };
+  // R320.1's outstanding decision, if it is the opponent's — its options can
+  // come straight out of a private zone.
+  const pending = pendingFor(state, viewer);
+  if (pending !== null && pending !== state.pending && "legal" in pending.prompt) {
+    for (const stand of pending.prompt.legal) {
+      if (typeof stand === "string") blanks[stand] = blank(stand);
+    }
+  }
+
+  return { ...state, players, facedown, cards: { ...cards, ...blanks }, pending };
+}
+
+/**
+ * R320.1 — an outstanding decision belongs to one player, and only that player
+ * may answer it. The *fact* that they are choosing is public; what they are
+ * choosing between need not be, and for a Mulligan or a Predict it is drawn
+ * straight out of a private zone.
+ *
+ * Redacted wholesale rather than per prompt kind. `legalActions` already
+ * returns nothing to a player who does not hold the decision, so the list is
+ * of no use to them — and an allowlist of "prompts whose options are private"
+ * is a list that goes stale the next time a prompt is added.
+ */
+function pendingFor(
+  state: GameState,
+  viewer: PlayerId,
+): GameState["pending"] {
+  const pending = state.pending;
+  if (pending === null || pending.player === viewer) return pending;
+
+  const { prompt } = pending;
+  if (!("legal" in prompt)) return pending;
+  // `chooseMode`'s options are arm indices off a card already on the chain,
+  // not objects out of a zone, so there is nothing in it to withhold.
+  if (prompt.kind === "chooseMode") return pending;
+
+  return {
+    ...pending,
+    prompt: {
+      ...prompt,
+      // The count survives: "they are choosing among three" gives nothing away
+      // and is what a UI needs in order to render the wait.
+      legal: prompt.legal.map((_, index) => hiddenId("pending", index)),
+    },
+  };
+}
+
+/**
+ * R107 — the event stream as `viewer` is entitled to see it.
+ *
+ * `viewOf` closes the state half and this closes the other, because a card's
+ * identity travels through both. Three events name a card while it is in, or
+ * on its way into, a private zone:
+ *
+ * - **`cardDrawn`** (R107.2) — Main Deck to hand, private at both ends.
+ * - **`cardHidden`** (R107.3.f) — hand to a Facedown Zone, whose occupancy is
+ *   public and whose contents are not.
+ * - **`cardRecycled`** (R416.1) — to the bottom of a Main Deck, from a hand or
+ *   from a Predict's look at the top. Private wherever it came from.
+ *
+ * Everything else names a card that is already public by the time it is
+ * logged: a discard and a burn both land in a trash, and a play lands on the
+ * chain.
+ */
+export function eventsFor(
+  events: readonly GameEvent[],
+  viewer: PlayerId,
+): GameEvent[] {
+  return events.map((event) => {
+    switch (event.type) {
+      case "cardDrawn":
+      case "cardHidden":
+      case "cardRecycled":
+        // R107 draws the line at the owner, so the owner's own log is intact.
+        return event.playerId === viewer
+          ? event
+          : { ...event, cardId: HIDDEN_CARD };
+      default:
+        return event;
+    }
+  });
 }

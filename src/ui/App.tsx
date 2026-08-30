@@ -3,7 +3,7 @@ import { renderEvent } from "../event-text.js";
 import type { GameEvent } from "../events.js";
 import type { Action, RejectionReason } from "../actions.js";
 import type { CardId, GameState, PlayerId } from "../state.js";
-import { viewOf } from "../view.js";
+import { eventsFor, viewOf } from "../view.js";
 import {
   Battlefields,
   CardDetail,
@@ -26,13 +26,19 @@ import type { Move } from "./game.js";
 
 interface Snapshot {
   state: GameState;
-  log: string[];
+  /**
+   * Kept as events rather than as rendered lines. R107 makes what a player may
+   * read out of the log depend on which seat they are in, and the seat can be
+   * changed after the fact — so the redaction has to happen at display time,
+   * not once at dispatch.
+   */
+  events: GameEvent[];
 }
 
 export function App() {
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 100000));
   const [history, setHistory] = useState<Snapshot[]>(() => [
-    { state: newGame(seed), log: [] },
+    { state: newGame(seed), events: [] },
   ]);
   const [selected, setSelected] = useState<CardId | null>(null);
   const [staged, setStaged] = useState<CardId[]>([]);
@@ -52,6 +58,16 @@ export function App() {
   const state = useMemo(
     () => (seat === null ? truth : viewOf(truth, seat)),
     [truth, seat],
+  );
+  // R107 — the log through the same eyes as the board. `viewOf` closes the
+  // state half and `eventsFor` closes the other: an opponent's draw arrives as
+  // "a card", because the identity never reaches this client at all.
+  const log = useMemo(
+    () =>
+      (seat === null ? here.events : eventsFor(here.events, seat)).map(
+        renderEvent,
+      ),
+    [here.events, seat],
   );
   const acting = actingPlayer(state);
   const moves = useMemo(() => movesFor(state, acting), [state, acting]);
@@ -97,7 +113,7 @@ export function App() {
           ...past,
           {
             state: result.state,
-            log: [...previous.log, ...result.events.map(renderEvent)],
+            events: [...previous.events, ...result.events],
           },
         ];
       });
@@ -164,7 +180,7 @@ export function App() {
   };
 
   const restart = (): void => {
-    setHistory([{ state: newGame(seed), log: [] }]);
+    setHistory([{ state: newGame(seed), events: [] }]);
     setSelected(null);
     setRejected(null);
   };
@@ -291,7 +307,7 @@ export function App() {
         <section className="log">
           <h3>log</h3>
           <ol>
-            {here.log.slice(-40).map((line, i) => (
+            {log.slice(-40).map((line, i) => (
               <li key={i}>{line}</li>
             ))}
           </ol>
