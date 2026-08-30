@@ -81,11 +81,21 @@ export function describe(state: GameState, action: Action): string {
         ? "base"
         : label(location.id);
 
+  /**
+   * R355.1 — what a choosing cost named. Two plays that differ only in which
+   * unit they kill have to read differently, or the list offers the same
+   * words twice for two different moves.
+   */
+  const paidWith = (costChoices: CardId[][] | undefined): string => {
+    const named = (costChoices ?? []).flat();
+    return named.length === 0 ? "" : ` · with ${named.map(label).join(" + ")}`;
+  };
+
   switch (action.type) {
     case "playUnitFromHand":
       return `play to ${where(action.destination)}${
         action.payOptional === true ? " · pay the extra cost" : ""
-      }`;
+      }${paidWith(action.costChoices)}`;
     case "playSpell":
       return (
         "cast" +
@@ -101,7 +111,8 @@ export function describe(state: GameState, action: Action): string {
         // them. R820.3: one more execution per Repeat cost paid.
         ((action.payRepeats ?? []).length > 0
           ? ` · repeat ×${(action.payRepeats ?? []).length}`
-          : "")
+          : "") +
+        paidWith(action.costChoices)
       );
     case "hide":
       return `hide at ${label(action.battlefieldId)}`;
@@ -110,7 +121,8 @@ export function describe(state: GameState, action: Action): string {
         abilityWording(state, action.sourceId, action.abilityIndex) +
         (action.targets && action.targets.length > 0
           ? ` at ${action.targets.map(label).join(" + ")}`
-          : "")
+          : "") +
+        paidWith(action.costChoices)
       );
     case "standardMove":
       return `move to ${where(action.destination)}`;
@@ -174,8 +186,12 @@ function abilityWording(
           return "spend its buff";
         case "disempowerSelf":
           return "disempower it";
-        case "discard":
-          return `discard ${each.count}`;
+        case "chosen": {
+          const many = each.count === "any" ? "any number" : each.count;
+          return each.does === "discard"
+            ? `discard ${many}`
+            : `${each.does} ${many}`;
+        }
         case "exhaustLegend":
           return "exhaust your legend";
         default:

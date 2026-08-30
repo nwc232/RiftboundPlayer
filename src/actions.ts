@@ -3,12 +3,15 @@ import type { AbilityCost, Effect, EffectContext } from "./abilities.js";
 import { FREE, spend } from "./cost.js";
 import {
   additionalCostsOf,
+  choicePoolFor,
+  nonResourceCostsOf,
   repeatCostsOf,
   consumeDiscount,
   totalCostOf,
 } from "./costing.js";
+import { killUnits } from "./combat.js";
 import type { GameEvent } from "./events.js";
-import { permanentsAt, sameLocation } from "./state.js";
+import { ownerOf, permanentsAt, sameLocation } from "./state.js";
 import type {
   BattlefieldState,
   CardId,
@@ -66,6 +69,12 @@ export type Action =
       destination?: Location;
       /** R355.1.a — the choice of whether to pay an optional additional cost. */
       payOptional?: boolean;
+      /**
+       * R355.1 — what each cost that names something chose. One entry per
+       * choosing cost, in `choosingCostsOf`'s order; "kill any number of
+       * friendly units" is answered with a list, "discard 1" with one card.
+       */
+      costChoices?: CardId[][];
     }
   | {
       type: "standardMove";
@@ -108,6 +117,12 @@ export type Action =
        * Only [Flow] (R829.1.c.3) ever offers more than one.
        */
       playFrom?: number;
+      /**
+       * R355.1 — what each cost that names something chose. One entry per
+       * choosing cost, in `choosingCostsOf`'s order; "kill any number of
+       * friendly units" is answered with a list, "discard 1" with one card.
+       */
+      costChoices?: CardId[][];
     }
   /** R421 — the Hide discretionary action, granted by [Hidden] (R811.1.c). */
   | {
@@ -124,6 +139,12 @@ export type Action =
       playerId: PlayerId;
       sourceId: CardId;
       abilityIndex: number;
+      /**
+       * R355.1 — what each cost that names something chose. One entry per
+       * choosing cost, in `choosingCostsOf`'s order; "kill any number of
+       * friendly units" is answered with a list, "discard 1" with one card.
+       */
+      costChoices?: CardId[][];
     };
 
 export type RejectionReason =
@@ -164,7 +185,9 @@ export type RejectionReason =
   | "decisionPending"
   | "noDecision"
   | "notYourDecision"
-  | "wrongTargetCount";
+  | "wrongTargetCount"
+  /** More `costChoices` than there are costs asking for one. */
+  | "wrongCostChoiceCount";
 
 export type ActionResult =
   | { ok: true; state: GameState; events: GameEvent[] }
@@ -391,6 +414,9 @@ function payTriggerCosts(
   let current = state;
   const events: GameEvent[] = [];
   for (const cost of costs) {
+    // A triggered ability is finalized by the engine rather than submitted as
+    // an action, so there is nothing to carry a choice in. No card in the pool
+    // prints a choosing cost on one; written up as a deviation.
     const paid = payAbilityCost(current, cost, context);
     if (paid === undefined) {
       // Unpayable, so it never finalizes: off the chain, like a declined
@@ -742,6 +768,7 @@ export function playUnitFromHand(
   cardId: CardId,
   destination: Location = { kind: "base", player: playerId },
   payOptional = false,
+  costChoices: CardId[][] = [],
   playFrom = 0,
 ): ActionResult {
   const player = state.players[playerId];
@@ -868,37 +895,51 @@ export function playUnitFromHand(
     runePool: remainingPool,
   });
   const extraEvents: GameEvent[] = [];
-  for (const additional of additionalCostsOf(state, cardId)) {
-    if (additional.optional && !payOptional) continue;
-    for (const each of additional.costs) {
-      if (each.kind === "pay") continue;
-      const paid = payAbilityCost(afterExtras, each, {
-        controller: playerId,
-        sourceId: cardId,
-        targets: [],
-      });
-      if (paid === undefined) return rejected("cannotAffordCost");
-      afterExtras = paid.state;
-      extraEvents.push(...paid.events);
-    }
+  let choiceIndex = 0;
+  for (const each of nonResourceCostsOf(state, playerId, cardId, {
+    zone,
+    payOptional,
+  })) {
+    // R355.1 — only a cost that names something consumes an answer, so the
+    // cursor advances on those alone. `choosingCostsOf` walks the same list.
+    const chosen = each.kind === "chosen" ? (costChoices[choiceIndex++] ?? []) : [];
+    const paid = payAbilityCost(
+      afterExtras,
+      each,
+      { controller: playerId, sourceId: cardId, targets: [] },
+      chosen,
+    );
+    if (paid === undefined) return rejected("cannotAffordCost");
+    afterExtras = paid.state;
+    extraEvents.push(...paid.events);
+  }
+  // An answer with no cost to answer is a malformed action, not a spare one.
+  if (costChoices.length > choiceIndex) {
+    return rejected("wrongCostChoiceCount");
   }
 
   return {
     ok: true,
     state: {
       ...afterExtras,
+      // Built on `afterExtras`, not on `state`: R356's costs are paid before
+      // the card enters, and a cost that kills, exhausts or returns something
+      // has already changed the board. Rebuilding from `state` here silently
+      // undid every one of those — the unit named by "kill a friendly unit as
+      // an additional cost" came back to life as the card it paid for landed.
       permanents: {
-        ...state.permanents,
+        ...afterExtras.permanents,
         [cardId]: {
           cardId,
           controller: playerId,
           // R359.2.c — a unit enters exhausted; R359.2.d — gear enters ready.
           // R369.3 is the family of replacement effects that alter *how* a
           // unit enters, and [Accelerate] is one of them rather than a case
-          // spelled out here.
+          // spelled out here. Asked of the post-cost board, since that is the
+          // board the unit is entering.
           exhausted:
             !isGear &&
-            !entersReady(state, playerId, cardId, {
+            !entersReady(afterExtras, playerId, cardId, {
               paidAdditionalCost: payOptional,
             }),
           location: destination,
@@ -909,8 +950,8 @@ export function playUnitFromHand(
           playedFrom,
         },
       },
-      battlefields: applyContested(state, destination, playerId),
-      playedThisTurn: recordFinalized(state, playerId, cardId),
+      battlefields: applyContested(afterExtras, destination, playerId),
+      playedThisTurn: recordFinalized(afterExtras, playerId, cardId),
     },
     events: [
       { type: "costPaid", playerId, cardId, cost },
@@ -1079,6 +1120,7 @@ export function playSpell(
   payRepeats: number[] = [],
   playFrom = 0,
   modes: number[] = [],
+  costChoices: CardId[][] = [],
 ): ActionResult {
   const player = state.players[playerId];
   const card = state.cards[cardId];
@@ -1169,19 +1211,12 @@ export function playSpell(
   // resource costs and non-resource costs". The resources went through
   // `spend`; discarding, disempowering and the rest are paid the same way an
   // ability's costs are, and refuse the play if they cannot be.
-  const extraCosts: AbilityCost[] = [
-    ...(zone.extraCosts ?? []),
-    // R356.2 — the non-resource half of an additional cost, mandatory ones
-    // always and optional ones only when the player chose to pay.
-    ...additionalCostsOf(state, cardId).flatMap((additional) =>
-      additional.optional && !payOptional
-        ? []
-        : additional.costs.filter((each) => each.kind !== "pay"),
-    ),
-    ...payRepeats.flatMap((index) =>
-      (repeats[index] ?? []).filter((each) => each.kind !== "pay"),
-    ),
-  ];
+  const extraCosts: AbilityCost[] = nonResourceCostsOf(
+    state,
+    playerId,
+    cardId,
+    { zone, payOptional, payRepeats },
+  );
   // R354 step 1 — "Move the card from its current zone to the Chain" is the
   // *first* step of playing, before R355's choices and R356's costs. Taking it
   // out of its zone here rather than at the end is what stops a discard cost
@@ -1197,15 +1232,22 @@ export function playSpell(
     runePool: remainingPool,
   });
   const extraEvents: GameEvent[] = [];
+  let choiceIndex = 0;
   for (const each of extraCosts) {
-    const paid = payAbilityCost(afterExtras, each, {
-      controller: playerId,
-      sourceId: cardId,
-      targets,
-    });
+    // R355.1 — one answer per cost that names something, in this order.
+    const chosen = each.kind === "chosen" ? (costChoices[choiceIndex++] ?? []) : [];
+    const paid = payAbilityCost(
+      afterExtras,
+      each,
+      { controller: playerId, sourceId: cardId, targets },
+      chosen,
+    );
     if (paid === undefined) return rejected("cannotAffordCost");
     afterExtras = paid.state;
     extraEvents.push(...paid.events);
+  }
+  if (costChoices.length > choiceIndex) {
+    return rejected("wrongCostChoiceCount");
   }
 
   // R355.5/R355.8 — a spell's choices are made as it is played, and each one
@@ -1248,8 +1290,11 @@ export function playSpell(
     ok: true,
     state: {
       ...afterExtras,
+      // Built on `afterExtras` for the same reason the unit path is: R356's
+      // costs are paid before the item is on the chain, and a cost that kills
+      // something can put a Deathknell on the chain ahead of it.
       chain: [
-        ...state.chain,
+        ...afterExtras.chain,
         {
           kind: "spell" as const,
           cardId,
@@ -1269,7 +1314,7 @@ export function playSpell(
       // chain only resolves once both players pass in sequence (R339).
       priority: playerId,
       priorityPasses: 0,
-      playedThisTurn: recordFinalized(state, playerId, cardId),
+      playedThisTurn: recordFinalized(afterExtras, playerId, cardId),
     },
     events: [
       { type: "costPaid", playerId, cardId, cost },
@@ -1466,6 +1511,114 @@ export function endTurn(
   return { ok: true, state: worked.state, events: worked.events };
 }
 
+/** Performs the game action a paid `chosen` cost names, on what it named. */
+function performChosenCost(
+  state: GameState,
+  controller: PlayerId,
+  does: Extract<AbilityCost, { kind: "chosen" }>["does"],
+  chosen: CardId[],
+): { state: GameState; events: GameEvent[] } {
+  const player = state.players[controller];
+
+  switch (does) {
+    // R422 — from hand to trash, in the order the player named them.
+    case "discard":
+      return {
+        state: withPlayer(state, controller, {
+          ...player,
+          hand: player.hand.filter((cardId) => !chosen.includes(cardId)),
+          trash: [...player.trash, ...chosen],
+        }),
+        events: chosen.map((cardId) => ({
+          type: "cardDiscarded" as const,
+          playerId: controller,
+          cardId,
+        })),
+      };
+
+    // R412 — a real kill, so death replacements and Deathknells all apply.
+    //
+    // R372's "the controller of the object being acted on determines the
+    // order" cannot be *asked* here: a cost is paid partway through playing a
+    // card, and R355 leaves nowhere to stop. Two replacements racing for one
+    // death therefore resolve in printed order rather than the controller's.
+    // Written up as a deviation; it needs one unit carrying two of them.
+    case "kill": {
+      let picks: Record<CardId, CardId> = {};
+      let outcome = killUnits(state, chosen, picks);
+      while (outcome.choice !== undefined) {
+        picks = {
+          ...picks,
+          [outcome.choice.cardId]: outcome.choice.options[0]!.sourceId,
+        };
+        outcome = killUnits(state, chosen, picks);
+      }
+      return { state: outcome.state, events: outcome.events };
+    }
+
+    case "exhaust": {
+      const permanents = { ...state.permanents };
+      for (const cardId of chosen) {
+        const permanent = permanents[cardId];
+        if (permanent === undefined) continue;
+        permanents[cardId] = { ...permanent, exhausted: true };
+      }
+      return {
+        state: { ...state, permanents },
+        events: chosen.map((cardId) => ({
+          type: "objectExhausted" as const,
+          playerId: controller,
+          cardId,
+        })),
+      };
+    }
+
+    // R701–705 — spending a buff is removing it. Kraken Hunter spends several
+    // at once, one from each of several units.
+    case "spendBuff": {
+      const permanents = { ...state.permanents };
+      for (const cardId of chosen) {
+        const permanent = permanents[cardId];
+        if (permanent === undefined) continue;
+        const { buffed: _spent, ...rest } = permanent;
+        permanents[cardId] = rest;
+      }
+      return { state: { ...state, permanents }, events: [] };
+    }
+
+    // R56 — the *owner's* hand, which need not be the controller's.
+    case "returnToHand": {
+      let current = state;
+      const events: GameEvent[] = [];
+      for (const cardId of chosen) {
+        const permanent = current.permanents[cardId];
+        if (permanent === undefined) continue;
+        const owner = ownerOf(permanent);
+        const { [cardId]: _gone, ...permanents } = current.permanents;
+        current = {
+          ...current,
+          permanents,
+          players: {
+            ...current.players,
+            [owner]: {
+              ...current.players[owner],
+              hand: [...current.players[owner].hand, cardId],
+            },
+          },
+        };
+        events.push({ type: "returnedToHand", playerId: owner, cardId });
+      }
+      return { state: current, events };
+    }
+
+    default: {
+      const unhandled: never = does;
+      void unhandled;
+      return { state, events: [] };
+    }
+  }
+}
+
 /**
  * Pays one ability cost, or returns undefined if it can't be paid. Only rune
  * sources are handled so far — recycling a main-deck card as a cost (Ekko,
@@ -1475,6 +1628,8 @@ function payAbilityCost(
   state: GameState,
   cost: AbilityCost,
   context: EffectContext,
+  /** R355.1 — what this cost's `chosen` entry named, if it names anything. */
+  chosen: CardId[] = [],
 ): { state: GameState; events: GameEvent[] } | undefined {
   const { controller, sourceId } = context;
   const player = state.players[controller];
@@ -1551,25 +1706,20 @@ function payAbilityCost(
       };
     }
 
-    // R422.3 — "the Action must be able to be completed for the cost to be
-    // paid", so a short hand cannot pay it at all. Which cards go is not asked:
-    // a cost is paid as the ability is played, and R355 leaves no room to stop
-    // and ask there, so this takes from the front. Written up as a deviation.
-    case "discard": {
-      if (player.hand.length < cost.count) return undefined;
-      const going = player.hand.slice(0, cost.count);
-      return {
-        state: withPlayer(state, controller, {
-          ...player,
-          hand: player.hand.slice(cost.count),
-          trash: [...player.trash, ...going],
-        }),
-        events: going.map((cardId) => ({
-          type: "cardDiscarded" as const,
-          playerId: controller,
-          cardId,
-        })),
-      };
+    // R355.1 — the choice was made as the card was played, so paying is a
+    // matter of checking what was named and then performing the game action.
+    //
+    // The pool is read from the state *as it stands now*, which is after R354
+    // step 1 has emptied the played card's zone. That is what stops "discard 1
+    // as an additional cost" from being paid with the very card being played.
+    case "chosen": {
+      const pool = choicePoolFor(state, controller, cost, sourceId);
+      // R355.8 — "any number" includes none, so only a stated count is checked.
+      if (cost.count !== "any" && chosen.length !== cost.count) return undefined;
+      // R355.5.a — one object cannot answer the same choice twice.
+      if (new Set(chosen).size !== chosen.length) return undefined;
+      if (chosen.some((cardId) => !pool.includes(cardId))) return undefined;
+      return performChosenCost(state, controller, cost.does, chosen);
     }
 
     // R107.4.c — the Legend's exhausted state lives on the player, since it
@@ -1676,6 +1826,7 @@ export function activateAbility(
   abilityIndex: number,
   targets: CardId[] = [],
   mode = 0,
+  costChoices: CardId[][] = [],
 ): ActionResult {
   const card = state.cards[sourceId];
   if (card === undefined) {
@@ -1759,8 +1910,13 @@ export function activateAbility(
   const deflect = deflectTax(state, playerId, targets);
   const costs: AbilityCost[] =
     deflect === undefined ? ability.costs : [...ability.costs, deflect];
+  let choiceIndex = 0;
   for (const cost of costs) {
-    const paid = payAbilityCost(current, cost, context);
+    // R355.1 — an activated ability's choosing costs are answered the same way
+    // a played card's are: as it is activated, in the order they are paid.
+    const chosen =
+      cost.kind === "chosen" ? (costChoices[choiceIndex++] ?? []) : [];
+    const paid = payAbilityCost(current, cost, context, chosen);
     if (paid === undefined) {
       return rejected("cannotPayAbilityCost");
     }
@@ -1797,6 +1953,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
           action.cardId,
           action.destination,
           action.payOptional,
+          action.costChoices,
         ),
       );
     case "standardMove":
@@ -1825,6 +1982,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
           action.payRepeats,
           action.playFrom,
           action.modes,
+          action.costChoices,
         ),
       );
     case "endTurn":
@@ -1838,6 +1996,7 @@ export function applyAction(state: GameState, action: Action): ActionResult {
         action.abilityIndex,
         action.targets,
         action.mode,
+        action.costChoices,
       ));
     default: {
       const unhandled: never = action;

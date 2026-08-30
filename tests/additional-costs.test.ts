@@ -5,6 +5,7 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import {
   additionalCost,
+  discardCost,
   draw,
   gainXP,
   ifThen,
@@ -208,17 +209,18 @@ describe("non-resource additional costs (R356.2)", () => {
     };
   }
 
-  const play = (payOptional: boolean): Action => ({
+  const play = (payOptional: boolean, costChoices?: string[][]): Action => ({
     type: "playUnitFromHand",
     playerId: "p1",
     cardId: "ritual",
     payOptional,
+    ...(costChoices === undefined ? {} : { costChoices }),
   });
 
   it("pays a discard, and only when the player chose to", () => {
-    const state = board(ritual({ kind: "discard", count: 1 }), ["spare"]);
+    const state = board(ritual(discardCost()), ["spare"]);
 
-    const paid = applyAction(state, play(true));
+    const paid = applyAction(state, play(true, [["spare"]]));
     expect(paid.ok).toBe(true);
     if (!paid.ok) return;
     expect(paid.state.players.p1.trash).toEqual(["spare"]);
@@ -231,18 +233,26 @@ describe("non-resource additional costs (R356.2)", () => {
 
   /** R354 step 1 — the card is on the chain before its costs are paid. */
   it("never discards the card being played", () => {
-    const state = board(ritual({ kind: "discard", count: 1 }), ["spare"]);
-    const paid = applyAction(state, play(true));
+    const state = board(ritual(discardCost()), ["spare"]);
+    const paid = applyAction(state, play(true, [["spare"]]));
 
     expect(paid.ok).toBe(true);
     if (!paid.ok) return;
     expect(paid.state.players.p1.trash).not.toContain("ritual");
+
+    // R422.1.a leaves the choice to the discarding player, and R354 step 1 has
+    // already moved the card being played out of the hand — so naming it is
+    // not a choice that exists.
+    expect(applyAction(state, play(true, [["ritual"]]))).toEqual({
+      ok: false,
+      reason: "cannotAffordCost",
+    });
   });
 
   it("refuses when it cannot be paid", () => {
-    const state = board(ritual({ kind: "discard", count: 1 }));
+    const state = board(ritual(discardCost()));
 
-    expect(applyAction(state, play(true))).toEqual({
+    expect(applyAction(state, play(true, [[]]))).toEqual({
       ok: false,
       reason: "cannotAffordCost",
     });
@@ -273,8 +283,8 @@ describe("non-resource additional costs (R356.2)", () => {
   });
 
   it("records that the cost was paid, for R205 to ask about later", () => {
-    const state = board(ritual({ kind: "discard", count: 1 }), ["spare"]);
-    const paid = applyAction(state, play(true));
+    const state = board(ritual(discardCost()), ["spare"]);
+    const paid = applyAction(state, play(true, [["spare"]]));
 
     expect(paid.ok).toBe(true);
     if (!paid.ok) return;

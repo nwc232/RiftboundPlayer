@@ -3,7 +3,14 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import { execute } from "../src/abilities.js";
 import type { EffectContext } from "../src/abilities.js";
-import { activated, burn, dealDamage, discard, draw } from "../src/builders.js";
+import {
+  activated,
+  burn,
+  dealDamage,
+  discard,
+  discardCost,
+  draw,
+} from "../src/builders.js";
 import { VICTORY_SCORE } from "../src/scoring.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
@@ -169,7 +176,7 @@ describe("burning (R440)", () => {
 describe("discarding as a cost (R422.3)", () => {
   const forge: CardInstance = {
     ...unit("forge", { might: 2 }),
-    abilities: [{ ...activated([{ kind: "discard", count: 2 }], draw(1)) }],
+    abilities: [{ ...activated([discardCost(2)], draw(1)) }],
   };
 
   function costBoard(hand: string[]): GameState {
@@ -183,15 +190,16 @@ describe("discarding as a cost (R422.3)", () => {
     });
   }
 
-  const USE: Action = {
+  const use = (costChoices: string[][]): Action => ({
     type: "activateAbility",
     playerId: "p1",
     sourceId: "forge",
     abilityIndex: 0,
-  };
+    costChoices,
+  });
 
   it("pays with two cards and does the thing", () => {
-    const result = applyAction(costBoard(["a", "b"]), USE);
+    const result = applyAction(costBoard(["a", "b"]), use([["a", "b"]]));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
@@ -201,7 +209,7 @@ describe("discarding as a cost (R422.3)", () => {
 
   /** Unlike R422.4's effect, a cost of Discard 2 with one card cannot be paid. */
   it("cannot be paid from a short hand", () => {
-    expect(applyAction(costBoard(["a"]), USE)).toEqual({
+    expect(applyAction(costBoard(["a"]), use([["a"]]))).toEqual({
       ok: false,
       reason: "cannotPayAbilityCost",
     });

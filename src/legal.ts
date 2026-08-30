@@ -3,7 +3,13 @@ import type { Action } from "./actions.js";
 import { modeCountOf } from "./actions.js";
 import { modeOf } from "./abilities.js";
 import type { ActivatedAbility } from "./abilities.js";
-import { flowCostsOf, repeatCostsOf } from "./costing.js";
+import {
+  choicePoolFor,
+  choosingCostsOf,
+  flowCostsOf,
+  repeatCostsOf,
+} from "./costing.js";
+import type { PlayZone } from "./zones.js";
 import { playZonesFor } from "./zones.js";
 import { legalTargets } from "./decisions.js";
 import { abilitiesOf } from "./layers.js";
@@ -193,6 +199,49 @@ function orderings(ids: CardId[]): CardId[][] {
   );
 }
 
+/**
+ * How many answers one choosing cost is enumerated with. "Kill any number of
+ * friendly units" has 2^n of them, and each one multiplies every other choice
+ * on the play, so a wide board needs a bound. The UI never relies on this — it
+ * stages the clicks and sends what the player built — so this only limits what
+ * the CLI and the tests can discover.
+ */
+const COST_CHOICE_MAX = 32;
+
+/**
+ * R355.1 — every way this play could answer its choosing costs, as one entry
+ * per cost in `choosingCostsOf`'s order.
+ *
+ * The pool is read from the state as it stands *before* the play, so a
+ * "discard 1" cost is offered the card being played. `applyAction` computes
+ * the same pool after R354 step 1 has emptied its zone and refuses that one —
+ * which is the point of filtering candidates through it rather than second-
+ * guessing here.
+ */
+function costChoiceTuples(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+  options: { zone?: PlayZone; payOptional?: boolean; payRepeats?: number[] },
+): CardId[][][] {
+  const costs = choosingCostsOf(state, playerId, cardId, options);
+  if (costs.length === 0) return [[]];
+
+  let out: CardId[][][] = [[]];
+  for (const cost of costs) {
+    const pool = choicePoolFor(state, playerId, cost, cardId);
+    // R355.8 — "any number" includes none, so the empty subset is an answer;
+    // a stated count admits only the subsets of exactly that size.
+    const answers = (
+      cost.count === "any"
+        ? subsets(pool, pool.length)
+        : subsets(pool, cost.count).filter((each) => each.length === cost.count)
+    ).slice(0, COST_CHOICE_MAX);
+    out = out.flatMap((prefix) => answers.map((answer) => [...prefix, answer]));
+  }
+  return out;
+}
+
 function candidates(state: GameState, playerId: PlayerId): Action[] {
   // R320.1 — while a decision is outstanding, answering it is the only move.
   const pending = state.pending;
@@ -297,14 +346,21 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
   // playing, so each play is offered both ways and `applyAction` prices them.
   for (const cardId of playable) {
     for (const payOptional of [false, true]) {
-      for (const destination of locations(state, playerId)) {
-        out.push({
-          type: "playUnitFromHand",
-          playerId,
-          cardId,
-          destination,
-          payOptional,
-        });
+      const unitZone = playZonesFor(state, playerId, cardId)[0];
+      for (const costChoices of costChoiceTuples(state, playerId, cardId, {
+        ...(unitZone === undefined ? {} : { zone: unitZone }),
+        payOptional,
+      })) {
+        for (const destination of locations(state, playerId)) {
+          out.push({
+            type: "playUnitFromHand",
+            playerId,
+            cardId,
+            destination,
+            payOptional,
+            costChoices,
+          });
+        }
       }
       // R820.1.c.2 — each [Repeat] cost is paid or not on its own, so every
       // subset of them is a different play at a different price.
@@ -320,22 +376,31 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
         for (const payRepeats of subsets(repeats, repeats.length)) {
           const executions = 1 + payRepeats.length;
           for (const modes of modeChoices(modeCount, executions)) {
+            const spellZone = playZonesFor(state, playerId, cardId)[playFrom];
+            const costTuples = costChoiceTuples(state, playerId, cardId, {
+              ...(spellZone === undefined ? {} : { zone: spellZone }),
+              payOptional,
+              payRepeats,
+            });
             for (const chosen of repeatedTargetTuples(
               state,
               playerId,
               cardId,
               modes,
             )) {
-              out.push({
-                type: "playSpell",
-                playerId,
-                cardId,
-                targets: chosen,
-                payOptional,
-                payRepeats,
-                playFrom,
-                ...(modeCount > 0 ? { modes } : {}),
-              });
+              for (const costChoices of costTuples) {
+                out.push({
+                  type: "playSpell",
+                  playerId,
+                  cardId,
+                  targets: chosen,
+                  payOptional,
+                  payRepeats,
+                  playFrom,
+                  costChoices,
+                  ...(modeCount > 0 ? { modes } : {}),
+                });
+              }
             }
           }
         }
@@ -358,17 +423,24 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
       if (ability.kind !== "activated") return;
       // "Choose one —": one offer per arm, each with its own choices.
       const arms = ability.modes?.map((_, index) => index) ?? [0];
+      // R355.1 — an ability's choosing costs are answered as it is activated,
+      // the same way a played card's are. Its costs are its own, so the list is
+      // `ability.costs` rather than a play's assembled one.
+      const costTuples = abilityCostChoiceTuples(state, playerId, sourceId, ability);
       for (const mode of arms) {
         const filters = modeOf(ability, mode).targeting?.filters ?? [];
         const modeField = ability.modes !== undefined ? { mode } : {};
         if (filters.length === 0) {
-          out.push({
-            type: "activateAbility",
-            playerId,
-            sourceId,
-            abilityIndex,
-            ...modeField,
-          });
+          for (const costChoices of costTuples) {
+            out.push({
+              type: "activateAbility",
+              playerId,
+              sourceId,
+              abilityIndex,
+              costChoices,
+              ...modeField,
+            });
+          }
           continue;
         }
         for (const chosen of abilityTargetTuples(
@@ -378,14 +450,17 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
           ability,
           mode,
         )) {
-          out.push({
-            type: "activateAbility",
-            playerId,
-            sourceId,
-            abilityIndex,
-            targets: chosen,
-            ...modeField,
-          });
+          for (const costChoices of costTuples) {
+            out.push({
+              type: "activateAbility",
+              playerId,
+              sourceId,
+              abilityIndex,
+              targets: chosen,
+              costChoices,
+              ...modeField,
+            });
+          }
         }
       }
     });
@@ -397,6 +472,31 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     }
   }
 
+  return out;
+}
+
+/**
+ * Every way an activated ability could answer its own choosing costs. The same
+ * shape as `costChoiceTuples`, over the ability's printed cost list rather than
+ * over the ordered costs a *play* assembles from four rules.
+ */
+function abilityCostChoiceTuples(
+  state: GameState,
+  playerId: PlayerId,
+  sourceId: CardId,
+  ability: ActivatedAbility,
+): CardId[][][] {
+  let out: CardId[][][] = [[]];
+  for (const cost of ability.costs) {
+    if (cost.kind !== "chosen") continue;
+    const pool = choicePoolFor(state, playerId, cost, sourceId);
+    const answers = (
+      cost.count === "any"
+        ? subsets(pool, pool.length)
+        : subsets(pool, cost.count).filter((each) => each.length === cost.count)
+    ).slice(0, COST_CHOICE_MAX);
+    out = out.flatMap((prefix) => answers.map((answer) => [...prefix, answer]));
+  }
   return out;
 }
 

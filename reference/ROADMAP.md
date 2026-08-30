@@ -405,7 +405,8 @@ otherwise, and this one fix closes five separate deviations at once.
 |---|---|---|
 | ~~**Non-resource keyword costs**~~ | R820.1.c.2, R827.1.c.2, R829.1.c.2 | ~4 | Done — [Repeat], [Flow] and [Empower] hold an `AbilityCost[]`. |
 | ~~**Cost *increases***~~ | R356.3 | 4 | Done — and all four are auras, so they needed the board sweep rather than the empty slot. |
-| **Non-resource *additional* costs** (R356.2) | R356.2, R818 | ~10 | Atakhan's "kill a friendly unit as an additional cost" — and it wants a *choice*, which a cost paid inside finalization cannot ask for. |
+| ~~**Non-resource *additional* costs**~~ (R356.2) | R356.2, R818 | ~10 | Done — an additional cost holds an `AbilityCost[]`. |
+| ~~**Costs that choose**~~ | R355.1, R422.1.a | ~16 | Done — the choice rides in the action beside `targets`. "It wants a choice a cost paid inside finalization cannot ask for" was the wrong reading: R355.1 puts the choice at the *start* of playing, which is when the action is submitted, so nothing suspends. |
 | **Reducing a keyword's cost** — Marai Spire, Stargazer | R812 | 2 |
 
 The earlier count of 20 for cost increases was wrong: most of those matches are
@@ -425,7 +426,7 @@ step-3 slot `costing.ts` was carrying.
 
 ### 6d. Structural deviations worth closing
 
-Thirty-seven are on the running list at the end of `mechanic-survey.md`. The
+The running list at the end of `mechanic-survey.md` is the live count. The
 ones that block whole card families rather than single cards:
 
 - **A passive cannot reach a card that is not a permanent.** R711 reads

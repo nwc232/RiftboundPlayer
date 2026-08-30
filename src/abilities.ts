@@ -33,7 +33,7 @@ import type {
 } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
 import { ambiguousDamage, replaceDamage } from "./replacements.js";
-import type { Targeting } from "./decisions.js";
+import type { Targeting, TargetFilter } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
 import type { DeathReplacement, EntryReplacement } from "./replacements.js";
@@ -349,12 +349,42 @@ export type AbilityCost =
    */
   | { kind: "disempowerSelf" }
   /**
+   * A cost that names something to *choose*: "kill a friendly unit", "you may
+   * exhaust a friendly unit", "spend a buff", "discard 1".
+   *
+   * R355.1 puts every Relevant Choice at the *start* of playing a card, which
+   * is the moment the action is submitted — so the choice rides in the action
+   * beside `targets` rather than suspending the play to ask. Nothing about
+   * finalization has to stop, which is why this needed no new machinery: a
+   * chosen card reaches `payAbilityCost` the way a target reaches an effect.
+   *
    * R422.3 — "When Discarding is listed as a Cost, then the Action must be
    * able to be completed for the cost to be paid." Unlike R422.4's effect,
    * which discards as many as it can, a cost of Discard 2 with one card in
-   * hand simply cannot be paid.
+   * hand simply cannot be paid. The same holds for every verb here.
    */
-  | { kind: "discard"; count: number }
+  | {
+      kind: "chosen";
+      /**
+       * R412 Kill, R414 Exhaust, R422 Discard, R56 return to owner's hand, and
+       * R701–705's spending of a Buff. The verb also carries its own
+       * requirement — R414.1.b will not exhaust what is already exhausted, and
+       * an unbuffed unit has no buff to spend — which is the game action's
+       * business rather than the filter's.
+       */
+      does: "kill" | "exhaust" | "spendBuff" | "returnToHand" | "discard";
+      /**
+       * What may be chosen. Omitted means the controller's hand, which is a
+       * different search from the board and the only pool a Discard uses.
+       */
+      from?: TargetFilter;
+      /**
+       * "Kill *any number of* friendly units" — Commander Ledros, Kraken
+       * Hunter. R355.8 makes zero a legal answer to "any number", so this is
+       * not the same as a count the player happens to be able to meet.
+       */
+      count: number | "any";
+    }
   /**
    * "You may exhaust your legend as an additional cost." R107.4.c — the
    * Champion Legend has no permanent, so its exhausted state lives on the

@@ -1,5 +1,6 @@
 import { addCosts } from "./cost.js";
 import type { AbilityCost, CostAuraAbility } from "./abilities.js";
+import type { PlayZone } from "./zones.js";
 import { FREE } from "./cost.js";
 import {
   characteristicsOf,
@@ -7,6 +8,7 @@ import {
   keywordsOf,
   resourcePartOf,
 } from "./layers.js";
+import { legalTargets } from "./decisions.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 import type { CardId, Cost, GameState, PlayerId, PowerCount } from "./state.js";
@@ -174,6 +176,94 @@ export function additionalCostsOf(
   }
 
   return costs;
+}
+
+/**
+ * Every non-resource cost this play has to pay, in the fixed order it pays
+ * them. R356.2's additional costs, [Repeat]'s (R820.1.c.2) and [Flow]'s
+ * (R829.1.c.2) all "may include both resource costs and non-resource costs";
+ * the resource halves are summed by `totalCostOf` and paid in one go, and
+ * these are the rest.
+ *
+ * The order is not incidental. `costChoices` on the action is indexed against
+ * the choosing entries of this list, so `legalActions` and `applyAction` have
+ * to walk it identically — which they do by both calling this rather than each
+ * assembling their own.
+ */
+export function nonResourceCostsOf(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+  options: {
+    zone?: PlayZone;
+    payOptional?: boolean;
+    payRepeats?: readonly number[];
+  } = {},
+): AbilityCost[] {
+  const repeats = repeatCostsOf(state, cardId, playerId);
+  return [
+    // R829.1.c.2 — [Flow]'s non-resource half, which belongs to the zone the
+    // card is being played from rather than to the card.
+    ...(options.zone?.extraCosts ?? []),
+    // R356.2 — mandatory additional costs always, optional ones only when the
+    // player chose to pay (R356.2.b.1).
+    ...additionalCostsOf(state, cardId).flatMap((additional) =>
+      additional.optional && options.payOptional !== true
+        ? []
+        : additional.costs,
+    ),
+    // R820.1.c.2 — and each [Repeat] cost this play elected to pay.
+    ...(options.payRepeats ?? []).flatMap((index) => repeats[index] ?? []),
+  ].filter((each) => each.kind !== "pay");
+}
+
+/**
+ * What a `chosen` cost will accept. The filter says what may be named; the
+ * verb adds its own requirement on top, because R414.1.b's "an exhausted
+ * object cannot be exhausted" and R704's "you have no buff to spend" are
+ * conditions of the *game action*, not of the choice.
+ */
+export function choicePoolFor(
+  state: GameState,
+  controller: PlayerId,
+  cost: Extract<AbilityCost, { kind: "chosen" }>,
+  sourceId: CardId,
+): CardId[] {
+  // R422.1.a — a Discard chooses from the discarding player's hand, which is
+  // not a board search and so has no filter to apply.
+  if (cost.from === undefined) return state.players[controller].hand;
+
+  const pool = legalTargets(state, controller, cost.from, sourceId);
+  switch (cost.does) {
+    // R414.1.b — an already-exhausted object can't be exhausted again.
+    case "exhaust":
+      return pool.filter((cardId) => state.permanents[cardId]?.exhausted === false);
+    // R701–705 — the buff *is* the cost, so an unbuffed unit cannot pay it.
+    case "spendBuff":
+      return pool.filter((cardId) => state.permanents[cardId]?.buffed === true);
+    default:
+      return pool;
+  }
+}
+
+/**
+ * The entries of `nonResourceCostsOf` that ask the player to choose something,
+ * in the same order. One entry of the action's `costChoices` answers each.
+ */
+export function choosingCostsOf(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+  options: {
+    zone?: PlayZone;
+    payOptional?: boolean;
+    payRepeats?: readonly number[];
+  } = {},
+): Extract<AbilityCost, { kind: "chosen" }>[] {
+  return nonResourceCostsOf(state, playerId, cardId, options).filter(
+    (each): each is Extract<AbilityCost, { kind: "chosen" }> =>
+      each.kind === "chosen",
+  );
 }
 
 /**

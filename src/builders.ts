@@ -17,7 +17,7 @@ import type {
   PlayPermissionAbility,
   ReplacementAbility,
 } from "./abilities.js";
-import type { Targeting } from "./decisions.js";
+import type { Targeting, TargetFilter } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
 import type {
   CostKeyword,
@@ -60,6 +60,26 @@ export function seq(...steps: Effect[]): Effect {
 
 export const exhaustSelf: AbilityCost = { kind: "exhaustSelf" };
 export const recycleSelf: AbilityCost = { kind: "recycleSelf" };
+
+/**
+ * R422 — "discard 1" as a cost. R422.1.a leaves the choice to the discarding
+ * player, so this is a `chosen` cost with the hand as its pool.
+ */
+export function discardCost(count = 1): AbilityCost {
+  return { kind: "chosen", does: "discard", count };
+}
+
+/**
+ * "Kill a friendly unit as an additional cost", and the rest of the family.
+ * The filter says what may be named; the verb says what happens to it.
+ */
+export function chosenCost(
+  does: Extract<AbilityCost, { kind: "chosen" }>["does"],
+  from: TargetFilter,
+  count: number | "any" = 1,
+): AbilityCost {
+  return { kind: "chosen", does, from, count };
+}
 
 // Abilities.
 
@@ -602,7 +622,8 @@ export function flow(...costs: (Partial<Cost> | AbilityCost)[]): FlowAbility {
 
 export function additionalCost(
   cost: Cost | AbilityCost | (Cost | AbilityCost)[],
-  optional: true | undefined = true,
+  /** R356.2.a.1 — an additional cost with no "may" on it is mandatory. */
+  optional = true,
 ): AdditionalCostAbility {
   const list = Array.isArray(cost) ? cost : [cost];
   return {

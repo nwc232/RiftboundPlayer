@@ -206,6 +206,12 @@ export function renderAvailableAbilities(
 
   const label = (cardId: string) => state.cards[cardId]?.name ?? cardId;
 
+  // R355.1 — a cost that names something is answered in the same command, so
+  // two plays that differ only in what they kill have to print differently or
+  // the dedup below collapses them into one typeable line.
+  const paid = (costChoices: string[][] | undefined) =>
+    (costChoices ?? []).map((choice) => ` pay:${choice.join(",")}`).join("");
+
   for (const action of legalActions(state, playerId)) {
     let command: string;
     let note = "";
@@ -214,7 +220,9 @@ export function renderAvailableAbilities(
       case "playUnitFromHand":
         command = `play ${action.cardId} ${locationName(
           action.destination ?? { kind: "base", player: action.playerId },
-        )}${action.payOptional === true ? " +cost" : ""}`;
+        )}${action.payOptional === true ? " +cost" : ""}${paid(
+          action.costChoices,
+        )}`;
         note = label(action.cardId);
         break;
       case "playSpell":
@@ -223,7 +231,8 @@ export function renderAvailableAbilities(
           (action.targets === undefined || action.targets.length === 0
             ? ""
             : ` ${action.targets.join(" ")}`) +
-          (action.payOptional === true ? " +cost" : "");
+          (action.payOptional === true ? " +cost" : "") +
+          paid(action.costChoices);
         note = label(action.cardId);
         break;
       case "hide":
@@ -235,7 +244,8 @@ export function renderAvailableAbilities(
           `use ${action.sourceId} ${action.abilityIndex}` +
           (action.targets === undefined || action.targets.length === 0
             ? ""
-            : ` ${action.targets.join(" ")}`);
+            : ` ${action.targets.join(" ")}`) +
+          paid(action.costChoices);
         note = label(action.sourceId);
         break;
       case "standardMove":

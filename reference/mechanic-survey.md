@@ -710,27 +710,19 @@ built when a card asks for it.
   what a *card* costs; Marai Spire ("friendly [Repeat] costs cost [1] less")
   and Stargazer ("spells with [Flow] you play from your trash cost [2] less")
   name a *keyword's* cost, which is a different subject.
-- **A discard *cost* does not ask which cards.** R422.1.a gives the choice to
-  the discarding player, and the *effect* asks. A cost is paid as the ability
-  is played, inside R355's finalization, where the engine has no room to stop
-  and ask — so `{ kind: "discard" }` takes from the front of the hand. R422.3's
-  legality is right (a short hand cannot pay); only the choice is missing.
-  Closing it means letting finalization suspend, which is a bigger change than
-  the two cards printing it justify.
-- **A cost cannot ask a question.** R356.2's additional costs hold an
-  `AbilityCost[]` now, so discarding, spending XP and exhausting a Legend all
-  work. What is left is the shapes that *choose*: Atakhan's "you may kill a
-  friendly unit as an additional cost", "you may spend a buff" where the buff
-  is any friendly unit's, and R422.1.a's choice of *which* cards a discard
-  cost sends. Three cards.
-
-  **This was first written up as structurally blocked, and that was wrong.**
-  The reasoning was that finalization cannot suspend, which is true and
-  irrelevant: R355.1 puts these choices at the *start* of playing a card,
-  which is exactly when the action is submitted. A spell's targets already
-  ride in the action and are enumerated by `legalActions`; a cost's chosen
-  unit is another field on the same action, found the same way. No suspension
-  is involved. Normal-sized work, not structural.
+- **R372's ordering is not asked for a kill paid as a cost.** A cost that
+  kills something you choose ("kill a friendly unit as an additional cost") is
+  a real kill, so death replacements apply — but R372's "the controller of the
+  object being acted on determines the order the Replacement Effects will
+  apply" cannot be *asked* there. A cost is paid partway through R354, where
+  there is nowhere to stop. Two replacements racing for one death therefore
+  resolve in printed order. It takes one unit carrying two of them, which no
+  pair of cards in the pool does yet.
+- **A triggered ability cannot carry a choosing cost.** R383.3.b's costs are
+  paid as the ability finalizes, which the engine does on its own rather than
+  in response to an action — so there is no action to carry the choice in. No
+  card in the pool prints one on a triggered ability; if one appears, the
+  answer is a `PendingDecision` before finalization, not a wider action.
 - **R443's Skip is not built, and the one card printing it needs three other
   things.** Endless Riches is the only card in the pool that skips anything
   ("skip your Draw Phase"), and it also wants playing cards from a trash

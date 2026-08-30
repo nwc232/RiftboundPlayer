@@ -30,6 +30,10 @@ commands
 add "+cost" to the end of a play or cast to pay an optional additional
 cost — [Accelerate], Pyke, Rampage.
 
+add "pay:<id>" for a cost that names something — "kill a friendly unit as an
+additional cost". One pay: per such cost, in printed order; "pay:a,b" names
+two for a cost that takes any number, and a bare "pay:" names none.
+
 two modes, switched with "reset sandbox" / "reset decks":
   decks    the two real lists — Vex, Gloomist against Rengar, Pridestalker
   sandbox  a small hand-built board with a garrison to attack
@@ -62,6 +66,25 @@ const log: GameEvent[] = [];
  * whoever the rules currently expect: the player owing a decision, the one
  * holding priority, the one with Focus, else the turn player.
  */
+/**
+ * R355.1 — a cost that names something is answered as the card is played, so
+ * the answer travels in the same command. One `pay:` token per choosing cost,
+ * in `choosingCostsOf`'s order; a token names several ids for "kill any
+ * number of friendly units", and `pay:` alone answers one with none.
+ */
+const PAY_PREFIX = "pay:";
+
+function costChoicesFrom(args: string[]): string[][] {
+  return args
+    .filter((arg) => arg.startsWith(PAY_PREFIX))
+    .map((arg) =>
+      arg
+        .slice(PAY_PREFIX.length)
+        .split(",")
+        .filter((id) => id.length > 0),
+    );
+}
+
 function actingPlayer(): "p1" | "p2" {
   if (state.pending !== null) return state.pending.player;
   if (state.chain.length > 0 && state.priority !== null) return state.priority;
@@ -139,12 +162,15 @@ function handle(line: string): boolean {
     case "cast": {
       const cardId = args[0];
       if (cardId === undefined) {
-        console.log("  usage: cast <cardId> [targetId]\n");
+        console.log("  usage: cast <cardId> [targetId] [pay:<id>[,<id>]]\n");
         return true;
       }
       const rest = args.slice(1);
       const payOptional = rest.includes("+cost");
-      const targets = rest.filter((arg) => arg !== "+cost");
+      const costChoices = costChoicesFrom(rest);
+      const targets = rest.filter(
+        (arg) => arg !== "+cost" && !arg.startsWith(PAY_PREFIX),
+      );
       const acting = actingPlayer();
       run({
         type: "playSpell",
@@ -152,6 +178,7 @@ function handle(line: string): boolean {
         cardId,
         targets,
         payOptional,
+        costChoices,
       });
       return true;
     }
@@ -164,12 +191,17 @@ function handle(line: string): boolean {
     case "play": {
       const cardId = args[0];
       if (cardId === undefined) {
-        console.log("  usage: play <cardId> [base|battlefieldId] [+cost]\n");
+        console.log(
+          "  usage: play <cardId> [base|battlefieldId] [+cost] [pay:<id>[,<id>]]\n",
+        );
         return true;
       }
       const rest = args.slice(1);
       const payOptional = rest.includes("+cost");
-      const where = rest.find((arg) => arg !== "+cost");
+      const costChoices = costChoicesFrom(rest);
+      const where = rest.find(
+        (arg) => arg !== "+cost" && !arg.startsWith(PAY_PREFIX),
+      );
       const acting = actingPlayer();
       run({
         type: "playUnitFromHand",
@@ -180,6 +212,7 @@ function handle(line: string): boolean {
             ? { kind: "base", player: acting }
             : { kind: "battlefield", id: where },
         payOptional,
+        costChoices,
       });
       return true;
     }
@@ -216,15 +249,19 @@ function handle(line: string): boolean {
       const sourceId = args[0];
       const index = Number(args[1] ?? "0");
       if (sourceId === undefined || Number.isNaN(index)) {
-        console.log("  usage: use <cardId> <abilityIndex> [targetId...]\n");
+        console.log(
+          "  usage: use <cardId> <abilityIndex> [targetId...] [pay:<id>[,<id>]]\n",
+        );
         return true;
       }
+      const rest = args.slice(2);
       run({
         type: "activateAbility",
         playerId: actingPlayer(),
         sourceId,
         abilityIndex: index,
-        targets: args.slice(2),
+        targets: rest.filter((arg) => !arg.startsWith(PAY_PREFIX)),
+        costChoices: costChoicesFrom(rest),
       });
       return true;
     }

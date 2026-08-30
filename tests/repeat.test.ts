@@ -7,6 +7,7 @@ import {
   activated,
   controlsOtherUnits,
   dealDamage,
+  discardCost,
   draw,
   ifThen,
   lookAtTop,
@@ -185,6 +186,7 @@ describe("[Repeat] (R820)", () => {
         cardId: "bolt",
         targets: ["ogre", "ogre"],
         payRepeats: [0],
+        costChoices: [[]],
       }),
     ).toEqual({ ok: false, reason: "cannotAffordCost" });
   });
@@ -320,7 +322,7 @@ describe("a non-resource Repeat cost (R820.1.c.2)", () => {
         ...activated([], dealDamage(2)),
         targeting: { filters: [{ type: "unit", controller: "enemy" }] },
       },
-      repeat({ kind: "discard", count: 1 }),
+      repeat(discardCost()),
     ],
   });
 
@@ -357,6 +359,7 @@ describe("a non-resource Repeat cost (R820.1.c.2)", () => {
       cardId: "bolt",
       targets: ["ogre", "ogre"],
       payRepeats: [0],
+      costChoices: [["x"]],
     });
 
     expect(after.players.p1.trash).toContain("x");
