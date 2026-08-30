@@ -764,21 +764,6 @@ built when a card asks for it.
   them. Nothing printed needs it: every "each player" effect in the pool is a
   draw, a reveal, a burn or a discard, and only the discard asks, which is
   R422.1.a's choice by the discarding player rather than a shared prompt.
-- **The rarer "can't" restrictions are unbuilt.** The three families that
-  cover most of the twenty-four cards are built — "can't be chosen by enemy
-  spells and abilities", "can't move to base", "can't be countered". What is
-  left is one card each: "opponents can't play cards this turn", "players
-  can't score here until their third turn", "I can't be readied", "spells and
-  abilities can't ready enemy units", "I can't be dealt damage unless I'm in
-  combat", "units can't be played here", "opponents' [Hidden] cards can't be
-  revealed here". Each restricts a different action, so each wants its own
-  check at that action rather than one shared mechanism.
-- **A resource's usage restriction is only ever a card type.** `PaymentRestriction`
-  has one shape, `onlyCardType`, and three more are printed: "Spend this Energy
-  only during showdowns" (a timing), "Use only to play gear **or use gear
-  abilities**" (a compound of type and ability source), and "Use only to play
-  spells". Six cards. The restriction plumbing exists — only the predicate is
-  narrow.
 - **Dependent-keyword conditions are duplicated in two places.**
   `PassiveCondition` (layers.ts) gained `xpAtLeast` for [Level] even though
   `Condition` (conditions.ts) already has `hasXP` saying the same thing.

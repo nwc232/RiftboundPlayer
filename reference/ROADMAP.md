@@ -430,10 +430,10 @@ step-3 slot `costing.ts` was carrying.
 The running list at the end of `mechanic-survey.md` is the live count. The
 ones that block whole card families rather than single cards:
 
-- **A passive cannot reach a card that is not a permanent.** R711 reads
-  off-board objects on printed values. Syndra's "your spells have [Repeat]",
-  Marai Spire's cost reduction and §3b's cost modification all want the same
-  scope.
+- ~~**A passive cannot reach a card that is not a permanent.**~~ Closed by
+  sweeping the board when the question is *asked*, so R711 is never
+  contradicted — the card is never modified. `costAura`, `keywordAura` and now
+  `restrictionAura` are the three that needed it.
 - ~~**`viewOf` filters state but not events.**~~ Closed — `eventsFor` is the
   companion, and the UI keeps raw events so the seat filter applies at display
   time rather than once at dispatch. `viewOf` also stopped handing an
