@@ -65,7 +65,10 @@ export function hide(
   // R107.3.b / R811.1.b — "that doesn't already have a facedown card hidden there".
   if (state.facedown[battlefieldId] !== undefined) return "facedownZoneOccupied";
 
-  const remainingPool = spend(player.runePool, HIDE_COST, { kind: "hide" });
+  const remainingPool = spend(player.runePool, HIDE_COST, {
+    kind: "hide",
+    inShowdown: state.showdown !== null,
+  });
   if (remainingPool === undefined) return "cannotAffordCost";
 
   const facedown: FacedownCard = {

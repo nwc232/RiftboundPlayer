@@ -15,6 +15,7 @@ import type {
   Location,
   PlayerId,
   PlaySource,
+  PaymentRestriction,
   PowerCount,
 } from "./state.js";
 import { leaveChain } from "./chain.js";
@@ -48,8 +49,19 @@ import type { Condition } from "./conditions.js";
  * is what lets other cards read and rewrite them before they run.
  */
 export type Effect =
-  | { op: "addEnergy"; amount: number }
-  | { op: "addPower"; domain: Domain | "selfDomain"; amount: number }
+  /**
+   * R160 — [Add]. Five cards add resources that are not fully general: "use
+   * only to play spells", "spend this Energy only during showdowns". The
+   * restriction travels with the resources into their own bucket, so it is a
+   * property of what was added rather than of the pool.
+   */
+  | { op: "addEnergy"; amount: number; restriction?: PaymentRestriction }
+  | {
+      op: "addPower";
+      domain: Domain | "selfDomain";
+      amount: number;
+      restriction?: PaymentRestriction;
+    }
   /** `targetIndex` picks from the choices made when the item was played. */
   | { op: "dealDamage"; amount: number; targetIndex: number }
   /** `targetIndex` names a chosen *player* — "each player draws 1". */
@@ -919,7 +931,7 @@ export function execute(
     case "addEnergy":
       return {
         state: withPool(state, context.controller, (pool) =>
-          creditEnergy(pool, effect.amount),
+          creditEnergy(pool, effect.amount, effect.restriction ?? null),
         ),
         events: [
           {
@@ -937,7 +949,7 @@ export function execute(
       }
       return {
         state: withPool(state, context.controller, (pool) =>
-          creditPower(pool, domain, effect.amount),
+          creditPower(pool, domain, effect.amount, effect.restriction ?? null),
         ),
         events: [
           {
@@ -2293,8 +2305,11 @@ export function execute(
       };
 
       const player = state.players[context.controller];
+      const sourceCard = state.cards[context.sourceId];
       const remaining = spend(player.runePool, cost, {
         kind: "activateAbility",
+        ...(sourceCard === undefined ? {} : { sourceType: sourceCard.type }),
+        inShowdown: state.showdown !== null,
       });
       // R821.1.c.5 — "If the chosen card's Equip cost can't be paid … it stays
       // in its current location, Attached to anything it was already Attached

@@ -346,7 +346,13 @@ export function whyNotPlayable(
   if (card === undefined) return null;
 
   const cost = totalCostOf(state, playerId, cardId);
-  if (!canPay(player.runePool, cost, { kind: "playCard", cardType: card.type })) {
+  if (
+    !canPay(player.runePool, cost, {
+      kind: "playCard",
+      cardType: card.type,
+      inShowdown: state.showdown !== null,
+    })
+  ) {
     const pool = totals(player.runePool);
     const held = [
       pool.energy > 0 ? `${pool.energy} energy` : "",

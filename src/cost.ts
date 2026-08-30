@@ -20,19 +20,48 @@ export function allows(
   if (restriction === null) {
     return true;
   }
-  return (
-    purpose.kind === "playCard" && purpose.cardType === restriction.cardType
-  );
+
+  switch (restriction.kind) {
+    // R323 — "only during showdowns", which is a fact about the moment rather
+    // than about what is being bought.
+    case "onlyDuringShowdown":
+      return purpose.inShowdown === true;
+
+    case "onlyCardType": {
+      if (purpose.kind === "playCard") {
+        return purpose.cardType === restriction.cardType;
+      }
+      // "…or use gear abilities" — an activated ability counts only when the
+      // restriction says so, and only for a source of the named type.
+      if (restriction.orItsAbilities === true) {
+        return (
+          purpose.kind === "activateAbility" &&
+          purpose.sourceType === restriction.cardType
+        );
+      }
+      return false;
+    }
+
+    default: {
+      const unhandled: never = restriction;
+      void unhandled;
+      return false;
+    }
+  }
 }
 
 function sameRestriction(
   a: PaymentRestriction | null,
   b: PaymentRestriction | null,
 ): boolean {
-  if (a === null || b === null) {
-    return a === b;
-  }
-  return a.kind === b.kind && a.cardType === b.cardType;
+  if (a === null || b === null) return a === b;
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "onlyDuringShowdown") return true;
+  return (
+    b.kind === "onlyCardType" &&
+    a.cardType === b.cardType &&
+    a.orItsAbilities === b.orItsAbilities
+  );
 }
 
 /** Adds resources to the bucket with a matching restriction, creating one if needed. */

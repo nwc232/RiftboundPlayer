@@ -43,14 +43,41 @@ export interface Cost {
  * showdowns"), and Butcher of the Sands restricts by a compound of card type
  * and ability source ("units or activated abilities of units").
  */
-export type PaymentRestriction = { kind: "onlyCardType"; cardType: CardType };
+/**
+ * "Use only to play spells", "only to play gear **or use gear abilities**",
+ * "spend this Energy only during showdowns". Five cards add resources that
+ * are not fully general, and they restrict along two axes: what the resources
+ * may buy, and when they may be spent.
+ */
+export type PaymentRestriction =
+  | {
+      kind: "onlyCardType";
+      cardType: CardType;
+      /**
+       * Fire Below the Mountain — "…or use gear abilities"; Butcher of the
+       * Sands — "…or activated abilities of units". The card type is the same;
+       * what widens is whether an ability *of* that type counts.
+       */
+      orItsAbilities?: true;
+    }
+  /** Scorn of the Moon — "Spend this Energy only during showdowns" (R323). */
+  | { kind: "onlyDuringShowdown" };
 
 /** What the resources are being spent on, checked against a bucket's restriction. */
-export type PaymentPurpose =
+export type PaymentPurpose = (
   | { kind: "playCard"; cardType: CardType }
-  | { kind: "activateAbility" }
+  /** The source's type, for a restriction that names a type's own abilities. */
+  | { kind: "activateAbility"; sourceType?: CardType }
   /** R421.2 — Hide is a Discretionary Action, neither playing nor activating. */
-  | { kind: "hide" };
+  | { kind: "hide" }
+) & {
+  /**
+   * Whether a showdown is open right now (R323). A property of the moment
+   * rather than of the payment, but it rides here because that is where every
+   * caller already assembles what it knows about the payment.
+   */
+  inShowdown?: boolean;
+};
 
 /**
  * A pool of resources sharing one restriction. `universalPower` is Power that

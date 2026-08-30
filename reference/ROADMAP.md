@@ -408,6 +408,7 @@ otherwise, and this one fix closes five separate deviations at once.
 | ~~**Non-resource *additional* costs**~~ (R356.2) | R356.2, R818 | ~10 | Done — an additional cost holds an `AbilityCost[]`. |
 | ~~**Costs that choose**~~ | R355.1, R422.1.a | ~16 | Done — the choice rides in the action beside `targets`. "It wants a choice a cost paid inside finalization cannot ask for" was the wrong reading: R355.1 puts the choice at the *start* of playing, which is when the action is submitted, so nothing suspends. |
 | **Reducing a keyword's cost** — Marai Spire, Stargazer | R812 | 2 |
+| ~~**Resource restrictions**~~ | R160, R323 | 5 | Done — the restricted bucket was already there; what was missing was a vocabulary wide enough. Two axes: what the resources may buy (including that type's *own abilities*, which Fire Below the Mountain and Butcher of the Sands both name) and when they may be spent (Scorn of the Moon's "only during showdowns"). |
 
 The earlier count of 20 for cost increases was wrong: most of those matches are
 "costs *no more than* X", which is a target filter and was built long ago. Four

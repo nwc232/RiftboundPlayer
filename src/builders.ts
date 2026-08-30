@@ -35,25 +35,58 @@ import { FREE } from "./cost.js";
 import type { TokenKind } from "./tokens.js";
 import type {
   CardInstance,
+  CardType,
   Cost,
   Domain,
   Keyword,
+  PaymentRestriction,
   PlaySource,
 } from "./state.js";
 
 // Effects. Each of these builds data and does nothing else — addEnergy(1)
 // returns { op: "addEnergy", amount: 1 }, it does not add any energy.
 
-export function addEnergy(amount: number): Effect {
-  return { op: "addEnergy", amount };
+export function addEnergy(
+  amount: number,
+  /** Lux, Scorn of the Moon — resources that are not fully general. */
+  restriction?: PaymentRestriction,
+): Effect {
+  return {
+    op: "addEnergy",
+    amount,
+    ...(restriction === undefined ? {} : { restriction }),
+  };
 }
 
 export function addPower(
   domain: Domain | "selfDomain",
   amount: number,
+  restriction?: PaymentRestriction,
 ): Effect {
-  return { op: "addPower", domain, amount };
+  return {
+    op: "addPower",
+    domain,
+    amount,
+    ...(restriction === undefined ? {} : { restriction }),
+  };
 }
+
+/** "Use only to play spells" — and "…or use gear abilities" with the flag. */
+export function onlyFor(
+  cardType: CardType,
+  orItsAbilities?: true,
+): PaymentRestriction {
+  return {
+    kind: "onlyCardType",
+    cardType,
+    ...(orItsAbilities === undefined ? {} : { orItsAbilities }),
+  };
+}
+
+/** Scorn of the Moon — "Spend this Energy only during showdowns." */
+export const onlyInShowdowns: PaymentRestriction = {
+  kind: "onlyDuringShowdown",
+};
 
 export function seq(...steps: Effect[]): Effect {
   return { op: "seq", steps };

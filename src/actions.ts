@@ -881,6 +881,8 @@ export function playUnitFromHand(
   const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
     cardType: card.type,
+    // Scorn of the Moon — "spend this Energy only during showdowns" (R323).
+    inShowdown: state.showdown !== null,
   });
   if (remainingPool === undefined) {
     return rejected("cannotAffordCost");
@@ -1219,6 +1221,7 @@ export function playSpell(
   const remainingPool = spend(player.runePool, cost, {
     kind: "playCard",
     cardType: "spell",
+    inShowdown: state.showdown !== null,
   });
   if (remainingPool === undefined) return rejected("cannotAffordCost");
 
@@ -1659,6 +1662,12 @@ function payAbilityCost(
     case "pay": {
       const remaining = spend(player.runePool, cost.cost, {
         kind: "activateAbility",
+        // Fire Below the Mountain — "…or use gear abilities". The source's
+        // type is what a restriction naming a type's own abilities asks for.
+        ...(state.cards[sourceId] === undefined
+          ? {}
+          : { sourceType: state.cards[sourceId].type }),
+        inShowdown: state.showdown !== null,
       });
       if (remaining === undefined) return undefined;
       return {
