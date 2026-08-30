@@ -710,6 +710,20 @@ built when a card asks for it.
   what a *card* costs; Marai Spire ("friendly [Repeat] costs cost [1] less")
   and Stargazer ("spells with [Flow] you play from your trash cost [2] less")
   name a *keyword's* cost, which is a different subject.
+- **Noxus Saboteur's restriction has nothing to restrict.** "Your opponents'
+  [Hidden] cards can't be revealed here" forbids an action the engine never
+  performs: nothing reveals a facedown card. Scuttle Crab's "you can look at
+  their facedown cards this turn" is the card that would make it matter, and
+  that is a `viewOf` grant rather than R424's Reveal. The verb was written and
+  then deleted rather than shipped with no chokepoint; it is one line in
+  `restrictions.ts` once the action exists.
+- **Perched Grimwyrm and Ol' Poro are not restrictions.** "Play me only to a
+  battlefield you conquered this turn" is an *exclusive* permission — it
+  replaces R355.2.a's default rather than narrowing it, which `PlayPermission`
+  cannot say — and "I can't be played on your first, second, or third turns"
+  is a timing gate on a card in hand. Both were counted with the "can't"
+  family and neither belongs to it; they wait for a permission that can
+  exclude and a play-timing condition respectively.
 - **R372's ordering is not asked for a kill paid as a cost.** A cost that
   kills something you choose ("kill a friendly unit as an additional cost") is
   a real kill, so death replacements apply — but R372's "the controller of the

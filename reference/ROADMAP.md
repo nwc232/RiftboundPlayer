@@ -419,7 +419,7 @@ step-3 slot `costing.ts` was carrying.
 
 | Shape | Cards | Note |
 |---|---|---|
-| **"Can't" / "cannot"** restrictions | 24 | Only `restrictMovement` exists. A general restriction layer would cover playing, moving, scoring and being chosen. |
+| ~~**"Can't" / "cannot"** restrictions~~ | 17 | Done — one vocabulary, split at R711's line: `Restriction` in the layer pipeline for subjects that are permanents (chosen, moved, readied, dealt damage), `BoardRestriction` swept off the board for subjects that are not (a player scoring or playing, a spell being countered). The earlier count of 24 counted reminder text — "abilities that add resources can't be reacted to" is a rule, not a card. Two of the seventeen turned out not to be restrictions at all; see the survey. |
 | ~~**Players as subjects**~~ | ~50 | Done — `TargetFilter` can name a player, and `PlayerId` is a `CardId` structurally, so nothing downstream needed widening. |
 | ~~**Score a point** as an effect~~ | 12 | Done — and R471.1's near-victory restriction does not catch it, because it is not a conquer. |
 | **Gain control of a card** | 3 | `takeControl` exists — the inverse ("they gain control") does not. |

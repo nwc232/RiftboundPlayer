@@ -1,6 +1,7 @@
 import type {
   Ability,
   AbilityCost,
+  BoardRestriction,
   Effect,
   PassiveAbility,
 } from "./abilities.js";
@@ -205,6 +206,19 @@ export type Modification =
    * the same reader a granted one does.
    */
   | { layer: "ability"; op: "restrict"; restriction: Restriction }
+  /**
+   * Brynhir, Lilting Lullaby — a board restriction with a duration. It rides
+   * the modifier list so R317.2.c expires it, and its `targetId` is a *player*
+   * rather than a permanent: R133 makes a player a Game Object, and `PlayerId`
+   * is a `CardId` structurally, so nothing about the list needed widening.
+   * `restrictions.ts` reads it; the layer pipeline below skips it, because a
+   * permanent is not its subject.
+   */
+  | {
+      layer: "ability";
+      op: "restrictPlayer";
+      restriction: Omit<BoardRestriction, "affects">;
+    }
   /** Vilemaw — "…don't deal combat damage." See `Characteristics.silenced`. */
   | { layer: "ability"; op: "silenceCombatDamage" }
   /**
@@ -914,6 +928,9 @@ export function characteristicsOf(
           // bites rather than out of a precedence rule.
           case "restrict":
             restrictions.push(entry.modification.restriction);
+            break;
+          // Its subject is a player, not this permanent — see the modification.
+          case "restrictPlayer":
             break;
           // R828.1.c — "As long as the Game Object has the Empowered status,
           // the Dependent Ability will be active." Appended rather than

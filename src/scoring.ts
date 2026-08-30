@@ -1,3 +1,4 @@
+import { cannotScore } from "./restrictions.js";
 import type { GameEvent, Progress } from "./events.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
@@ -23,6 +24,14 @@ export function score(
   const player = state.players[playerId];
 
   if (player.scoredThisTurn.includes(battlefieldId)) {
+    return { state, events: [] };
+  }
+
+  // Tianna Crownguard — "opponents can't score points"; Forgotten Monument —
+  // "players can't score here until their third turn". R470's scoring is the
+  // consequence of holding, so a forbidden score is a hold that pays nothing
+  // rather than a hold that does not happen.
+  if (cannotScore(state, playerId, battlefieldId)) {
     return { state, events: [] };
   }
 

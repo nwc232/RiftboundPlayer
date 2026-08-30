@@ -55,6 +55,7 @@ import {
 } from "./tasks.js";
 import { passFocus as runPassFocus } from "./showdown.js";
 import { isValidPlayLocation, playedWithReactionTiming } from "./play.js";
+import { cannotPlay } from "./restrictions.js";
 import {
   hide as runHide,
 } from "./hidden.js";
@@ -187,7 +188,9 @@ export type RejectionReason =
   | "notYourDecision"
   | "wrongTargetCount"
   /** More `costChoices` than there are costs asking for one. */
-  | "wrongCostChoiceCount";
+  | "wrongCostChoiceCount"
+  /** A board restriction forbids this play — Brynhir, Rockfall Path. */
+  | "cannotPlay";
 
 export type ActionResult =
   | { ok: true; state: GameState; events: GameEvent[] }
@@ -844,6 +847,13 @@ export function playUnitFromHand(
   if (zone === undefined) {
     return rejected("notInHand");
   }
+  // Brynhir, Rockfall Path, Mageseeker Warden — a restriction on *playing*,
+  // swept off the board because the card is still in a hand (R711). Asked of
+  // every zone, not just the hand: R811.1.d.1's forced destination does not
+  // make a play the board has forbidden legal again.
+  if (cannotPlay(state, playerId, cardId, destination)) {
+    return rejected("cannotPlay");
+  }
   if (zone.destination === undefined) {
     // R355.2 — the chosen location has to be a valid one. R355.2.a's default is
     // "the controller's Base or a Battlefield the controller controls"; anything
@@ -1132,6 +1142,11 @@ export function playSpell(
   // changes about this play is read off it rather than branched on here.
   const zone = playZonesFor(state, playerId, cardId)[playFrom];
   if (zone === undefined) return rejected("notInHand");
+
+  // Lilting Lullaby — "its controller can't play spells this turn"; Fallen
+  // Feline — "opponents can't play spells with that name". A spell has no
+  // destination, so only the restrictions that name none can bite.
+  if (cannotPlay(state, playerId, cardId)) return rejected("cannotPlay");
 
   // R811.1.b — the Facedown Zone grants [Reaction] on top of the card's own
   // keywords. R829.1.b.2 is the contrast: [Flow] changes the zone a spell can

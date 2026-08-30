@@ -38,6 +38,7 @@ import type { PlayPermission } from "./play.js";
 import type { CostModifier } from "./costing.js";
 import type { DeathReplacement, EntryReplacement } from "./replacements.js";
 import { holds } from "./conditions.js";
+import { cannotBeCountered } from "./restrictions.js";
 import type { PendingDecision } from "./decisions.js";
 import type { Condition } from "./conditions.js";
 
@@ -179,6 +180,22 @@ export type Effect =
   | { op: "drawPerBattlefield"; excludeSource?: true }
   /** Vex, Apathetic — "They can't move it this turn." */
   | { op: "restrictMovement"; duration: Duration; targetIndex: number }
+  /**
+   * Brynhir Thundersong — "opponents can't play cards this turn"; Lilting
+   * Lullaby — "its controller can't play spells this turn".
+   *
+   * The same restriction the printed ones express, with a *duration* — which
+   * is why it goes on the modifier list rather than being read off a card:
+   * R317.2.c is what ends it. `targetIndex` names the restricted player, whom
+   * R133 makes a Game Object like any other, so `forEachPlayer` supplies one
+   * per opponent for Brynhir and a chosen one for Lilting Lullaby.
+   */
+  | {
+      op: "restrictPlayer";
+      restriction: Omit<BoardRestriction, "affects">;
+      duration: Duration;
+      targetIndex: number;
+    }
   /**
    * Thrill of the Hunt — "Banish a friendly unit, then its owner plays it to
    * any battlefield, ignoring its cost." Two choices: the unit, then where it
@@ -612,6 +629,52 @@ export interface KeywordAuraAbility {
 }
 
 /**
+ * A restriction whose subject is *not* a permanent — a player, a battlefield,
+ * or a spell on the chain. The mirror of `CostAuraAbility`, and off the layer
+ * pipeline for the same reason: R711 reads anything off the board on printed
+ * values, so the board is swept when the question is asked rather than the
+ * subject being modified.
+ *
+ * The permanent-subject half lives in `layers.ts` as a `Restriction`, because
+ * a permanent *is* in the pipeline. Ten cards are here and seven are there,
+ * and the split is exactly R711's line.
+ */
+export interface BoardRestriction {
+  what:
+    /** Tianna Crownguard, Forgotten Monument. */
+    | "score"
+    /** Brynhir, Lilting Lullaby, Fallen Feline, Mageseeker Warden, Rockfall Path. */
+    | "play"
+    /** Mel, Newly Awakened — "your spells and abilities can't be countered". */
+    | "beCountered";
+  /**
+   * Whose action it forbids, relative to this ability's own controller.
+   * R190.6.d is why that matters for a battlefield: an uncontrolled one has no
+   * "you", so an aura that names a side contributes nothing there — but
+   * Rockfall Path's "Units can't be played here" names no side and applies
+   * whoever holds it.
+   */
+  affects: "friendly" | "enemy" | "any";
+  /** "…*here*" — only at the source's own battlefield. */
+  here?: true;
+  /** Fallen Feline — "…spells with that name"; Rockfall Path — "Units…". */
+  match?: { type?: CardType; name?: string };
+  /**
+   * Mageseeker Warden — "opponents can only play units to *their base*", which
+   * forbids everywhere else rather than everywhere.
+   */
+  exceptToBase?: true;
+  /** Forgotten Monument — "…until their third turn". */
+  untilTurn?: number;
+}
+
+export interface RestrictionAuraAbility extends BoardRestriction {
+  kind: "restrictionAura";
+  /** "While I'm at a battlefield", "[Empowered]". Absent means always. */
+  when?: Condition;
+}
+
+/**
  * R369.3 — "I enter ready", and the conditional forms of it. Read off a card
  * in hand like the other non-resolving kinds, because it has to be known
  * before the permanent exists.
@@ -638,6 +701,7 @@ export type Ability =
   | AdditionalCostAbility
   | CostAuraAbility
   | KeywordAuraAbility
+  | RestrictionAuraAbility
   | RepeatAbility
   | FlowAbility
   | EmpowerAbility
@@ -935,6 +999,12 @@ export function execute(
       // "This can't be countered." A spell on the chain is not a permanent, so
       // R711 leaves the printed keyword as the thing to read.
       if ((state.cards[targetId]?.keywords ?? []).includes("uncounterable")) {
+        return { state, events: [] };
+      }
+      // Mel, Newly Awakened — "your spells and abilities can't be countered",
+      // which is the same restriction arriving from the board instead.
+      const owner = state.chain[index]?.controller;
+      if (owner !== undefined && cannotBeCountered(state, targetId, owner)) {
         return { state, events: [] };
       }
 
@@ -1568,6 +1638,37 @@ export function execute(
       ).length;
       if (count === 0) return { state, events: [] };
       return drawCards(state, context.controller, count);
+    }
+
+    /**
+     * Brynhir, Lilting Lullaby — a board restriction for a duration, installed
+     * on a *player*. The restriction itself names no side: it is already
+     * pointed at whoever was chosen, so `affects` has nothing to be relative
+     * to and `restrictions.ts` reads the target directly.
+     */
+    case "restrictPlayer": {
+      const playerId = context.targets[effect.targetIndex];
+      if (playerId !== "p1" && playerId !== "p2") return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          modifiers: [
+            ...state.modifiers,
+            {
+              id: `noPlay-${state.modifiers.length}-${playerId}`,
+              targetId: playerId,
+              modification: {
+                layer: "ability",
+                op: "restrictPlayer",
+                restriction: effect.restriction,
+              },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [],
+      };
     }
 
     case "restrictMovement": {

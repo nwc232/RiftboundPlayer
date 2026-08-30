@@ -16,6 +16,8 @@ import type {
   PassiveAbility,
   PlayPermissionAbility,
   ReplacementAbility,
+  RestrictionAuraAbility,
+  BoardRestriction,
 } from "./abilities.js";
 import type { Targeting, TargetFilter } from "./decisions.js";
 import type { PlayPermission } from "./play.js";
@@ -571,6 +573,31 @@ export function restrict(
   when?: PassiveCondition,
 ): PassiveAbility {
   return passive(scope, { layer: "ability", op: "restrict", restriction }, when);
+}
+
+/**
+ * A "can't" whose subject is not a permanent — a player, a battlefield, a
+ * spell on the chain. Swept off the board rather than layered; see
+ * `restrictions.ts` for why the family is split in two.
+ */
+export function restrictionAura(
+  what: RestrictionAuraAbility["what"],
+  affects: RestrictionAuraAbility["affects"],
+  rest: Omit<RestrictionAuraAbility, "kind" | "what" | "affects"> = {},
+): RestrictionAuraAbility {
+  return { kind: "restrictionAura", what, affects, ...rest };
+}
+
+/**
+ * Brynhir — "opponents can't play cards this turn". A board restriction with a
+ * duration, aimed at a chosen player.
+ */
+export function restrictPlayer(
+  restriction: Omit<BoardRestriction, "affects">,
+  duration: Duration = "thisTurn",
+  targetIndex = 0,
+): Effect {
+  return { op: "restrictPlayer", restriction, duration, targetIndex };
 }
 
 /** "I can't be chosen by enemy spells and abilities." */
