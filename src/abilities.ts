@@ -21,7 +21,7 @@ import { leaveChain } from "./chain.js";
 import { killUnits } from "./combat.js";
 import { ownerOf } from "./state.js";
 import { burnOut, drawCards } from "./draw.js";
-import { controllerOf, mightOf } from "./layers.js";
+import { controllerOf, mightOf, restricted } from "./layers.js";
 import { tokenCard } from "./tokens.js";
 import type { TokenKind } from "./tokens.js";
 import type {
@@ -452,6 +452,13 @@ export interface PassiveAbility {
   kind: "passive";
   scope: PassiveScope;
   condition?: PassiveCondition;
+  /**
+   * Ambessa — "I can't be dealt damage *unless* I'm in combat". The rules
+   * write several continuous effects as an exception rather than a condition,
+   * and negating one is not the same as stating the opposite: "unless I'm in
+   * combat" and "while I'm not attacking" differ for a defender.
+   */
+  unless?: PassiveCondition;
   modification: Modification;
 }
 
@@ -1278,6 +1285,17 @@ export function execute(
         return { state, events: [] };
       }
 
+      // Maduli the Gatekeeper — "I can't be readied"; Mageseeker Warden —
+      // "spells and abilities can't ready enemy units and gear". This is a
+      // spell or ability doing it, which is the half the Warden restricts;
+      // R315.1's Awaken asks the same question without that flag.
+      if (
+        effect.op === "ready" &&
+        restricted(state, targetId, "beReadied", { bySpellOrAbility: true })
+      ) {
+        return { state, events: [] };
+      }
+
       // R415.1.c, R426.1.b.1, R423.1.a.1 — all three are no-ops on a unit that
       // is already in the target state, and R426.1.c makes that observable:
       // "if it was buffed this way" is false, so a linked effect will not fire.
@@ -1565,7 +1583,11 @@ export function execute(
             {
               id: `noMove-${state.modifiers.length}-${targetId}`,
               targetId,
-              modification: { layer: "ability", op: "restrictMovement" },
+              modification: {
+                layer: "ability",
+                op: "restrict",
+                restriction: { what: "move" },
+              },
               duration: effect.duration,
             },
           ],

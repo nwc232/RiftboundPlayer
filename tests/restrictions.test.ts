@@ -7,11 +7,13 @@ import {
   activated,
   counterSpell,
   dealDamage,
+  restrict,
   untargetable,
 } from "../src/builders.js";
 import { legalTargets } from "../src/decisions.js";
 import { FREE } from "../src/cost.js";
 import { movementRestricted } from "../src/layers.js";
+import { beginTurn } from "../src/tasks.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -104,7 +106,11 @@ describe("restricted targeting", () => {
           id: "m1",
           targetId: "guard",
           duration: "thisTurn",
-          modification: { layer: "ability", op: "restrictTargeting", by: "enemy" },
+          modification: {
+            layer: "ability",
+            op: "restrict",
+            restriction: { what: "beChosen", by: "enemy" },
+          },
         },
       ],
     };
@@ -132,8 +138,8 @@ describe("restricted movement", () => {
           duration: "thisTurn",
           modification: {
             layer: "ability",
-            op: "restrictMovement",
-            ...(to !== undefined ? { to } : {}),
+            op: "restrict",
+            restriction: { what: "move", ...(to !== undefined ? { to } : {}) },
           },
         },
       ],
@@ -225,5 +231,208 @@ describe("uncounterable spells", () => {
     expect(after.state.chain).toHaveLength(1);
     expect(after.state.players.p1.trash).toEqual([]);
     expect(after.events).toEqual([]);
+  });
+});
+
+
+/**
+ * R415 — Maduli the Gatekeeper's "I can't be readied", and Mageseeker Warden's
+ * narrower "spells and abilities can't ready enemy units and gear".
+ *
+ * The two differ only in where they bite: R315.1's Awaken is the game readying
+ * everything, not a spell or ability doing it.
+ */
+describe("restricted readying", () => {
+  function board(gate: CardInstance): GameState {
+    return makeState({
+      p1: { mainDeck: ["a"], runePool: pool({ energy: 9 }) },
+      p2: { mainDeck: ["b"] },
+      cards: [gate, unit("plain", { might: 2 }), unit("a"), unit("b")],
+      permanents: [
+        { cardId: "gate", controller: "p1", exhausted: true },
+        { cardId: "plain", controller: "p1", exhausted: true },
+      ],
+    });
+  }
+
+  /** Maduli the Gatekeeper — "I can't be readied." */
+  const maduli = (): CardInstance => ({
+    ...unit("gate", { might: 4 }),
+    abilities: [restrict({ what: "beReadied" })],
+  });
+
+  it("stops an effect from readying it", () => {
+    const after = execute(board(maduli()), { op: "ready", targetIndex: 0 }, context(["gate"]));
+
+    expect(after.state.permanents.gate?.exhausted).toBe(true);
+    expect(after.events).toEqual([]);
+  });
+
+  it("leaves everything else readyable", () => {
+    const after = execute(
+      board(maduli()),
+      { op: "ready", targetIndex: 0 },
+      context(["plain"]),
+    );
+
+    expect(after.state.permanents.plain?.exhausted).toBe(false);
+  });
+
+  /** R315.1 — the Awaken step is the game readying, and it is bound too. */
+  it("stops the Awaken step from readying it", () => {
+    const after = beginTurn(board(maduli()), "p1", 2);
+
+    expect(after.state.permanents.gate?.exhausted).toBe(true);
+    expect(after.state.permanents.plain?.exhausted).toBe(false);
+  });
+
+  /**
+   * Mageseeker Warden — "spells and abilities can't ready enemy units and
+   * gear". R315.1's Awaken is neither, so it still readies them.
+   */
+  it("leaves Awaken alone when the restriction names spells and abilities", () => {
+    const warden = (): CardInstance => ({
+      ...unit("gate", { might: 4 }),
+      abilities: [restrict({ what: "beReadied", source: "effect" })],
+    });
+
+    const byEffect = execute(
+      board(warden()),
+      { op: "ready", targetIndex: 0 },
+      context(["gate"]),
+    );
+    expect(byEffect.state.permanents.gate?.exhausted).toBe(true);
+
+    const byAwaken = beginTurn(board(warden()), "p1", 2);
+    expect(byAwaken.state.permanents.gate?.exhausted).toBe(false);
+  });
+});
+
+/** Ambessa — "I have +3 Might and can't be dealt damage unless I'm in combat." */
+describe("restricted damage", () => {
+  const ambessa = (): CardInstance => ({
+    ...unit("ambessa", { might: 5 }),
+    abilities: [
+      { ...restrict({ what: "beDealtDamage" }), unless: { when: "inCombat" } },
+    ],
+  });
+
+  function board(designation?: "attacker" | "defender"): GameState {
+    return makeState({
+      p1: { mainDeck: ["a"] },
+      p2: { mainDeck: ["b"] },
+      cards: [ambessa(), unit("a"), unit("b")],
+      permanents: [
+        {
+          cardId: "ambessa",
+          controller: "p1",
+          ...(designation === undefined ? {} : { designation }),
+        },
+      ],
+    });
+  }
+
+  it("takes nothing outside combat", () => {
+    const after = execute(
+      board(),
+      { op: "dealDamage", amount: 4, targetIndex: 0 },
+      context(["ambessa"]),
+    );
+
+    expect(after.state.permanents.ambessa?.damage).toBe(0);
+  });
+
+  /** "unless I'm in combat" is either designation, not just attacking. */
+  it("takes damage while attacking and while defending", () => {
+    for (const designation of ["attacker", "defender"] as const) {
+      const after = execute(
+        board(designation),
+        { op: "dealDamage", amount: 4, targetIndex: 0 },
+        context(["ambessa"]),
+      );
+
+      expect(after.state.permanents.ambessa?.damage).toBe(4);
+    }
+  });
+});
+
+/**
+ * Minotaur Reckoner — "Units can't move to base" — and Determined Sentry —
+ * "I can't move to base."
+ *
+ * Both are *passives*, which is what the old flat modifier scan could not see:
+ * it read `state.modifiers` directly, so only a durational restriction like
+ * Vex's reached it. Going through `characteristicsOf` is what unblocked them.
+ */
+describe("a passive that restricts movement", () => {
+  function board(source: CardInstance): GameState {
+    return makeState({
+      p1: { mainDeck: ["a"], runePool: pool({ energy: 9 }) },
+      p2: { mainDeck: ["b"] },
+      cards: [source, unit("mine", { might: 2 }), unit("theirs", { might: 2 }), unit("a"), unit("b")],
+      permanents: [
+        { cardId: source.id, controller: "p1", location: NORTH },
+        { cardId: "mine", controller: "p1", location: NORTH },
+        { cardId: "theirs", controller: "p2", location: NORTH },
+      ],
+      battlefields: ["bf-north", "bf-south"],
+    });
+  }
+
+  /** Determined Sentry — the restriction is on itself and nothing else. */
+  it("binds only itself when the scope is self", () => {
+    const sentry: CardInstance = {
+      ...unit("sentry", { might: 3 }),
+      abilities: [restrict({ what: "move", to: "base" })],
+    };
+    const state = board(sentry);
+
+    expect(movementRestricted(state, "sentry", BASE)).toBe(true);
+    expect(movementRestricted(state, "mine", BASE)).toBe(false);
+  });
+
+  /** Minotaur Reckoner — "*Units*", with no side named, so both players'. */
+  it("binds every unit when the scope is all of them", () => {
+    const reckoner: CardInstance = {
+      ...unit("reckoner", { might: 3 }),
+      abilities: [
+        restrict({ what: "move", to: "base" }, { target: "allUnits" }),
+      ],
+    };
+    const state = board(reckoner);
+
+    expect(movementRestricted(state, "mine", BASE)).toBe(true);
+    expect(movementRestricted(state, "theirs", BASE)).toBe(true);
+    // It names the base, so a battlefield is still reachable.
+    expect(
+      movementRestricted(state, "mine", { kind: "battlefield", id: "bf-south" }),
+    ).toBe(false);
+  });
+
+  /** Vilemaw's Lair — "Units can't move *from here* to base." */
+  it("binds only the units at the source when the scope says here", () => {
+    const lair: CardInstance = {
+      ...unit("lair", { might: 0 }),
+      abilities: [
+        restrict(
+          { what: "move", to: "base" },
+          { target: "allUnits", here: true },
+        ),
+      ],
+    };
+    const state = board(lair);
+    const elsewhere: GameState = {
+      ...state,
+      permanents: {
+        ...state.permanents,
+        theirs: {
+          ...state.permanents.theirs!,
+          location: { kind: "battlefield", id: "bf-south" },
+        },
+      },
+    };
+
+    expect(movementRestricted(elsewhere, "mine", BASE)).toBe(true);
+    expect(movementRestricted(elsewhere, "theirs", BASE)).toBe(false);
   });
 });

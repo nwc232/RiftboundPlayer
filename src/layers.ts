@@ -97,15 +97,14 @@ export interface Characteristics {
   /** R823.2 — and likewise for Hunt. */
   hunt: number;
   /**
-   * "I can't be chosen by enemy spells and abilities." Nine cards say it, and
-   * several add "unless…", which is why it is a characteristic under a
-   * `PassiveCondition` rather than a keyword.
+   * Every "can't" currently on this object, with its qualifiers. Collected by
+   * the pipeline like anything else, so a printed restriction, one granted by
+   * an attachment and one gated on [Level 16] are the same question.
    *
-   * `null` is the ordinary case. It bites only where something *chooses*
-   * (R355.5), so combat damage assignment is untouched: R465.2.c assigns, it
-   * does not choose.
+   * `beChosen` bites only where something *chooses* (R355.5), so combat damage
+   * assignment is untouched: R465.2.c assigns, it does not choose.
    */
-  untargetableBy: "enemy" | "any" | null;
+  restrictions: Restriction[];
   /**
    * Printed-or-copied Might, before the ability and arithmetic layers. This is
    * the value a copy effect takes: RiftJudge's ruling on LeBlanc's Reflection
@@ -133,6 +132,49 @@ export interface Characteristics {
   silenced: boolean;
 }
 
+/**
+ * The game actions a card can forbid. Seventeen cards in the pool say some
+ * form of "can't", and they are one sentence with a different verb — "I can't
+ * be chosen by enemy spells and abilities", "they can't move it this turn",
+ * "I can't be readied", "I can't be dealt damage unless I'm in combat". One
+ * vocabulary rather than one mechanism each, because the alternative is eight
+ * near-identical readers that drift apart one card at a time. That had already
+ * started: `untargetableBy` was read through the layer pipeline and movement
+ * was read off a flat modifier scan, so a *passive* could restrict targeting
+ * and could not restrict movement.
+ */
+export type RestrictedAction =
+  /** R355.5 — "I can't be chosen by enemy spells and abilities." */
+  | "beChosen"
+  /** Vex, Determined Sentry, Minotaur Reckoner, Vilemaw's Lair. */
+  | "move"
+  /** R415 — Maduli the Gatekeeper's "I can't be readied". */
+  | "beReadied"
+  /** R437 — Ambessa's "can't be dealt damage unless I'm in combat". */
+  | "beDealtDamage";
+
+export interface Restriction {
+  what: RestrictedAction;
+  /**
+   * R355.5's "by *enemy* spells and abilities" — relative to the restricted
+   * object's controller. Absent forbids it to everyone, which is why "any"
+   * outranks "enemy" without a precedence rule: an unqualified restriction
+   * bites whoever asks.
+   */
+  by?: "enemy";
+  /**
+   * "I can't move *to base*". Absent is Vex's "they can't move it", which is
+   * every destination.
+   */
+  to?: "base";
+  /**
+   * Mageseeker Warden — "*spells and abilities* can't ready enemy units and
+   * gear", which leaves R315.1's Awaken step alone. Absent forbids the action
+   * however it arises.
+   */
+  source?: "effect";
+}
+
 /** R477's layers, in the order they are applied. */
 const LAYER_ORDER = ["trait", "ability", "arithmetic"] as const;
 export type Layer = (typeof LAYER_ORDER)[number];
@@ -157,24 +199,14 @@ export type Modification =
   /** R477.2 — granting a keyword. Assault/Shield carry a value (R807.1.b). */
   | { layer: "ability"; op: "grantKeyword"; keyword: Keyword; value?: number }
   /**
-   * Vex, Apathetic — "They can't move it this turn." A restriction rather than
-   * a characteristic, but it lives here so it expires the same way everything
-   * else with a duration does (R317.2.c).
+   * Every "can't" on an object. A restriction rather than a characteristic,
+   * but it lives here so a durational one (Vex's "this turn") expires the way
+   * everything else with a duration does (R317.2.c), and a passive one reaches
+   * the same reader a granted one does.
    */
-  | {
-      layer: "ability";
-      op: "restrictMovement";
-      /**
-       * Vex, Apathetic's "they can't move it this turn" is every destination;
-       * "I can't move to base" and "units can't move from here to base" name
-       * one, so the restriction carries which.
-       */
-      to?: "base";
-    }
+  | { layer: "ability"; op: "restrict"; restriction: Restriction }
   /** Vilemaw — "…don't deal combat damage." See `Characteristics.silenced`. */
   | { layer: "ability"; op: "silenceCombatDamage" }
-  /** "I can't be chosen by enemy spells and abilities." */
-  | { layer: "ability"; op: "restrictTargeting"; by: "enemy" | "any" }
   /**
    * R824.1.b.1 / R828.1.b.1 — a Dependent Keyword's "this card gains
    * '[Text]'". [Level N] and [Empowered] are the same sentence with different
@@ -269,7 +301,14 @@ export type PassiveScope =
       here?: boolean;
       tag?: string;
       weakerThanSource?: true;
-    };
+    }
+  /**
+   * Minotaur Reckoner — "*Units* can't move to base", with no side named, and
+   * Vilemaw's Lair's "Units can't move from here to base" with `here`. The
+   * only scope that reaches both players' units, which is why the restrictions
+   * needed it and no anthem did.
+   */
+  | { target: "allUnits"; here?: boolean; tag?: string };
 
 /**
  * When a passive applies. Absent means always. `mighty` is R708 (Might 5+) and
@@ -287,11 +326,18 @@ export type PassiveCondition =
    * *current controller* (R824.1.c.1), so a unit changing hands can gain or
    * lose the ability without anything else happening.
    */
-  | { when: "xpAtLeast"; amount: number };
+  | { when: "xpAtLeast"; amount: number }
+  /**
+   * Ambessa — "unless I'm *in combat*", which is either designation. Distinct
+   * from `attacking` and `defending`, which R807.1.d.1 ties to one side.
+   */
+  | { when: "inCombat" };
 
 interface PendingModification {
   modification: Modification;
   condition: PassiveCondition | undefined;
+  /** The negated half — see `PassiveAbility.unless`. */
+  unless?: PassiveCondition;
   applied: boolean;
 }
 
@@ -320,6 +366,7 @@ function passivesFor(
       found.push({
         modification: ability.modification,
         condition: ability.condition,
+        ...(ability.unless === undefined ? {} : { unless: ability.unless }),
         applied: false,
       });
     }
@@ -370,6 +417,14 @@ function inScope(
         const mine = characteristicsOf(state, source.cardId, seen).might;
         const theirs = characteristicsOf(state, subject.cardId, seen).might;
         if (theirs >= mine) return false;
+      }
+      return true;
+    }
+
+    case "allUnits": {
+      if (state.cards[subject.cardId]?.type !== "unit") return false;
+      if (ability.scope.here === true) {
+        return sameLocation(source.location, subject.location);
       }
       return true;
     }
@@ -428,6 +483,8 @@ function holds(
       return subject.designation === "attacker";
     case "defending":
       return subject.designation === "defender";
+    case "inCombat":
+      return subject.designation !== undefined;
     // R708 — Mighty is Might 5 or greater, read from the current pass.
     case "mighty":
       return might >= 5;
@@ -496,21 +553,65 @@ export function controllerOf(state: GameState, cardId: CardId): PlayerId {
 }
 
 /**
- * Vex, Apathetic — "They can't move it this turn." Read as a flat modifier
- * scan for the same reason `controllerOf` is: this is asked while deciding
- * whether an action is legal, not while deriving a characteristic.
+ * Whether some game action is forbidden for `cardId` right now.
+ *
+ * The single reader for every "can't" in the pool. It goes through
+ * `characteristicsOf` rather than scanning `state.modifiers`, which is what
+ * lets a *passive* restrict an action — Minotaur Reckoner's "Units can't move
+ * to base" is a passive over every unit, and the old flat scan could not see
+ * it. A durational restriction (Vex's "this turn") is a stored modifier and
+ * reaches the same pipeline, so both shapes answer here.
+ */
+export function restricted(
+  state: GameState,
+  cardId: CardId,
+  what: RestrictedAction,
+  context: {
+    /** Who is trying to do it — for "by *enemy* spells and abilities". */
+    actor?: PlayerId;
+    /** Where a move is going, for a restriction that names a destination. */
+    to?: Location;
+    /**
+     * Whether a spell or ability is doing this, rather than the game itself.
+     * R315.1's Awaken readies without any spell or ability, which is what
+     * Mageseeker Warden's "spells and abilities can't ready enemy units"
+     * leaves alone.
+     */
+    bySpellOrAbility?: boolean;
+  } = {},
+): boolean {
+  return characteristicsOf(state, cardId).restrictions.some((restriction) => {
+    if (restriction.what !== what) return false;
+    // Unqualified restrictions bite whoever asks, including the controller.
+    if (restriction.by === "enemy") {
+      if (context.actor === undefined) return false;
+      if (controllerOf(state, cardId) === context.actor) return false;
+    }
+    // A restriction naming a destination only bites on that destination. With
+    // no destination in hand the question is "is it restricted at all", which
+    // a narrower restriction does not answer yes to.
+    if (restriction.to !== undefined) {
+      if (context.to === undefined) return false;
+      if (context.to.kind !== "base") return false;
+    }
+    if (restriction.source === "effect" && context.bySpellOrAbility !== true) {
+      return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Vex, Apathetic — "They can't move it this turn." Determined Sentry — "I
+ * can't move to base."
  */
 export function movementRestricted(
   state: GameState,
   cardId: CardId,
   destination?: Location,
 ): boolean {
-  return state.modifiers.some((modifier) => {
-    if (modifier.targetId !== cardId) return false;
-    if (modifier.modification.op !== "restrictMovement") return false;
-    // A restriction naming a destination only bites on that destination.
-    if (modifier.modification.to === undefined) return true;
-    return destination === undefined || destination.kind === "base";
+  return restricted(state, cardId, "move", {
+    ...(destination === undefined ? {} : { to: destination }),
   });
 }
 
@@ -524,10 +625,7 @@ export function targetingRestricted(
   cardId: CardId,
   chooser: PlayerId,
 ): boolean {
-  const restriction = characteristicsOf(state, cardId).untargetableBy;
-  if (restriction === null) return false;
-  if (restriction === "any") return true;
-  return controllerOf(state, cardId) !== chooser;
+  return restricted(state, cardId, "beChosen", { actor: chooser });
 }
 
 /** R719 — every card Attached to `cardId`, which is its Top-Most Card. */
@@ -649,7 +747,7 @@ export function characteristicsOf(
     shield: 0,
     deflect: 0,
     hunt: 0,
-    untargetableBy: null,
+    restrictions: [],
     name: card?.name ?? cardId,
     type: card?.type ?? "unit",
     cost: card?.cost ?? { energy: 0, power: {}, anyPower: 0 },
@@ -667,7 +765,7 @@ export function characteristicsOf(
   }
   const nested = new Set([...seen, cardId]);
 
-  const pending = [
+  const pending: PendingModification[] = [
     ...passivesFor(state, subject, nested),
     // R434.1.c/d — every Attached card appends its Effect Text to this card's
     // Rules Text and modulates its Might by its Might Bonus.
@@ -726,7 +824,7 @@ export function characteristicsOf(
   let deflect = printedKeywords.includes("deflect") ? (card.deflect ?? 1) : 0;
   // R823.1.c.2 — "If X is omitted, it is presumed to be 1."
   let hunt = printedKeywords.includes("hunt") ? (card.hunt ?? 1) : 0;
-  let untargetableBy: "enemy" | "any" | null = null;
+  const restrictions: Restriction[] = [];
   const arithmetic: ArithmeticStep[] = [];
   let silenced = false;
 
@@ -753,6 +851,14 @@ export function characteristicsOf(
         if (entry.applied) continue;
         if (entry.modification.layer !== layer) continue;
         if (!holds(state, entry.condition, subject, currentMight())) continue;
+        // "unless X" is the exception half, so the modification applies only
+        // while X does *not* hold.
+        if (
+          entry.unless !== undefined &&
+          holds(state, entry.unless, subject, currentMight())
+        ) {
+          continue;
+        }
 
         switch (entry.modification.op) {
           case "setMight":
@@ -788,6 +894,10 @@ export function characteristicsOf(
               pending.push({
                 modification: ability.modification,
                 condition: ability.condition,
+                ...(ability.unless === undefined
+                  ? {}
+                  : { unless: ability.unless }),
+        ...(ability.unless === undefined ? {} : { unless: ability.unless }),
                 applied: false,
               });
             }
@@ -797,17 +907,13 @@ export function characteristicsOf(
             silenced = true;
             break;
 
-          // "Any" outranks "enemy": something that cannot be chosen at all is
-          // not made choosable by a second, narrower restriction.
-          case "restrictTargeting":
-            untargetableBy =
-              untargetableBy === "any" || entry.modification.by === "any"
-                ? "any"
-                : "enemy";
-            break;
-          case "restrictMovement":
-            // Read directly off the modifier list by `movementRestricted`; it
-            // is a restriction on an action, not a characteristic.
+          // Collected rather than merged. Two restrictions on one object are
+          // both true at once, and a narrower one never loosens a wider one:
+          // "can't be chosen by enemies" beside "can't be chosen" is still
+          // "can't be chosen", which falls out of asking whether *any* of them
+          // bites rather than out of a precedence rule.
+          case "restrict":
+            restrictions.push(entry.modification.restriction);
             break;
           // R828.1.c — "As long as the Game Object has the Empowered status,
           // the Dependent Ability will be active." Appended rather than
@@ -828,6 +934,9 @@ export function characteristicsOf(
               pending.push({
                 modification: gained.modification,
                 condition: gained.condition,
+                ...(gained.unless === undefined
+                  ? {}
+                  : { unless: gained.unless }),
                 applied: false,
               });
             }
@@ -891,7 +1000,7 @@ export function characteristicsOf(
     shield,
     deflect,
     hunt,
-    untargetableBy,
+    restrictions,
     silenced,
     ...copyable,
     abilities:

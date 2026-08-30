@@ -2,7 +2,7 @@ import { execute } from "./abilities.js";
 import { park } from "./tasks.js";
 import { healAllUnits } from "./combat.js";
 import { drawCards } from "./draw.js";
-import { expireModifiers } from "./layers.js";
+import { expireModifiers, restricted } from "./layers.js";
 import type { DelayedTiming } from "./layers.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, holdControlledBattlefields } from "./scoring.js";
@@ -71,6 +71,11 @@ function awaken(progress: Progress, player: PlayerId): Progress {
 
   const permanents = { ...state.permanents };
   for (const permanent of permanentsControlledBy(state, player)) {
+    // Maduli the Gatekeeper — "I can't be readied", which R315.1's Awaken has
+    // to honour too. Mageseeker Warden's narrower "spells and abilities can't
+    // ready enemy units" does not bite here, and says so by carrying
+    // `source: "effect"`.
+    if (restricted(state, permanent.cardId, "beReadied")) continue;
     if (permanent.exhausted) {
       permanents[permanent.cardId] = { ...permanent, exhausted: false };
       events.push({

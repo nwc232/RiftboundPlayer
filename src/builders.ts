@@ -26,6 +26,7 @@ import type {
   Modification,
   PassiveCondition,
   PassiveScope,
+  Restriction,
 } from "./layers.js";
 import type { Condition } from "./conditions.js";
 import { FREE } from "./cost.js";
@@ -556,14 +557,30 @@ export function forEachPlayer(
   return { op: "forEachPlayer", who, each };
 }
 
+/**
+ * A printed "can't" — one builder for the whole family, since they are one
+ * sentence with a different verb.
+ *
+ * `scope` says whose action is forbidden: `{ target: "self" }` for "I can't be
+ * readied", `{ target: "allUnits" }` for Minotaur Reckoner's "Units can't move
+ * to base".
+ */
+export function restrict(
+  restriction: Restriction,
+  scope: PassiveScope = { target: "self" },
+  when?: PassiveCondition,
+): PassiveAbility {
+  return passive(scope, { layer: "ability", op: "restrict", restriction }, when);
+}
+
 /** "I can't be chosen by enemy spells and abilities." */
 export function untargetable(
   by: "enemy" | "any" = "enemy",
   when?: PassiveCondition,
 ): PassiveAbility {
-  return passive(
+  return restrict(
+    { what: "beChosen", ...(by === "enemy" ? { by } : {}) },
     { target: "self" },
-    { layer: "ability", op: "restrictTargeting", by },
     when,
   );
 }

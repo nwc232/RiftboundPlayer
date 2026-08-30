@@ -1,6 +1,12 @@
 import { holds } from "./conditions.js";
 import type { Condition, ConditionContext } from "./conditions.js";
-import { controllerOf, keywordsOf, mightOf, tagsOf } from "./layers.js";
+import {
+  controllerOf,
+  keywordsOf,
+  mightOf,
+  restricted,
+  tagsOf,
+} from "./layers.js";
 import type { PassiveScope } from "./layers.js";
 import type { Effect } from "./abilities.js";
 import type { GameEvent } from "./events.js";
@@ -215,6 +221,14 @@ function replacementCovers(
       return true;
     }
 
+    case "allUnits": {
+      if (state.cards[dying.cardId]?.type !== "unit") return false;
+      if (scope.here === true) {
+        return sameLocation(source.location, dying.location);
+      }
+      return true;
+    }
+
     default: {
       const unhandled: never = scope;
       return false;
@@ -272,6 +286,14 @@ export function replaceDamage(
   from: "combat" | "spellOrAbility",
   order: CardId[] = [],
 ): { state: GameState; amount: number; events: GameEvent[] } {
+  // Ambessa — "I can't be dealt damage unless I'm in combat". A restriction,
+  // not a prevention: nothing replaces the event, it simply cannot happen.
+  // R437.2.a already treats an amount of 0 as "equivalent to not dealing
+  // damage", so this is the same outcome without a replacement to order.
+  if (restricted(state, cardId, "beDealtDamage")) {
+    return { state, amount: 0, events: [] };
+  }
+
   const applicable = damageReplacementsFor(state, cardId, from);
   if (applicable.length === 0) return { state, amount, events: [] };
 
