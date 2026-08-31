@@ -195,8 +195,9 @@ export function createToken(
   count = 1,
   options: {
     ready?: true;
-    to?: "base" | "sourceLocation";
+    to?: "base" | "sourceLocation" | "eventLocation";
     copyOfTarget?: number;
+    copyOfSource?: true;
     grants?: Keyword[];
   } = {},
 ): Effect {
@@ -208,6 +209,9 @@ export function createToken(
     ...(options.to !== undefined ? { to: options.to } : {}),
     ...(options.copyOfTarget !== undefined
       ? { copyOfTarget: options.copyOfTarget }
+      : {}),
+    ...(options.copyOfSource !== undefined
+      ? { copyOfSource: options.copyOfSource }
       : {}),
     ...(options.grants !== undefined ? { grants: options.grants } : {}),
   };
@@ -778,6 +782,23 @@ export function anthemMight(amount: number, here = true): PassiveAbility {
     layer: "arithmetic",
     op: "addMight",
     amount,
+  });
+}
+
+/**
+ * Petal Pixie — "I have +1 Might for each of your units with [Temporary] at my
+ * battlefield." A passive on the counting unit itself, since the subject of
+ * "I have" is the source.
+ */
+export function mightPerUnit(
+  amount: number,
+  count: Extract<Modification, { op: "addMightPer" }>["count"],
+): PassiveAbility {
+  return passive({ target: "self" }, {
+    layer: "arithmetic",
+    op: "addMightPer",
+    amount,
+    count,
   });
 }
 

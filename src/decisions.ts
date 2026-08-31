@@ -7,7 +7,13 @@ import {
   targetingRestricted,
 } from "./layers.js";
 import { sameLocation } from "./state.js";
-import type { CardId, GameState, PlayerId } from "./state.js";
+import type {
+  CardId,
+  GameState,
+  Keyword,
+  Location,
+  PlayerId,
+} from "./state.js";
 
 /**
  * A choice the engine is waiting on. While one is outstanding nothing else may
@@ -150,9 +156,23 @@ export interface TargetFilter {
   awayFromSource?: true;
   /** Abandoned Hall — "a unit they control **here**". */
   atSource?: true;
+  /**
+   * Deceiver — "play a Reflection token there. It becomes a copy of another
+   * unit **there**." "There" is the battlefield the inciting event named, not
+   * the source's own location: the source is a Legend, and R107.4.b makes the
+   * Legend Zone no location at all. Kept apart from `atSource` because for a
+   * unit watching a score elsewhere the two genuinely differ.
+   */
+  atEventLocation?: true;
   /** Defy — "a spell that costs no more than [4] and no more than [A]". */
   maxEnergy?: number;
   maxPower?: number;
+  /**
+   * Shadow's Call — "Choose a friendly unit **without [Temporary]**". Read
+   * through the layers like every other characteristic, so a unit that was
+   * *given* [Temporary] this turn stops qualifying.
+   */
+  withoutKeyword?: Keyword;
 }
 
 export function legalTargets(
@@ -161,6 +181,8 @@ export function legalTargets(
   filter: TargetFilter,
   /** The ability's source, for the filters that are relative to it. */
   sourceId?: CardId,
+  /** Where the inciting event happened, for the filters that say "there". */
+  eventLocation?: Location,
 ): CardId[] {
   // A spell on the chain is not a permanent, so it is a different search: only
   // the controller filter means anything for one.
@@ -247,6 +269,15 @@ export function legalTargets(
       ) {
         return false;
       }
+      // "…without [Temporary]" — asked of the current keywords, not printed.
+      if (
+        filter.withoutKeyword !== undefined &&
+        characteristicsOf(state, permanent.cardId).keywords.includes(
+          filter.withoutKeyword,
+        )
+      ) {
+        return false;
+      }
       // A source that is nowhere has no location to differ from, so nothing
       // qualifies rather than everything.
       if (filter.awayFromSource === true) {
@@ -256,6 +287,13 @@ export function legalTargets(
       if (filter.atSource === true) {
         if (here === undefined) return false;
         if (!sameLocation(here, permanent.location)) return false;
+      }
+      // "…another unit *there*". With no event location in hand nothing
+      // qualifies, the same reading `atSource` takes for a source that is
+      // nowhere.
+      if (filter.atEventLocation === true) {
+        if (eventLocation === undefined) return false;
+        if (!sameLocation(eventLocation, permanent.location)) return false;
       }
       return true;
     })

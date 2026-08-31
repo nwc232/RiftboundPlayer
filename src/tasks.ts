@@ -571,6 +571,12 @@ export function runTasks(
   let unscanned: GameEvent[] = [...seedEvents];
 
   while (current.pending === null) {
+    // R194.2 / R323.1 — the game is over. Nothing further happens, which
+    // includes the triggers the winning score itself raised: a conquer that
+    // wins the game does not then go on to ask its controller about an
+    // optional trigger nobody will ever answer.
+    if (current.winner !== null) break;
+
     // R335 — the game only proceeds to the next step once there are no
     // outstanding tasks *and no pending chain items*. A trigger raised by one
     // step therefore blocks the next until it has resolved.

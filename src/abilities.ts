@@ -99,10 +99,23 @@ export type Effect =
       count: number;
       /** R184.1 — units default to entering exhausted (R185.2.d). */
       ready?: true;
-      /** Where it enters; defaults to the controller's base. */
-      to?: "base" | "sourceLocation";
+      /**
+       * Where it enters; defaults to the controller's base.
+       *
+       * `eventLocation` is Deceiver's "when you conquer or hold … play a
+       * Reflection token **there**". "There" is the battlefield the event
+       * named, which is not `sourceLocation`: the source is a Legend, and
+       * R107.4.b makes the Legend Zone no location at all.
+       */
+      to?: "base" | "sourceLocation" | "eventLocation";
       /** R477.1.b — becomes a copy of the chosen target as it enters. */
       copyOfTarget?: number;
+      /**
+       * Keeper of Masks — "play two Reflection unit tokens here. **They become
+       * copies of me**." The same trait-layer copy, of a source that was never
+       * chosen and so is nowhere in `targets`.
+       */
+      copyOfSource?: true;
       /** R184.3 — the creating effect may grant abilities to the token. */
       grants?: Keyword[];
     }
@@ -788,6 +801,14 @@ export interface EffectContext {
    * ability triggered (R323.4). This is what "here" resolves against.
    */
   sourceLocation?: Location;
+  /**
+   * Where the *inciting event* happened, which is not always where the source
+   * is. Deceiver's "when you conquer or hold … play a Reflection token
+   * **there**" is triggered by a Legend, and R107.4.b makes the Legend Zone no
+   * location at all — so "there" can only mean the battlefield the event
+   * named. `sourceLocation` answers "here"; this answers "there".
+   */
+  eventLocation?: Location;
   /** R356.2.b — whether this play's optional additional cost was paid. */
   paidAdditionalCost?: boolean;
   /** Which zone a resolving spell was played from (R811.3). */
@@ -1187,9 +1208,11 @@ export function execute(
       let current = state;
       const events: GameEvent[] = [];
       const copySourceId =
-        effect.copyOfTarget === undefined
-          ? undefined
-          : context.targets[effect.copyOfTarget];
+        effect.copyOfSource === true
+          ? context.sourceId
+          : effect.copyOfTarget === undefined
+            ? undefined
+            : context.targets[effect.copyOfTarget];
 
       for (let i = 0; i < effect.count; i += 1) {
         const index = current.tokensCreated;
@@ -1199,7 +1222,10 @@ export function execute(
         const location: Location =
           effect.to === "sourceLocation" && context.sourceLocation !== undefined
             ? context.sourceLocation
-            : { kind: "base", player: context.controller };
+            : effect.to === "eventLocation" &&
+                context.eventLocation !== undefined
+              ? context.eventLocation
+              : { kind: "base", player: context.controller };
 
         current = {
           ...current,

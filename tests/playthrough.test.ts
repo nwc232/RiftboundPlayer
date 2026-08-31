@@ -6,10 +6,12 @@ import { legalActions } from "../src/legal.js";
 import type { CardId, CardInstance, GameState, Location } from "../src/state.js";
 import {
   ALL_CARDS,
+  LEBLANC_DECK,
   RENGAR_DECK,
   VEX_DECK,
   matchup,
 } from "../src/decks/index.js";
+import type { Deck } from "../src/deck.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -42,8 +44,10 @@ interface Outcome {
  * share, and the only way to check it is to exercise every branch a real game
  * reaches.
  */
-function play(seed: number, maxSteps = 4000): Outcome {
-  const started = startGame(matchup());
+function play(seed: number, maxSteps = 4000, decks?: [Deck, Deck]): Outcome {
+  const started = startGame(
+    matchup(decks === undefined ? {} : { decks }),
+  );
   if (!started.ok) throw new Error(`setup failed: ${JSON.stringify(started.errors)}`);
 
   let state = started.state;
@@ -201,4 +205,29 @@ describe("every card in both decks can be played", () => {
       expect(plays.length).toBeGreaterThan(0);
     },
   );
+});
+
+/**
+ * Deck 3 against both of the others. The point of a third list is not that it
+ * plays well — it is that it prints nine keywords the first two never did, so
+ * a random game through it reaches branches no unit test thought to build.
+ */
+describe("full games with the LeBlanc deck", () => {
+  const seeds = Array.from({ length: 15 }, (_, i) => i + 1);
+
+  it.each(seeds)("plays against Vex, seed %i", (seed) => {
+    const { state, stuck } = play(seed, 4000, [LEBLANC_DECK, VEX_DECK]);
+
+    expect(stuck).toBe(false);
+    expect(state.winner).not.toBeNull();
+    expect(state.pending).toBeNull();
+  });
+
+  it.each(seeds)("plays against Rengar, seed %i", (seed) => {
+    const { state, stuck } = play(seed, 4000, [LEBLANC_DECK, RENGAR_DECK]);
+
+    expect(stuck).toBe(false);
+    expect(state.winner).not.toBeNull();
+    expect(state.pending).toBeNull();
+  });
 });

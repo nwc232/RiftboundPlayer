@@ -89,7 +89,17 @@ export type TriggerCondition =
    */
   | { on: "combatWon"; subject: "self" }
   /** R420 — "when I move to a battlefield" (Irresistible Faefolk). */
-  | { on: "unitMoved"; subject: TriggerSubject; to?: "battlefield" };
+  | {
+      on: "unitMoved";
+      subject: TriggerSubject;
+      to?: "battlefield";
+      /**
+       * Back-Alley Bar — "when a unit moves **from here**". The battlefield
+       * watching its own space as an *origin* rather than a destination, which
+       * is the mirror of `here` on the conditions that watch arrivals.
+       */
+      from?: "here";
+    };
 
 export interface TriggeredAbility {
   kind: "triggered";
@@ -193,6 +203,22 @@ function atBattlefield(
 ): boolean {
   const location = locationOf(state, sourceId);
   return location?.kind === "battlefield" && location.id === battlefieldId;
+}
+
+/**
+ * The battlefield an event happened at, when it names one. This is what an
+ * ability's "there" resolves to — Deceiver's "when you conquer or hold … play
+ * a Reflection token there". Distinct from the source's own location, which is
+ * what "here" resolves to and which a Legend does not have (R107.4.b).
+ */
+function locationNamedBy(event: GameEvent): Location | undefined {
+  if ("battlefieldId" in event) {
+    return { kind: "battlefield", id: event.battlefieldId };
+  }
+  // R323.4 — a death notes where it stood, so "there" still means something
+  // for an ability watching one.
+  if (event.type === "unitKilled") return event.location;
+  return undefined;
 }
 
 function matches(
@@ -309,6 +335,10 @@ function matches(
       return (
         event.type === "unitMoved" &&
         (condition.to === undefined || event.to.kind === condition.to) &&
+        // "from here" is about where the move *started*, so it is read off the
+        // event rather than off where the unit stands now.
+        (condition.from !== "here" ||
+          (event.from.kind === "battlefield" && event.from.id === sourceId)) &&
         subjectMatches(
           condition.subject,
           event.cardId,
@@ -458,6 +488,10 @@ export function harvestTriggers(
 
       if (ability.oncePerTurn === true) counts[tally] = (counts[tally] ?? 0) + 1;
 
+      // "There" — the battlefield the inciting event names, for the abilities
+      // whose effect points at it rather than at their own source.
+      const eventLocation = locationNamedBy(inciting);
+
       found.push({
         controller: actor,
         item: {
@@ -470,6 +504,7 @@ export function harvestTriggers(
               ? subjectOf(inciting).filter((id) => id !== undefined)
               : [],
           ...(location !== undefined ? { sourceLocation: location } : {}),
+          ...(eventLocation !== undefined ? { eventLocation } : {}),
           ...(might !== undefined ? { sourceMight: might } : {}),
         },
       });

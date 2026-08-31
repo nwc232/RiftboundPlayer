@@ -152,7 +152,14 @@ export type RestrictedAction =
   /** R415 — Maduli the Gatekeeper's "I can't be readied". */
   | "beReadied"
   /** R437 — Ambessa's "can't be dealt damage unless I'm in combat". */
-  | "beDealtDamage";
+  | "beDealtDamage"
+  /**
+   * LeBlanc, Everywhere at Once — "Your [Temporary] effects at my battlefield
+   * don't trigger." The keyword stays: R816.2's redundancy, Petal Pixie's
+   * count and "a unit *without* [Temporary]" all still see it. What stops is
+   * the ability it stands for, which is what "effects … don't trigger" says.
+   */
+  | "keywordTrigger";
 
 export interface Restriction {
   what: RestrictedAction;
@@ -174,6 +181,12 @@ export interface Restriction {
    * however it arises.
    */
   source?: "effect";
+  /**
+   * Which keyword's derived ability is suppressed, for `keywordTrigger`. Only
+   * the named one stops: LeBlanc silences [Temporary] and leaves [Vision] and
+   * [Quick-Draw] alone.
+   */
+  keyword?: Keyword;
 }
 
 /** R477's layers, in the order they are applied. */
@@ -246,6 +259,29 @@ export type Modification =
     }
   /** R477.3 — the mathematics of raising and lowering Might. */
   | { layer: "arithmetic"; op: "addMight"; amount: number }
+  /**
+   * Petal Pixie — "I have +1 Might **for each** of your units with [Temporary]
+   * at my battlefield"; Sett, Kingpin — "for each buffed friendly unit at my
+   * battlefield". The amount is a count of the board rather than a number, so
+   * it is resolved when the modification is collected and moves the moment the
+   * board does.
+   */
+  | {
+      layer: "arithmetic";
+      op: "addMightPer";
+      /** Per matching object found. */
+      amount: number;
+      count: {
+        /** Relative to the counting permanent's controller. */
+        controller?: "friendly" | "enemy";
+        keyword?: Keyword;
+        buffed?: true;
+        /** "…at my battlefield". */
+        here?: true;
+        /** R355.5's "another" — never count yourself. */
+        excludeSelf?: true;
+      };
+    }
   /**
    * R477.3.b's third example — "Might increased to 5" from a *passive* does not
    * snapshot, so it is recomputed against whatever the running value is. That
@@ -322,7 +358,7 @@ export type PassiveScope =
    * only scope that reaches both players' units, which is why the restrictions
    * needed it and no anthem did.
    */
-  | { target: "allUnits"; here?: boolean; tag?: string };
+  | { target: "allUnits"; here?: boolean; tag?: string; keyword?: Keyword };
 
 /**
  * When a passive applies. Absent means always. `mighty` is R708 (Might 5+) and
@@ -355,6 +391,60 @@ interface PendingModification {
   applied: boolean;
 }
 
+/**
+ * The `seen` set for reading one source's rules text: everything on the board
+ * except that source.
+ *
+ * Reading a source through the pipeline is what catches copied rules text
+ * (R477.1.b). Letting *that* read recurse into every other permanent is what
+ * made the pipeline exponential — memoising bounds recomputing the same
+ * (card, seen) pair, but the number of distinct pairs is the number of
+ * reachable subsets of the board, which is not bounded at all.
+ *
+ * So the read is stopped one level down: the source's own text is resolved
+ * through the layers, and the sources *it* would read are resolved on printed
+ * values, which is what R711 gives anything the pipeline declines to enter.
+ * A copy of a copy therefore resolves; a passive granted to a card by another
+ * card's passive, where that grant then changes a third card, does not.
+ * Written up as a deviation.
+ */
+function oneLevel(
+  state: GameState,
+  seen: ReadonlySet<CardId>,
+  except: CardId,
+): ReadonlySet<CardId> {
+  const bounded = new Set(seen);
+  for (const cardId of Object.keys(state.permanents)) {
+    if (cardId !== except) bounded.add(cardId);
+  }
+  return bounded;
+}
+
+/**
+ * Whether a source's rules text could differ from what it printed.
+ *
+ * R477.1.b's copy and R477.2's granted ability are the only two things that
+ * rewrite it — a copy modifier or a granted one aimed at this card, or a
+ * printed passive that grants an ability to itself ([Empowered], [Level]).
+ * Anything else reads the same off the card as it does through the pipeline,
+ * at a fraction of the cost.
+ */
+function rulesTextCanDiffer(
+  state: GameState,
+  source: PermanentState,
+  card: CardInstance,
+): boolean {
+  for (const modifier of state.modifiers) {
+    if (modifier.targetId !== source.cardId) continue;
+    const op = modifier.modification.op;
+    if (op === "copyOf" || op === "grantAbility") return true;
+  }
+  return card.abilities.some(
+    (ability) =>
+      ability.kind === "passive" && ability.modification.op === "grantAbility",
+  );
+}
+
 /** Every passive on the board that could modify `subject`. */
 function passivesFor(
   state: GameState,
@@ -363,19 +453,56 @@ function passivesFor(
 ): PendingModification[] {
   const found: PendingModification[] = [];
 
-  for (const source of Object.values(state.permanents)) {
+  // R190 — a battlefield is a Game Object with rules text, and Black Flame
+  // Altar's "Units here with [Temporary] have [Shield]" is a passive like any
+  // other. It is not a permanent, so it is not in `state.permanents`; a
+  // battlefield's "here" is itself, which is the whole of what it needs to
+  // stand in as a source.
+  const battlefieldSources: PermanentState[] = state.battlefieldOrder.map(
+    (battlefieldId) => ({
+      cardId: battlefieldId,
+      // R190.6.d — an uncontrolled battlefield has no "you", so a scope that
+      // names a side finds nobody. `inScope` compares controllers, and
+      // `controllerOf` falls back to p1 for anything it cannot place, which
+      // would silently make an uncontrolled battlefield p1's. Naming the
+      // controller explicitly is what stops that.
+      controller: state.battlefields[battlefieldId]?.controller ?? "p1",
+      exhausted: false,
+      location: { kind: "battlefield", id: battlefieldId },
+      damage: 0,
+    }),
+  );
+
+  for (const source of [
+    ...Object.values(state.permanents),
+    ...battlefieldSources,
+  ]) {
     const card = state.cards[source.cardId];
     if (card === undefined) continue;
+    // R190.6.d — an uncontrolled battlefield has no "you", so its passives
+    // that name a side are ignored. `allUnits` is the one scope that names
+    // none, which is why Black Flame Altar works on a battlefield nobody
+    // holds and an anthem over "your units" would not.
+    const unheld =
+      state.battlefields[source.cardId] !== undefined &&
+      state.battlefields[source.cardId]?.controller == null;
 
     // A source that has become a copy of something grants the *copied* rules
-    // text, so its abilities have to be read through the layers too.
+    // text, so its abilities have to be read through the layers too — but only
+    // *that* source does. Reading every permanent's text through the pipeline
+    // made this mutually recursive across the whole board, which is a walk
+    // over every ordering of it: fine at four permanents, and it hung the
+    // process outright at nine. Two things can make a card's rules text differ
+    // from what it prints, and both are cheap to test for.
     const abilities =
-      source.cardId === subject.cardId
+      source.cardId === subject.cardId || !rulesTextCanDiffer(state, source, card)
         ? card.abilities
-        : characteristicsOf(state, source.cardId, seen).abilities;
+        : characteristicsOf(state, source.cardId, oneLevel(state, seen, source.cardId))
+            .abilities;
 
     for (const ability of abilities) {
       if (ability.kind !== "passive") continue;
+      if (unheld && ability.scope.target !== "allUnits") continue;
       if (!inScope(state, ability, source, subject, seen)) continue;
       found.push({
         modification: ability.modification,
@@ -403,6 +530,18 @@ function inScope(
     scope.target !== "self" &&
     scope.tag !== undefined &&
     !characteristicsOf(state, subject.cardId, seen).tags.includes(scope.tag)
+  ) {
+    return false;
+  }
+  // Black Flame Altar — "Units here **with [Temporary]**". Read through the
+  // pipeline, so a unit given the keyword qualifies as surely as one printing
+  // it; `seen` guards the recursion the copy layer can open.
+  if (
+    scope.target === "allUnits" &&
+    scope.keyword !== undefined &&
+    !characteristicsOf(state, subject.cardId, seen).keywords.includes(
+      scope.keyword,
+    )
   ) {
     return false;
   }
@@ -510,6 +649,45 @@ function holds(
 }
 
 type ArithmeticStep = Extract<Modification, { layer: "arithmetic" }>;
+
+/**
+ * How many permanents match, for the "for each" Might modifications.
+ *
+ * Read through the pipeline on the counted objects too — Petal Pixie counts
+ * units *with [Temporary]*, and a unit given [Temporary] by Shadow's Call
+ * counts as surely as one that printed it. `seen` is what keeps that safe
+ * inside the copy layer's recursion.
+ */
+function countMatching(
+  state: GameState,
+  subject: PermanentState,
+  count: Extract<Modification, { op: "addMightPer" }>["count"],
+  seen: ReadonlySet<CardId>,
+): number {
+  const mine = controllerOf(state, subject.cardId);
+
+  return Object.values(state.permanents).filter((permanent) => {
+    if (count.excludeSelf === true && permanent.cardId === subject.cardId) {
+      return false;
+    }
+    if (count.here === true && !sameLocation(subject.location, permanent.location)) {
+      return false;
+    }
+    const its = controllerOf(state, permanent.cardId);
+    if (count.controller === "friendly" && its !== mine) return false;
+    if (count.controller === "enemy" && its === mine) return false;
+    if (count.buffed === true && permanent.buffed !== true) return false;
+    if (count.keyword !== undefined) {
+      // The counted object's *own* characteristics, guarded against a cycle:
+      // counting a unit whose Might depends on this count would not terminate.
+      const theirs = seen.has(permanent.cardId)
+        ? state.cards[permanent.cardId]?.keywords ?? []
+        : characteristicsOf(state, permanent.cardId, seen).keywords;
+      if (!theirs.includes(count.keyword)) return false;
+    }
+    return true;
+  }).length;
+}
 
 /**
  * R477.3.e — increases are applied before decreases.
@@ -720,10 +898,73 @@ function withDerivedKeywords(keywords: Keyword[]): Keyword[] {
     : keywords;
 }
 
+/**
+ * A per-state memo for `characteristicsOf`.
+ *
+ * Not an optimisation so much as a correctness bound on running time. The
+ * pipeline is genuinely mutually recursive: working out what one permanent's
+ * characteristics are means reading every *other* permanent's rules text
+ * through the pipeline too, because a source that has become a copy grants the
+ * text it copied. Each of those reads does the same. Unmemoised, that walks
+ * every ordering of the board — factorial in the number of permanents, which
+ * is fine at four and hangs the process at nine.
+ *
+ * `GameState` is immutable, so a state is a safe cache key: nothing that could
+ * change an answer can change without a new state object. The `seen` set is
+ * part of the key because it changes the answer — R711 hands back printed
+ * values inside a copy cycle.
+ *
+ * A `WeakMap` means a discarded state's memo is collected with it, which
+ * matters when `legalActions` builds a few hundred candidate states.
+ */
+const MEMO = new WeakMap<GameState, Map<string, Characteristics>>();
+
+/**
+ * The cache key for a `seen` set, computed once per set rather than once per
+ * lookup. A frame builds one `nested` set and hands it to every recursive call
+ * it makes, so keying by the set's identity turns what was a sort per call
+ * into a sort per frame — which was the whole cost of the memo when it was
+ * first added, and swamped the work it was there to avoid.
+ */
+const SEEN_KEYS = new WeakMap<ReadonlySet<CardId>, string>();
+
+function seenKeyOf(seen: ReadonlySet<CardId>): string {
+  if (seen.size === 0) return "";
+  let key = SEEN_KEYS.get(seen);
+  if (key === undefined) {
+    key = [...seen].sort().join(",");
+    SEEN_KEYS.set(seen, key);
+  }
+  return key;
+}
+
 export function characteristicsOf(
   state: GameState,
   cardId: CardId,
   seen: ReadonlySet<CardId> = new Set(),
+): Characteristics {
+  // The `seen` set is part of the key because it changes the answer: R711
+  // hands back printed values inside a copy cycle.
+  const suffix = seenKeyOf(seen);
+  const key = suffix === "" ? cardId : `${cardId}|${suffix}`;
+
+  let memo = MEMO.get(state);
+  if (memo === undefined) {
+    memo = new Map();
+    MEMO.set(state, memo);
+  }
+  const cached = memo.get(key);
+  if (cached !== undefined) return cached;
+
+  const computed = computeCharacteristics(state, cardId, seen);
+  memo.set(key, computed);
+  return computed;
+}
+
+function computeCharacteristics(
+  state: GameState,
+  cardId: CardId,
+  seen: ReadonlySet<CardId>,
 ): Characteristics {
   const card = state.cards[cardId];
   const printedMight = card?.might ?? 0;
@@ -989,6 +1230,24 @@ export function characteristicsOf(
           case "increaseMightTo":
             arithmetic.push(entry.modification);
             break;
+          // "…+1 Might **for each** …". The count is resolved here, where the
+          // board and the counting permanent are both in hand, and becomes an
+          // ordinary `addMight`. R476.2's fixpoint re-runs the whole
+          // collection, so the number moves the moment the board does.
+          case "addMightPer": {
+            const found = countMatching(
+              state,
+              subject,
+              entry.modification.count,
+              nested,
+            );
+            arithmetic.push({
+              layer: "arithmetic",
+              op: "addMight",
+              amount: entry.modification.amount * found,
+            });
+            break;
+          }
         }
 
         entry.applied = true;
@@ -1124,7 +1383,19 @@ export function abilitiesOf(state: GameState, cardId: CardId): Ability[] {
       when: { kind: "notEmpowered" },
     });
   }
-  if (now.keywords.includes("temporary")) derived.push(TEMPORARY);
+  // LeBlanc, Everywhere at Once — "Your [Temporary] effects at my battlefield
+  // don't trigger." Asked here rather than in the trigger collector because it
+  // is the *ability* that is absent, not the event that is ignored: nothing
+  // downstream should see a Temporary trigger it then has to skip.
+  const silenced = (keyword: Keyword): boolean =>
+    now.restrictions.some(
+      (restriction) =>
+        restriction.what === "keywordTrigger" && restriction.keyword === keyword,
+    );
+
+  if (now.keywords.includes("temporary") && !silenced("temporary")) {
+    derived.push(TEMPORARY);
+  }
   // R817.2 — "Multiple instances of Vision trigger separately", unlike
   // R819.2's Quick-Draw and R816.2's Temporary, which are redundant. The tally
   // is what tells the three apart.

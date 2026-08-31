@@ -701,13 +701,34 @@ built when a card asks for it.
   what a *card* costs; Marai Spire ("friendly [Repeat] costs cost [1] less")
   and Stargazer ("spells with [Flow] you play from your trash cost [2] less")
   name a *keyword's* cost, which is a different subject.
-- **Noxus Saboteur's restriction has nothing to restrict.** "Your opponents'
-  [Hidden] cards can't be revealed here" forbids an action the engine never
-  performs: nothing reveals a facedown card. Scuttle Crab's "you can look at
-  their facedown cards this turn" is the card that would make it matter, and
-  that is a `viewOf` grant rather than R424's Reveal. The verb was written and
-  then deleted rather than shipped with no chokepoint; it is one line in
-  `restrictions.ts` once the action exists.
+- **The layer pipeline reads a source's rules text one level deep.**
+  Deciding whether a source's passive applies means reading that source's
+  rules text through the layers, because a source that has become a copy
+  grants what it copied (R477.1.b). Letting *that* read recurse into every
+  other permanent made the pipeline exponential in board size: memoising
+  bounds recomputing the same (card, `seen`) pair, but the number of distinct
+  pairs is the number of reachable subsets of the board. Six Reflection tokens
+  copying one card took a single turn from milliseconds to ninety seconds.
+
+  The read is now stopped one level down — the source resolves through the
+  layers, and the sources *it* would read resolve on printed values, which is
+  what R711 gives anything the pipeline declines to enter. A copy of a copy
+  still resolves. What does not is a passive granted to a card by another
+  card's passive, where that grant then changes a third card. No card in the
+  pool does that; if one appears, the answer is to resolve the copy chain
+  directly rather than to widen the recursion again.
+- **R421.4's reveal is not performed.** "If a facedown card would change
+  zones or if the game ends, its owner reveals it to all players." The engine
+  moves facedown cards between zones in two places — `leaveZone` plays one
+  onto the chain (R811.1.b), `sweepFacedown` trashes one when its battlefield
+  is lost (R323.7) — and neither reveals it. The information does reach the
+  opponent both ways, because the card lands somewhere public; what is missing
+  is R424's Revealed *state*, which other cards watch. Teemo, Strategist
+  counts "cards with [Hidden] revealed this way", and R421.4's reveal is what
+  Noxus Saboteur's "your opponents' [Hidden] cards can't be revealed here"
+  forbids. The `beRevealed` restriction verb was written and then deleted
+  rather than shipped pointing at a chokepoint that does not exist; it is one
+  line in `restrictions.ts` once R421.4 is performed.
 - **Perched Grimwyrm and Ol' Poro are not restrictions.** "Play me only to a
   battlefield you conquered this turn" is an *exclusive* permission — it
   replaces R355.2.a's default rather than narrowing it, which `PlayPermission`

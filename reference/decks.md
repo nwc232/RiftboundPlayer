@@ -1,8 +1,14 @@
-# The two target decks
+# The target decks
 
-The MVP's forcing function: two real constructed lists, pulled from online.
-Every mechanic gets built because one of these cards asks for it, not because
-a survey said it was common.
+The project's forcing function: real constructed lists. Every mechanic gets
+built because one of these cards asks for it, not because a survey said it was
+common.
+
+The first two were the MVP's pair. **Deck 3 was chosen on different grounds**
+— not to play well, but to reach what the first two never touched. Between
+them Vex and Rengar print nine of the engine's twenty-one keywords, and the
+other twelve had been built and only ever run against test fixtures. That is
+where bugs sit.
 
 Both are fully present in `riftbound-cards-full.json`. The Legends are filed
 under their titles alone — `Gloomist`, `Pridestalker` — rather than the
@@ -68,6 +74,69 @@ deckbuilder convention of "Vex, Gloomist".
 **Rune Pool:** 7 Body · 5 Fury
 **Sideboard:** 2 Decree of Strength · 1 Unyielding Spirit · 2 Brittle Steel ·
 2 Darius, Trifarian · 1 Thermo Beam · 2 Brynhir Thundersong
+
+---
+
+## Deck 3 — Deceiver (Mind / Order)
+
+**Legend:** Deceiver — *When you conquer or hold, you may discard 1 and exhaust
+me to play a ready Reflection unit token there. It becomes a copy of another
+unit there. Give it [Temporary].*
+**Champion:** LeBlanc, Everywhere at Once
+
+| # | Card |
+|---|---|
+| 3 | Mirror Image *(signature — R103.2.d's whole allowance)* |
+| 3 | Keeper of Masks |
+| 3 | Sprite Mother |
+| 3 | Sprite Call |
+| 2 | Petal Pixie |
+| 2 | Shadow's Call |
+| 2 | Sumpworks Map |
+| 3 | Gemcraft Seer |
+| 2 | Jeweled Colossus |
+| 3 | Downstage Dramatics |
+| 2 | Frigid Touch |
+| 3 | Apprentice Mage |
+| 2 | Solari Sunhawk |
+| 2 | Lecturing Yordle |
+| 2 | Dredge Up |
+| 2 | Cloth Armor |
+
+**Battlefields:** Black Flame Altar · Altar to Unity · Back-Alley Bar
+**Rune Pool:** 8 Mind · 4 Order
+
+### Why this list
+
+Mind and Order were the two domains the first two decks never covered, and
+they are where the untested keywords concentrate. The list prints seven of
+the twelve: **[Temporary]**, **[Repeat]**, **[Empower]**, **[Vision]**,
+**[Shield]**, **[Tank]**, **[Flow]** and **[Quick-Draw]**.
+
+The legend alone reached four things the engine could not previously say:
+
+| What Deceiver needed | Why it did not exist |
+|---|---|
+| A token played *there* | "There" is the battlefield the score happened at. R107.4.b puts the Legend Zone nowhere, so `sourceLocation` — which answers "here" — had nothing to give |
+| A target chosen *there* | Same reason, on the filter side rather than the destination side |
+| A chosen discard as an ability cost | R422.1.a leaves *which* card to the discarding player |
+| A copy granted a keyword as it enters | R477.1.b and R184.3 on the same token |
+
+Four more came from the rest of the list:
+
+- **Keeper of Masks** — "They become copies of **me**", a copy source that was
+  never chosen and so is nowhere in `targets`.
+- **Petal Pixie** — "+1 Might **for each**", an amount that is a count of the
+  board rather than a number.
+- **Shadow's Call** — "a friendly unit **without [Temporary]**", the first
+  negative keyword filter.
+- **LeBlanc, Everywhere at Once** — "Your [Temporary] effects at my
+  battlefield **don't trigger**", which suppresses the ability a keyword
+  stands for while leaving the keyword itself in place.
+
+And one from a battlefield: **Back-Alley Bar**'s "when a unit moves *from
+here*" wanted a movement trigger that watches an origin rather than a
+destination.
 
 ---
 

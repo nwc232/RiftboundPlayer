@@ -75,6 +75,13 @@ export type ChainItem =
        * directly instead, so effects get one uniform answer for "here".
        */
       sourceLocation?: Location;
+      /**
+       * Where the *inciting event* happened. Deceiver's "when you conquer or
+       * hold … play a Reflection token **there**" needs the battlefield the
+       * event named, and its source is a Legend — R107.4.b makes the Legend
+       * Zone no location at all, so `sourceLocation` cannot answer it.
+       */
+      eventLocation?: Location;
       /** R323.4 — Might as it stood at death, which printed Might won't give. */
       sourceMight?: number;
     };

@@ -99,6 +99,11 @@ export function checkForWinner(state: GameState): Progress {
 
     if (points >= VICTORY_SCORE && points > opponentPoints) {
       return {
+        // R194.2 — setting the winner is the whole of this. Stopping the
+        // game is `runTasks` and `awaitDecisions`' business: clearing state
+        // here looked like a fix and was not one, because the triggers the
+        // winning score itself raised are collected *after* this returns and
+        // put a decision straight back.
         state: { ...state, winner: playerId },
         events: [{ type: "gameWon", playerId, points }],
       };

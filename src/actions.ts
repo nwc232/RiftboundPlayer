@@ -314,6 +314,7 @@ function nextDecision(state: GameState): PendingDecision | null {
           item.controller,
           filter,
           chainItemCardId(item),
+          item.kind === "trigger" ? item.eventLocation : undefined,
         ),
       },
     };
@@ -455,6 +456,11 @@ function payTriggerCosts(
 /** Attaches any outstanding decision to the state, blocking other actions. */
 function awaitDecisions(result: ActionResult): ActionResult {
   if (!result.ok) return result;
+
+  // R194.2 — with a winner decided there is nothing left to decide. Asking
+  // anyway leaves a prompt nobody can answer: every action is refused once the
+  // game is over, so `legalActions` offers nothing back.
+  if (result.state.winner !== null) return result;
 
   // R320.1 — a task-raised decision outranks anything on the chain, because the
   // queue has to drain before a chain item may be finalized at all.
@@ -1451,6 +1457,12 @@ export function passPriority(
       sourceId,
       targets: item.targets,
       ...(sourceLocation !== undefined ? { sourceLocation } : {}),
+      // "There" — the battlefield the inciting event named, which is not
+      // always where the source is (Deceiver's is a Legend, and R107.4.b puts
+      // the Legend Zone nowhere).
+      ...(item.kind === "trigger" && item.eventLocation !== undefined
+        ? { eventLocation: item.eventLocation }
+        : {}),
       ...(item.kind === "spell" && item.paidAdditionalCost === true
         ? { paidAdditionalCost: true }
         : {}),
