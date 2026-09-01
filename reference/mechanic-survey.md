@@ -733,13 +733,23 @@ built when a card asks for it.
   "Your opponents' [Hidden] cards can't be revealed here." R421.4 makes the
   reveal a *consequence* of the zone change rather than a permission for it,
   so the card still moves and only the reveal is stopped. No official ruling
-  exists — RiftJudge, the Origins FAQ and the card wikis are all silent. What
-  settles it is the pool: R421.4 is the only thing in the game that reveals a
-  facedown card, and nothing triggers on a reveal happening, so the reading
-  that makes Saboteur a hate card would have to invent the rule that makes it
-  one. The honest consequence is that Saboteur is near-blank here — its one
-  visible effect is R421.4's game-end clause, where it saves its controller
-  from showing an unplayed hidden card.
+  exists — RiftJudge, the Origins FAQ and the card wikis are all silent.
+
+  The restriction **fires constantly**, not rarely. Playing a hidden card as a
+  Reaction is a zone change, so R421.4 reveals it — and that is the whole
+  Hidden pattern. R424.2.a is why the player is not the one revealing: "players
+  may only Reveal cards from Private or Secret zones when instructed to do so
+  by Game Effects." A player choosing to play a facedown card causes the
+  reveal; R424.2.b's voluntary *showing* of private information is explicitly
+  not one.
+
+  What is currently unobservable is its *effect*, for two reasons that have
+  nothing to do with each other. R108.1.b makes the Chain Public Information,
+  so a played hidden card becomes known on arrival whether or not it was
+  revealed. And no card in the pool triggers on a reveal or reads the Revealed
+  status. Either of those changing switches Saboteur on — and the second is an
+  ordinary thing for a set to print, so this is a card waiting on the pool
+  rather than a card that does nothing.
 - **Perched Grimwyrm and Ol' Poro are not restrictions.** "Play me only to a
   battlefield you conquered this turn" is an *exclusive* permission — it
   replaces R355.2.a's default rather than narrowing it, which `PlayPermission`
