@@ -196,3 +196,26 @@ export function cannotBeCountered(
     reaches(source, controller),
   );
 }
+
+/**
+ * Noxus Saboteur — "Your opponents' [Hidden] cards can't be revealed here."
+ *
+ * R421.4 is the whole of what this can forbid: nothing else in the pool
+ * reveals a facedown card. Scuttle Crab's "you can look at their facedown
+ * cards" is not a reveal — R424.2.b says showing Private information "does
+ * not count as revealing and does not trigger any effects that trigger when
+ * cards are revealed" — and Monster Harpoon only reaches your own.
+ *
+ * `playerId` is whose facedown card it is, which is what "your opponents'"
+ * names.
+ */
+export function cannotBeRevealed(
+  state: GameState,
+  playerId: PlayerId,
+  battlefieldId: CardId,
+): boolean {
+  const location: Location = { kind: "battlefield", id: battlefieldId };
+  return auras(state, "beRevealed").some(
+    (source) => reaches(source, playerId) && coversLocation(source, location),
+  );
+}

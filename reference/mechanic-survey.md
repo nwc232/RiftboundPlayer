@@ -717,18 +717,29 @@ built when a card asks for it.
   card's passive, where that grant then changes a third card. No card in the
   pool does that; if one appears, the answer is to resolve the copy chain
   directly rather than to widen the recursion again.
-- **R421.4's reveal is not performed.** "If a facedown card would change
-  zones or if the game ends, its owner reveals it to all players." The engine
-  moves facedown cards between zones in two places — `leaveZone` plays one
-  onto the chain (R811.1.b), `sweepFacedown` trashes one when its battlefield
-  is lost (R323.7) — and neither reveals it. The information does reach the
-  opponent both ways, because the card lands somewhere public; what is missing
-  is R424's Revealed *state*, which other cards watch. Teemo, Strategist
-  counts "cards with [Hidden] revealed this way", and R421.4's reveal is what
-  Noxus Saboteur's "your opponents' [Hidden] cards can't be revealed here"
-  forbids. The `beRevealed` restriction verb was written and then deleted
-  rather than shipped pointing at a chokepoint that does not exist; it is one
-  line in `restrictions.ts` once R421.4 is performed.
+- ~~**R421.4's reveal is not performed.**~~ Built. "If a facedown card would
+  change zones or if the game ends, its owner reveals it to all players" now
+  fires at all three moments — played out of a Facedown Zone (R811.1.b),
+  swept to the trash on losing the battlefield (R323.7), and at game end.
+
+  **The Revealed state's lifetime here is a choice the rules do not make.**
+  R424.1.a.3 gives a duration only for a reveal "caused by a Reveal action as
+  instructed by a spell or ability", and R421.4's is caused by the rules. It
+  is treated as lasting to the end of the current resolution, like every other
+  reveal, on the grounds that the card is leaving for a public zone and the
+  state has nothing left to describe once it arrives.
+
+  **Noxus Saboteur is read as forbidding the disclosure, not the move.**
+  "Your opponents' [Hidden] cards can't be revealed here." R421.4 makes the
+  reveal a *consequence* of the zone change rather than a permission for it,
+  so the card still moves and only the reveal is stopped. No official ruling
+  exists — RiftJudge, the Origins FAQ and the card wikis are all silent. What
+  settles it is the pool: R421.4 is the only thing in the game that reveals a
+  facedown card, and nothing triggers on a reveal happening, so the reading
+  that makes Saboteur a hate card would have to invent the rule that makes it
+  one. The honest consequence is that Saboteur is near-blank here — its one
+  visible effect is R421.4's game-end clause, where it saves its controller
+  from showing an unplayed hidden card.
 - **Perched Grimwyrm and Ol' Poro are not restrictions.** "Play me only to a
   battlefield you conquered this turn" is an *exclusive* permission — it
   replaces R355.2.a's default rather than narrowing it, which `PlayPermission`

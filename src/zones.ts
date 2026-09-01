@@ -1,7 +1,13 @@
 import type { AbilityCost } from "./abilities.js";
+import type { GameEvent } from "./events.js";
 import { flowCostsOf } from "./costing.js";
 import { resourcePartOf } from "./layers.js";
-import { clearFacedown, facedownAt, playableFromFacedown } from "./hidden.js";
+import {
+  clearFacedown,
+  facedownAt,
+  playableFromFacedown,
+  revealFacedown,
+} from "./hidden.js";
 import type {
   CardId,
   Cost,
@@ -103,20 +109,25 @@ export function playZonesFor(
 /**
  * Takes the card out of the zone it was played from. R359.1 moves it to the
  * chain either way; this is only the half that empties the zone behind it.
+ *
+ * Returns events as well as state because of R421.4: leaving a Facedown Zone
+ * is a zone change, and "if a facedown card would change zones … its owner
+ * reveals it to all players".
  */
 export function leaveZone(
   state: GameState,
   playerId: PlayerId,
   cardId: CardId,
   zone: PlayZone,
-): GameState {
+): { state: GameState; events: GameEvent[] } {
   const player = state.players[playerId];
+  const plain = (next: GameState) => ({ state: next, events: [] });
 
   switch (zone.source) {
     case "hand": {
       const index = player.hand.indexOf(cardId);
-      if (index === -1) return state;
-      return {
+      if (index === -1) return plain(state);
+      return plain({
         ...state,
         players: {
           ...state.players,
@@ -128,23 +139,29 @@ export function leaveZone(
             ],
           },
         },
-      };
+      });
     }
     // R108.3.c — the Champion Zone cannot be refilled by normal means, so it
     // empties for good once the champion is played.
     case "champion":
-      return {
+      return plain({
         ...state,
         players: { ...state.players, [playerId]: { ...player, champion: null } },
-      };
+      });
     case "facedown": {
       const battlefieldId = facedownAt(state, cardId);
-      return battlefieldId === undefined
-        ? state
-        : clearFacedown(state, battlefieldId);
+      if (battlefieldId === undefined) return plain(state);
+      // R421.4 — it is leaving the Facedown Zone, so its owner reveals it.
+      // The reveal is a consequence of the move rather than a permission for
+      // it: Noxus Saboteur can stop the disclosure and cannot stop the play.
+      const shown = revealFacedown(state, cardId, battlefieldId, playerId);
+      return {
+        state: clearFacedown(shown.state, battlefieldId),
+        events: shown.events,
+      };
     }
     case "trash":
-      return {
+      return plain({
         ...state,
         players: {
           ...state.players,
@@ -153,11 +170,11 @@ export function leaveZone(
             trash: player.trash.filter((id) => id !== cardId),
           },
         },
-      };
+      });
     default: {
       const unhandled: never = zone.source;
       void unhandled;
-      return state;
+      return plain(state);
     }
   }
 }

@@ -1,4 +1,5 @@
 import { cannotScore } from "./restrictions.js";
+import { revealFacedown } from "./hidden.js";
 import type { GameEvent, Progress } from "./events.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
@@ -98,14 +99,19 @@ export function checkForWinner(state: GameState): Progress {
       state.players[playerId === "p1" ? "p2" : "p1"].points;
 
     if (points >= VICTORY_SCORE && points > opponentPoints) {
+      const shown = revealEveryFacedown(state);
       return {
         // R194.2 — setting the winner is the whole of this. Stopping the
         // game is `runTasks` and `awaitDecisions`' business: clearing state
         // here looked like a fix and was not one, because the triggers the
         // winning score itself raised are collected *after* this returns and
         // put a decision straight back.
-        state: { ...state, winner: playerId },
-        events: [{ type: "gameWon", playerId, points }],
+        //
+        // R421.4's other clause is the exception — "or if the game ends, its
+        // owner reveals it to all players" — so what is still hidden comes up
+        // here, where the game ending is known.
+        state: { ...shown.state, winner: playerId },
+        events: [{ type: "gameWon", playerId, points }, ...shown.events],
       };
     }
   }
@@ -126,6 +132,30 @@ export function holdControlledBattlefields(
     const held = score(current, playerId, battlefieldId, "hold");
     current = held.state;
     events.push(...held.events);
+  }
+
+  return { state: current, events };
+}
+
+/**
+ * R421.4's second clause — "or if the game ends, its owner reveals it to all
+ * players". The one moment Noxus Saboteur's "can't be revealed here" has a
+ * visible effect in the current pool: every other reveal it could stop is of
+ * a card already on its way to a public zone.
+ */
+function revealEveryFacedown(state: GameState): Progress {
+  let current = state;
+  const events: GameEvent[] = [];
+
+  for (const [battlefieldId, entry] of Object.entries(state.facedown)) {
+    const shown = revealFacedown(
+      current,
+      entry.cardId,
+      battlefieldId,
+      entry.controller,
+    );
+    current = shown.state;
+    events.push(...shown.events);
   }
 
   return { state: current, events };

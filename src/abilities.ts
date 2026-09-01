@@ -671,7 +671,13 @@ export interface BoardRestriction {
     /** Brynhir, Lilting Lullaby, Fallen Feline, Mageseeker Warden, Rockfall Path. */
     | "play"
     /** Mel, Newly Awakened — "your spells and abilities can't be countered". */
-    | "beCountered";
+    | "beCountered"
+    /**
+     * Noxus Saboteur — "Your opponents' [Hidden] cards can't be revealed
+     * here." R421.4 is the only thing in the game that reveals a facedown
+     * card, so this forbids that and nothing else.
+     */
+    | "beRevealed";
   /**
    * Whose action it forbids, relative to this ability's own controller.
    * R190.6.d is why that matters for a battlefield: an uncontrolled one has no

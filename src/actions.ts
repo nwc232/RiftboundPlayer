@@ -898,12 +898,13 @@ export function playUnitFromHand(
   // Whatever a waiting "your next card costs less" gave, it gave it to this
   // card and is spent. R354 step 1 then takes the card out of wherever it
   // came from — "move the card from its current zone to the Chain".
-  const leftZone = leaveZone(
+  const left = leaveZone(
     consumeDiscount(state, playerId),
     playerId,
     cardId,
     zone,
   );
+  const leftZone = left.state;
 
   // R356.2's non-resource half — "you may discard 1", "you may exhaust your
   // legend". Paid after the card has left its zone, so a discard cannot help
@@ -912,7 +913,8 @@ export function playUnitFromHand(
     ...leftZone.players[playerId],
     runePool: remainingPool,
   });
-  const extraEvents: GameEvent[] = [];
+  // R421.4's reveal, if the card was coming out of a Facedown Zone.
+  const extraEvents: GameEvent[] = [...left.events];
   let choiceIndex = 0;
   for (const each of nonResourceCostsOf(state, playerId, cardId, {
     zone,
@@ -1245,17 +1247,19 @@ export function playSpell(
   // *first* step of playing, before R355's choices and R356's costs. Taking it
   // out of its zone here rather than at the end is what stops a discard cost
   // from being paid with the very card being played.
-  const afterZone = leaveZone(
+  const left = leaveZone(
     consumeDiscount(state, playerId),
     playerId,
     cardId,
     zone,
   );
+  const afterZone = left.state;
   let afterExtras: GameState = withPlayer(afterZone, playerId, {
     ...afterZone.players[playerId],
     runePool: remainingPool,
   });
-  const extraEvents: GameEvent[] = [];
+  // R421.4's reveal, if the card was coming out of a Facedown Zone.
+  const extraEvents: GameEvent[] = [...left.events];
   let choiceIndex = 0;
   for (const each of extraCosts) {
     // R355.1 — one answer per cost that names something, in this order.

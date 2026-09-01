@@ -1,6 +1,7 @@
 import { spend } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import { keywordsOf } from "./layers.js";
+import { cannotBeRevealed } from "./restrictions.js";
 import type {
   CardId,
   FacedownCard,
@@ -133,6 +134,42 @@ export function forcedDestination(battlefieldId: CardId): Location {
   return { kind: "battlefield", id: battlefieldId };
 }
 
+/**
+ * R421.4 — "If a facedown card would change zones or if the game ends, its
+ * owner reveals it to all players."
+ *
+ * The only reveal of a facedown card the game has. R424.1.a makes Revealed a
+ * temporary *state* rather than a move, and R424.1.a.1 lets other cards
+ * reference the act — which is what makes this worth emitting even though the
+ * card is on its way somewhere public anyway.
+ *
+ * **Its lifetime is not defined by the rules.** R424.1.a.3 gives a duration
+ * only for a reveal "caused by a Reveal action as instructed by a spell or
+ * ability", and this one is caused by the rules. It is treated as lasting to
+ * the end of the current resolution, like every other reveal here, because
+ * the card is leaving for a public zone and the state has nothing left to
+ * describe once it arrives. Written up as a deviation.
+ */
+export function revealFacedown(
+  state: GameState,
+  cardId: CardId,
+  battlefieldId: CardId,
+  owner: PlayerId,
+): HideOutcome {
+  // Noxus Saboteur — "Your opponents' [Hidden] cards can't be revealed here."
+  // The card still changes zones: R421.4 makes the reveal a *consequence* of
+  // the move, not a permission for it, so forbidding the reveal forbids only
+  // the disclosure.
+  if (cannotBeRevealed(state, owner, battlefieldId)) {
+    return { state, events: [] };
+  }
+
+  return {
+    state: { ...state, revealed: [...state.revealed, cardId] },
+    events: [{ type: "cardRevealed", playerId: owner, cardId }],
+  };
+}
+
 /** Takes the card out of its zone, leaving the rest of the state alone. */
 export function clearFacedown(
   state: GameState,
@@ -156,6 +193,16 @@ export function sweepFacedown(state: GameState): HideOutcome {
     if (state.battlefields[battlefieldId]?.controller === entry.controller) {
       continue;
     }
+    // R421.4 — it is changing zones, so its owner reveals it first.
+    const shown = revealFacedown(
+      current,
+      entry.cardId,
+      battlefieldId,
+      entry.controller,
+    );
+    current = shown.state;
+    events.push(...shown.events);
+
     const owner = state.players[entry.controller];
     current = {
       ...clearFacedown(current, battlefieldId),
