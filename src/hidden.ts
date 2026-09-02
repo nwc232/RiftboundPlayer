@@ -126,6 +126,18 @@ export function playableFromFacedown(
   if (entry === undefined || entry.controller !== playerId) return undefined;
   if (state.turn.number <= entry.hiddenOnTurn) return undefined;
 
+  // Noxus Saboteur — "Your opponents' [Hidden] cards can't be revealed here."
+  //
+  // R421.4 is a prerequisite of the move, not a remark about it: "if a
+  // facedown card *would* change zones … its owner reveals it to all
+  // players." The reveal is the flip. An action whose required consequence is
+  // forbidden cannot be taken, so a card that cannot be revealed here cannot
+  // be played from here either — which is the whole of what the card does.
+  // Reading it as forbidding only the disclosure makes it forbid nothing:
+  // R108.1.b would make the card Public Information on the Chain a moment
+  // later regardless.
+  if (cannotBeRevealed(state, playerId, battlefieldId)) return undefined;
+
   return battlefieldId;
 }
 
@@ -157,9 +169,14 @@ export function revealFacedown(
   owner: PlayerId,
 ): HideOutcome {
   // Noxus Saboteur — "Your opponents' [Hidden] cards can't be revealed here."
-  // The card still changes zones: R421.4 makes the reveal a *consequence* of
-  // the move, not a permission for it, so forbidding the reveal forbids only
-  // the disclosure.
+  //
+  // A play that would need this reveal never gets here: `playableFromFacedown`
+  // refuses it, so the card stays facedown. What still reaches this is the
+  // forced removal — R323.7 sweeps a facedown card to the trash when its
+  // controller loses the battlefield, and that is the game removing the card
+  // rather than a player taking an action, so there is no action to forbid.
+  // The reveal is skipped and the removal proceeds. Written up: the rules do
+  // not say which of "can't be revealed" and "must be removed" gives way.
   if (cannotBeRevealed(state, owner, battlefieldId)) {
     return { state, events: [] };
   }

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
 import { restrictionAura } from "../src/builders.js";
-import { revealFacedown, sweepFacedown } from "../src/hidden.js";
+import {
+  playableFromFacedown,
+  revealFacedown,
+  sweepFacedown,
+} from "../src/hidden.js";
+import { playZonesFor } from "../src/zones.js";
 import { checkForWinner } from "../src/scoring.js";
 import { FREE } from "../src/cost.js";
 import type { CardInstance, GameState } from "../src/state.js";
@@ -25,6 +30,12 @@ const noxusSaboteur: CardInstance = {
 };
 
 const NORTH = { kind: "battlefield", id: "bf-north" } as const;
+
+/** R811.1.b — a hidden card cannot be played on the turn it was hidden. */
+const onLaterTurn = (state: GameState): GameState => ({
+  ...state,
+  turn: { ...state.turn, number: 2, player: "p2" },
+});
 
 function board(withSaboteur: boolean): GameState {
   const base = makeState({
@@ -99,25 +110,56 @@ describe("a facedown card changing zones", () => {
 });
 
 /**
- * Noxus Saboteur. R421.4 makes the reveal a *consequence* of the zone change,
- * not a permission for it — so the card still moves and only the reveal is
- * stopped.
+ * Noxus Saboteur — "Your opponents' [Hidden] cards can't be revealed here."
  *
- * The restriction fires constantly: playing a hidden card as a Reaction is a
- * zone change, and that is the whole Hidden pattern. What is unobservable is
- * its effect, because R108.1.b makes the Chain Public Information — a played
- * hidden card is known on arrival whether or not it was revealed — and
- * nothing in the pool yet reads the Revealed status.
+ * R421.4 is a prerequisite of the move, not a remark about it: "if a facedown
+ * card *would* change zones … its owner reveals it to all players." The reveal
+ * is the flip, so a card that cannot be revealed here cannot be played from
+ * here — which shuts off the ambush the whole Hidden pattern is for.
+ *
+ * The reading where it forbids only the disclosure forbids nothing at all:
+ * R108.1.b would make the card Public Information on the Chain a moment later
+ * regardless. A restriction that restricts nothing is not a reading.
  */
 describe("Noxus Saboteur", () => {
-  it("stops the reveal", () => {
-    const shown = revealFacedown(board(true), "ambusher", "bf-north", "p2");
+  it("stops the opponent playing their hidden card", () => {
+    const state = onLaterTurn(board(true));
 
-    expect(shown.state.revealed).not.toContain("ambusher");
-    expect(shown.events).toEqual([]);
+    expect(playableFromFacedown(state, "p2", "ambusher")).toBeUndefined();
+    expect(playZonesFor(state, "p2", "ambusher")).toEqual([]);
   });
 
-  it("does not stop the card changing zones", () => {
+  it("is what stops it — without it the play is there", () => {
+    const state = onLaterTurn(board(false));
+
+    expect(playableFromFacedown(state, "p2", "ambusher")).toBe("bf-north");
+    expect(playZonesFor(state, "p2", "ambusher")).toHaveLength(1);
+  });
+
+  /**
+   * "…your *opponents'*" — its controller's own hidden cards are untouched, so
+   * Saboteur does not shut off its own side's ambushes.
+   */
+  it("leaves its own controller's hidden cards alone", () => {
+    const state = onLaterTurn(board(true));
+    const mine: GameState = {
+      ...state,
+      facedown: {
+        "bf-north": { cardId: "ambusher", controller: "p1", hiddenOnTurn: 0 },
+      },
+    };
+
+    expect(playableFromFacedown(mine, "p1", "ambusher")).toBe("bf-north");
+  });
+
+  /**
+   * R323.7's sweep is the game removing the card, not a player acting, so
+   * there is no action for "can't" to forbid. The reveal is skipped and the
+   * removal proceeds — the rules do not say which of "can't be revealed" and
+   * "must be removed" gives way, and leaving a card facedown at a battlefield
+   * its controller does not control would contradict R107.3.c.
+   */
+  it("does not strand a swept card at a battlefield", () => {
     const state = board(true);
     const lost: GameState = {
       ...state,
@@ -128,46 +170,7 @@ describe("Noxus Saboteur", () => {
     };
     const swept = sweepFacedown(lost);
 
-    // R323.7 still sends it to the trash; only the disclosure was forbidden.
     expect(swept.state.players.p2.trash).toContain("ambusher");
     expect(swept.events.map((event) => event.type)).not.toContain("cardRevealed");
-  });
-
-  /** "…your *opponents'*" — its controller's own hidden cards are untouched. */
-  it("leaves its own controller's hidden cards alone", () => {
-    const state = board(true);
-    const mine: GameState = {
-      ...state,
-      facedown: { "bf-north": { cardId: "ambusher", controller: "p1", hiddenOnTurn: 0 } },
-    };
-    const shown = revealFacedown(mine, "ambusher", "bf-north", "p1");
-
-    expect(shown.state.revealed).toContain("ambusher");
-  });
-});
-
-/**
- * The claim that makes "it forbids the disclosure, not the move" coherent:
- * blocking R421.4's reveal does not keep the card secret, because it is on
- * its way to the Chain and R108.1.b makes the Chain Public Information.
- *
- * If that were not true, Saboteur would let a player resolve a spell their
- * opponent is not allowed to read, and the reading would be nonsense.
- */
-describe("a hidden card played while Saboteur is there", () => {
-  it("is still public to the opponent, because the chain is", () => {
-    const state = board(true);
-    const played: GameState = {
-      ...state,
-      facedown: {},
-      chain: [
-        { kind: "spell", cardId: "ambusher", controller: "p2", targets: [] },
-      ],
-    };
-
-    // R108.1.b — p1 receives the card's identity from the chain, not from a
-    // reveal that never happened.
-    expect(viewOf(played, "p1").cards.ambusher).toBeDefined();
-    expect(played.revealed).not.toContain("ambusher");
   });
 });

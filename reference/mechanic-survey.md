@@ -729,27 +729,29 @@ built when a card asks for it.
   reveal, on the grounds that the card is leaving for a public zone and the
   state has nothing left to describe once it arrives.
 
-  **Noxus Saboteur is read as forbidding the disclosure, not the move.**
-  "Your opponents' [Hidden] cards can't be revealed here." R421.4 makes the
-  reveal a *consequence* of the zone change rather than a permission for it,
-  so the card still moves and only the reveal is stopped. No official ruling
-  exists — RiftJudge, the Origins FAQ and the card wikis are all silent.
+  **Noxus Saboteur forbids the play, not just the disclosure.** "Your
+  opponents' [Hidden] cards can't be revealed here." R421.4 is a prerequisite
+  of the move rather than a remark about it — "if a facedown card *would*
+  change zones … its owner reveals it" — and the reveal is the flip. An action
+  whose required consequence is forbidden cannot be taken, so a card that
+  cannot be revealed here cannot be played from here. That is the whole of
+  what the card does: it shuts off the ambush, which is what the Hidden
+  pattern is for.
 
-  The restriction **fires constantly**, not rarely. Playing a hidden card as a
-  Reaction is a zone change, so R421.4 reveals it — and that is the whole
-  Hidden pattern. R424.2.a is why the player is not the one revealing: "players
-  may only Reveal cards from Private or Secret zones when instructed to do so
-  by Game Effects." A player choosing to play a facedown card causes the
-  reveal; R424.2.b's voluntary *showing* of private information is explicitly
-  not one.
+  The alternative reading, that it forbids only the disclosure, was written
+  down here first and was wrong. It forbids *nothing*: R108.1.b makes the
+  Chain Public Information, so a played hidden card is known on arrival
+  whether or not it was revealed. A restriction that restricts nothing is not
+  a reading of the card.
 
-  What is currently unobservable is its *effect*, for two reasons that have
-  nothing to do with each other. R108.1.b makes the Chain Public Information,
-  so a played hidden card becomes known on arrival whether or not it was
-  revealed. And no card in the pool triggers on a reveal or reads the Revealed
-  status. Either of those changing switches Saboteur on — and the second is an
-  ordinary thing for a set to print, so this is a card waiting on the pool
-  rather than a card that does nothing.
+  **R323.7's sweep is the exception, and that half is a judgement call.**
+  Losing the battlefield sends a facedown card to the trash, which is a zone
+  change and so would need the reveal. The removal proceeds and the reveal is
+  skipped, because the sweep is the game removing the card rather than a
+  player taking an action — there is no action for "can't" to forbid — and
+  leaving a card facedown at a battlefield its controller does not control
+  would contradict R107.3.c. The rules do not say which of "can't be revealed"
+  and "must be removed" gives way.
 - **Perched Grimwyrm and Ol' Poro are not restrictions.** "Play me only to a
   battlefield you conquered this turn" is an *exclusive* permission — it
   replaces R355.2.a's default rather than narrowing it, which `PlayPermission`
