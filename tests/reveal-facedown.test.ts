@@ -174,3 +174,98 @@ describe("Noxus Saboteur", () => {
     expect(swept.events.map((event) => event.type)).not.toContain("cardRevealed");
   });
 });
+
+/**
+ * R319.8 / R323.6 / R323.7 — when a hidden card is lost after its battlefield
+ * empties.
+ *
+ * Take a battlefield, hide a card there, then retreat the unit that took it.
+ * The card is gone *immediately*, not at end of turn: R319.8 makes a Cleanup
+ * outstanding "after a Move is completed", and one cleanup runs both R323.6's
+ * step 4 (lose control of a battlefield with none of your units on it, in an
+ * Open State with no combat) and R323.7's step 5 (remove hidden cards from
+ * battlefields their controller does not control) — in that order. There is
+ * no window in between to move something back.
+ */
+describe("retreating off a battlefield you hid a card at", () => {
+  function held(): GameState {
+    const base = makeState({
+      p1: { mainDeck: ["a"], runePool: pool({ energy: 9 }) },
+      p2: { mainDeck: ["b"] },
+      cards: [
+        unit("holder", { might: 3 }),
+        { ...unit("ambusher", { might: 2 }), keywords: ["hidden"] },
+        unit("a"),
+        unit("b"),
+      ],
+      permanents: [{ cardId: "holder", controller: "p1", location: NORTH }],
+      battlefields: [["bf-north", "p1"]],
+    });
+    return {
+      ...base,
+      facedown: {
+        "bf-north": { cardId: "ambusher", controller: "p1", hiddenOnTurn: 1 },
+      },
+    };
+  }
+
+  it("loses the card in the cleanup the move itself triggers", () => {
+    const retreat = applyAction(held(), {
+      type: "standardMove",
+      playerId: "p1",
+      cardId: "holder",
+      destination: { kind: "base", player: "p1" },
+    });
+
+    expect(retreat.ok).toBe(true);
+    if (!retreat.ok) return;
+    // Step 4 first — no units there, Open State, no combat.
+    expect(retreat.state.battlefields["bf-north"]?.controller).toBeNull();
+    // Then step 5, in the same cleanup.
+    expect(retreat.state.facedown["bf-north"]).toBeUndefined();
+    expect(retreat.state.players.p1.trash).toContain("ambusher");
+  });
+
+  /** R421.4 — it changed zones, so its owner revealed it on the way out. */
+  it("reveals it as it goes", () => {
+    const retreat = applyAction(held(), {
+      type: "standardMove",
+      playerId: "p1",
+      cardId: "holder",
+      destination: { kind: "base", player: "p1" },
+    });
+
+    expect(retreat.ok).toBe(true);
+    if (!retreat.ok) return;
+    expect(retreat.events.map((event) => event.type)).toContain("cardRevealed");
+  });
+
+  it("keeps it while a unit of yours is still standing there", () => {
+    const state = held();
+    const stillThere: GameState = {
+      ...state,
+      cards: { ...state.cards, second: unit("second", { might: 1 }) },
+      permanents: {
+        ...state.permanents,
+        second: {
+          cardId: "second",
+          controller: "p1",
+          exhausted: false,
+          location: NORTH,
+          damage: 0,
+        },
+      },
+    };
+    const retreat = applyAction(stillThere, {
+      type: "standardMove",
+      playerId: "p1",
+      cardId: "holder",
+      destination: { kind: "base", player: "p1" },
+    });
+
+    expect(retreat.ok).toBe(true);
+    if (!retreat.ok) return;
+    expect(retreat.state.battlefields["bf-north"]?.controller).toBe("p1");
+    expect(retreat.state.facedown["bf-north"]).toBeDefined();
+  });
+});
