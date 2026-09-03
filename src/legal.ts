@@ -408,10 +408,14 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     }
   }
 
-  // Anything on the board or among this player's runes may have an ability.
+  // Anything on the board, among this player's runes, or in their Legend Zone
+  // may have an ability. The Legend is the one that is not a permanent —
+  // R107.4.b makes its zone not a location — so walking `state.permanents`
+  // alone walked straight past every Legend with an activated ability.
   const sources = [
     ...Object.keys(state.permanents),
     ...player.runes,
+    ...(player.legend === null ? [] : [player.legend]),
   ];
   for (const sourceId of sources) {
     // Read through the layers, not off the printed card: `activateAbility`

@@ -34,6 +34,7 @@ function Card({
   sub,
   cost,
   pick,
+  exhausted = false,
 }: {
   state: GameState;
   cardId: CardId;
@@ -41,6 +42,8 @@ function Card({
   /** Shown for a card still in hand, so its price is visible before clicking. */
   cost?: string | undefined;
   pick: Selectable;
+  /** For a card whose exhausted state is not on a permanent — the Legend. */
+  exhausted?: boolean;
 }) {
   const now = characteristicsOf(state, cardId);
   const permanent = state.permanents[cardId];
@@ -55,7 +58,7 @@ function Card({
     pick.selected === cardId || pick.staged.has(cardId) ? "is-selected" : "",
     pick.legal.has(cardId) ? "is-legal" : "",
     pick.actionable.has(cardId) ? "is-actionable" : "",
-    permanent?.exhausted === true ? "is-exhausted" : "",
+    permanent?.exhausted === true || exhausted ? "is-exhausted" : "",
     permanent?.stunned === true ? "is-stunned" : "",
   ]
     .filter(Boolean)
@@ -112,6 +115,7 @@ function Row({
   pick,
   empty = "—",
   owner,
+  exhausted = false,
 }: {
   label: string;
   ids: CardId[];
@@ -120,6 +124,11 @@ function Row({
   empty?: string;
   /** When given, each card shows what it would cost this player. */
   owner?: PlayerId;
+  /**
+   * R107.4.c — the Legend's exhausted state lives on the player rather than on
+   * a permanent, so it has to be passed in; every other card carries its own.
+   */
+  exhausted?: boolean;
 }) {
   return (
     <div className="row">
@@ -134,6 +143,7 @@ function Row({
               state={state}
               cardId={id}
               pick={pick}
+              exhausted={exhausted}
               cost={owner === undefined ? undefined : costLabel(state, owner, id)}
             />
           ))
@@ -187,12 +197,6 @@ export function PlayerPanel({
           ) : (
             playerId.toUpperCase()
           )}
-          {player.legend !== null && (
-            <span className="legend">
-              {nameOf(state, player.legend)}
-              {player.legendExhausted === true && <em> · exhausted</em>}
-            </span>
-          )}
         </h2>
         <div className="tallies">
           <span className="score">
@@ -205,6 +209,22 @@ export function PlayerPanel({
         </div>
       </header>
 
+      {/*
+        R107.4.c — the Champion Legend is a Game Object, and several print an
+        activated ability. It was a text label, which meant no way to read what
+        it does, no way to see it exhausted, and no way to click it — so a
+        Legend whose ability you were meant to use looked like a Legend that
+        did nothing.
+      */}
+      {player.legend !== null && (
+        <Row
+          label="legend"
+          ids={[player.legend]}
+          state={state}
+          pick={pick}
+          exhausted={player.legendExhausted === true}
+        />
+      )}
       <Row
         label="hand"
         ids={player.hand}

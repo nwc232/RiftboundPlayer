@@ -1854,6 +1854,11 @@ function controlsSource(
   const player = state.players[playerId];
   return (
     player.runes.includes(sourceId) ||
+    // R107.4.c — "The Champion Legend here is a Game Object", and several
+    // print an activated ability. It is not a permanent and never will be:
+    // R107.4.b makes the Legend Zone not a location, and R107.4.d says the
+    // Legend cannot be moved out of it.
+    player.legend === sourceId ||
     (state.permanents[sourceId] !== undefined &&
       controllerOf(state, sourceId) === playerId)
   );
