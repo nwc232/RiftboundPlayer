@@ -313,3 +313,169 @@ button:disabled { opacity: 0.4; cursor: default; }
 .decks select {
   max-width: 11rem;
 }
+
+/* ── Playmat ──────────────────────────────────────────────────────────────
+ *
+ * Cards render as their printed faces with the *live* values laid over them.
+ * That overlay is the point rather than decoration: a 4 Might unit standing
+ * at 7 with damage on it has to read 7, or the picture contradicts the game.
+ *
+ * A face at this size is unreadable, which is deliberate — pointing at one
+ * previews it full size in the side panel. Growing a card in place cannot
+ * work: rules text needs roughly 300px of width and a hand of seven has
+ * nothing like that to give.
+ */
+
+.board {
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(122, 162, 247, 0.06), transparent 60%),
+    radial-gradient(120% 80% at 50% 100%, rgba(158, 206, 106, 0.06), transparent 60%);
+}
+
+.card.has-art {
+  position: relative;
+  display: block;
+  /* Sized so a full board — two hands, two bases, three battlefields — fits
+     one screen. A card game you have to scroll is a list with pictures. */
+  width: 64px;
+  /* The pool publishes portrait faces at 744x1039. */
+  aspect-ratio: 744 / 1039;
+  padding: 0;
+  overflow: hidden;
+  max-width: none;
+  border-radius: 6px;
+  background: var(--panel-2);
+  transition: transform 90ms ease, box-shadow 90ms ease;
+}
+
+.card.has-art .card-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+/* The name stays for search, screen readers, and any card with no art. */
+.card.has-art .card-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Live values, legible against whatever art is underneath. */
+.card.has-art .card-might,
+.card.has-art .card-cost,
+.card.has-art .card-damage,
+.card.has-art .card-sub {
+  position: absolute;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(12, 14, 22, 0.88);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.card.has-art .card-might {
+  right: 3px;
+  bottom: 3px;
+  color: var(--warn);
+  min-width: 16px;
+  text-align: center;
+}
+/* Might that is no longer the printed number says so on its own. */
+.card.has-art .card-might.is-changed {
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.card.has-art .card-cost {
+  left: 3px;
+  top: 3px;
+  color: var(--calm);
+}
+.card.has-art .card-damage {
+  right: 3px;
+  top: 3px;
+  color: var(--bad);
+  box-shadow: 0 0 0 1px var(--bad);
+}
+.card.has-art .card-sub {
+  left: 3px;
+  bottom: 3px;
+  color: var(--ink);
+}
+.card.has-art .pip {
+  position: absolute;
+  left: 3px;
+  bottom: 20px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(12, 14, 22, 0.88);
+}
+
+/* Affordances survive the art: still the engine saying what is playable. */
+.card.has-art:hover { transform: translateY(-4px); z-index: 2; }
+.card.has-art.is-actionable { box-shadow: 0 0 0 2px var(--warn); }
+.card.has-art.is-legal { box-shadow: 0 0 0 2px var(--good); }
+.card.has-art.is-selected {
+  box-shadow: 0 0 0 2px var(--accent), 0 6px 14px rgba(0, 0, 0, 0.45);
+  transform: translateY(-4px);
+}
+.card.has-art.is-exhausted { transform: rotate(6deg); opacity: 0.72; }
+.card.has-art.is-exhausted:hover { transform: rotate(6deg) translateY(-4px); }
+.card.has-art.is-stunned { text-decoration: none; filter: grayscale(0.7); }
+
+/* Battlefields are published landscape (1039x744). */
+.bf-name.has-art { width: 132px; aspect-ratio: 1039 / 744; }
+
+.row-cards { align-items: flex-end; gap: 6px; }
+.bf-units { gap: 6px; align-items: flex-end; }
+
+/*
+ * A battlefield wears its own face as the mat its units stand on. The art is
+ * held well back — the units on it are what has to be readable, and R190's
+ * control and contested states are read off the border rather than the
+ * picture.
+ */
+.battlefield {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  isolation: isolate;
+}
+.battlefield::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  /* Dark enough for the units and the control state to read cleanly, light
+     enough that you can tell which battlefield you are looking at. */
+  background: linear-gradient(
+    rgba(12, 14, 22, 0.72),
+    rgba(12, 14, 22, 0.88)
+  );
+}
+.battlefield header { position: relative; }
+
+/* Keep the whole mat on one screen: a card game you have to scroll is a list. */
+.board { display: flex; flex-direction: column; gap: 8px; }
+.battlefields { margin-bottom: 0; }
+.panel { flex: 0 0 auto; }
+
+/* Tighter rows, now that a card is a face rather than a line of text. */
+.panel { padding: 6px 10px; }
+.row { margin-top: 3px; }
+.battlefield { padding: 7px 9px; }
+
+/*
+ * An empty zone should cost a line, not a row. Base, runes and pool are all
+ * usually empty early and all have to stay visible — they are where a player
+ * learns that runes are what fills the pool.
+ */
+.row:has(.muted:only-child) { margin-top: 1px; }
+.row:has(.muted:only-child) .row-cards { align-items: center; }
+.panel-head { margin-bottom: 2px; }

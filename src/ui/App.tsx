@@ -47,6 +47,8 @@ export function App() {
     { state: newGame(seed), events: [] },
   ]);
   const [selected, setSelected] = useState<CardId | null>(null);
+  /** What the pointer is over, previewed full size beside the board. */
+  const [hovered, setHovered] = useState<CardId | null>(null);
   const [staged, setStaged] = useState<CardId[]>([]);
   const [rejected, setRejected] = useState<RejectionReason | null>(null);
 
@@ -86,6 +88,9 @@ export function App() {
    * card".
    */
   const acting = seat ?? actingPlayer(state);
+  // Pointing at a card wins over the selection, so you can read anything on
+  // the board without losing what you were about to play.
+  const showing = hovered ?? selected;
   const moves = useMemo(() => movesFor(state, acting), [state, acting]);
 
   /**
@@ -193,6 +198,7 @@ export function App() {
     legal,
     actionable,
     onSelect,
+    onHover: setHovered,
   };
 
   const restart = (): void => {
@@ -331,16 +337,21 @@ export function App() {
         <Chain state={state} />
         <section className="actions">
           <h3>
-            {selected === null
+            {showing === null
               ? `${acting} — everything you can do`
-              : `${acting} — ${state.cards[selected]?.name ?? selected}`}
+              : `${acting} — ${state.cards[showing]?.name ?? showing}`}
           </h3>
-          {selected !== null && (
+          {/* Pointing at a card wins over the selection, so you can read
+              anything on the board without losing what you were about to
+              play. */}
+          {showing !== null && (
             <>
-              <CardDetail state={state} cardId={selected} viewer={acting} />
-              <button className="clear" onClick={() => setSelected(null)}>
-                show every move
-              </button>
+              <CardDetail state={state} cardId={showing} viewer={acting} />
+              {selected !== null && (
+                <button className="clear" onClick={() => setSelected(null)}>
+                  show every move
+                </button>
+              )}
             </>
           )}
           {blocked !== null && <p className="blocked">{blocked}</p>}

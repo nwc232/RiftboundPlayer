@@ -13,6 +13,14 @@ interface Selectable {
   legal: ReadonlySet<CardId>;
   actionable: ReadonlySet<CardId>;
   onSelect: (cardId: CardId) => void;
+  /**
+   * Pointing at a card previews it full size, which is the only way to read
+   * its text: a card face at hand size is about 90px wide, and no amount of
+   * zooming in place makes printed rules text legible at that scale. Arena and
+   * Hearthstone both answer this the same way — a big preview elsewhere on the
+   * screen — rather than by growing the card in the row.
+   */
+  onHover: (cardId: CardId | null) => void;
 }
 
 /**
@@ -37,9 +45,13 @@ function Card({
   const now = characteristicsOf(state, cardId);
   const permanent = state.permanents[cardId];
   const printed = state.cards[cardId]?.might;
+  // A concealed card in an opponent's hand has a stand-in name and no art;
+  // so does a token. Both fall back to the plain face below.
+  const art = artFor(now.name);
   const classes = [
     "card",
     `type-${now.type}`,
+    art !== undefined ? "has-art" : "",
     pick.selected === cardId || pick.staged.has(cardId) ? "is-selected" : "",
     pick.legal.has(cardId) ? "is-legal" : "",
     pick.actionable.has(cardId) ? "is-actionable" : "",
@@ -49,21 +61,42 @@ function Card({
     .filter(Boolean)
     .join(" ");
 
+  // R477 — what the card *is* now, which the printed face cannot show. A 4
+  // Might unit standing at 7 with two damage on it has to read 7, or the
+  // picture is lying about the game.
+  const might =
+    now.type === "unit" && (printed !== undefined || permanent !== undefined)
+      ? now.might
+      : undefined;
+
   return (
-    <button className={classes} onClick={() => pick.onSelect(cardId)} title={cardId}>
+    <button
+      className={classes}
+      onClick={() => pick.onSelect(cardId)}
+      onMouseEnter={() => pick.onHover(cardId)}
+      onMouseLeave={() => pick.onHover(null)}
+      onFocus={() => pick.onHover(cardId)}
+      onBlur={() => pick.onHover(null)}
+      title={cardId}
+    >
+      {art !== undefined && (
+        <img className="card-art" src={art} alt="" aria-hidden="true" />
+      )}
       <span className="card-name">{now.name}</span>
-      {/* A card whose Might is neither printed nor on the board has none worth
-          showing — a concealed card in an opponent's hand is the case. */}
-      {now.type === "unit" && (printed !== undefined || permanent !== undefined) && (
-        <span className="card-might">
-          {now.might}
-          {printed !== undefined && printed !== now.might && (
-            <em> ({printed})</em>
-          )}
+      {might !== undefined && (
+        <span
+          className={`card-might ${printed !== undefined && printed !== might ? "is-changed" : ""}`}
+        >
+          {might}
         </span>
       )}
-      {sub !== undefined && <span className="card-sub">{sub}</span>}
       {cost !== undefined && <span className="card-cost">{cost}</span>}
+      {sub !== undefined && <span className="card-sub">{sub}</span>}
+      {permanent !== undefined && permanent.damage > 0 && (
+        <span className="card-damage" title={`${permanent.damage} damage`}>
+          {permanent.damage}
+        </span>
+      )}
       {permanent?.buffed === true && <span className="pip" title="buffed">+</span>}
       {permanent?.attachedTo !== undefined && (
         <span className="pip" title="attached">⇗</span>
@@ -266,12 +299,22 @@ export function Battlefields({
         const contested = battlefield?.contestedBy ?? null;
         const inCombat = state.showdown?.battlefieldId === battlefieldId;
 
+        // The battlefield's own printed face, laid under its contents rather
+        // than beside them — a battlefield is the space the units stand in,
+        // so it reads as the mat rather than as another card in a row.
+        const art = artFor(nameOf(state, battlefieldId));
+
         return (
           <div
             key={battlefieldId}
             className={`battlefield ${inCombat ? "is-showdown" : ""} ${
               contested !== null ? "is-contested" : ""
             }`}
+            style={
+              art === undefined
+                ? undefined
+                : { backgroundImage: `url(${art})` }
+            }
           >
             <header>
               <button
