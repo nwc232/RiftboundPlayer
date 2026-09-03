@@ -841,7 +841,10 @@ export function spell(
 export function basicRune(id: string, domain: Domain): CardInstance {
   return {
     id,
-    name: `${domain} rune`,
+    // R164 — a basic rune is a printed card, and the pool prints them in title
+    // case ("Body Rune"). Matching the printed name is what lets anything
+    // keyed on it — the UI's card art, a card that names a rune — find it.
+    name: `${domain[0]!.toUpperCase()}${domain.slice(1)} Rune`,
     // R164.2 — a rune's two abilities. R416 puts no ready requirement on the
     // recycle, so one rune yields an energy *and* a power.
     text: `[Reaction] Exhaust: Add [1]. [Reaction] Recycle: Add [${domain}].`,

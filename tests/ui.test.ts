@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
+import { artFor } from "../src/ui/card-art.js";
+import { isHiddenCard, viewOf } from "../src/view.js";
 import { renderEvent } from "../src/event-text.js";
 import {
+  DECKS,
   actingPlayer,
   describe as describeAction,
   groupMoves,
@@ -147,7 +150,7 @@ describe("telling the player what is going on", () => {
     // The runes are the only thing to do with an empty pool, and they must be
     // findable without knowing to click them first.
     const headings = groups.map((group) => group.heading);
-    expect(headings).toContain("chaos rune");
+    expect(headings).toContain("Chaos Rune");
     expect(groups.at(-1)?.cardId).toBeNull();
     expect(groups.at(-1)?.moves.map((m) => m.label)).toEqual(["end turn"]);
   });
@@ -204,5 +207,52 @@ describe("telling the player what is going on", () => {
 
     // A rune is not in hand, so there is no "why not" to give.
     expect(whyNotPlayable(state, state.turn.player, runeId!)).toBeNull();
+  });
+});
+
+/**
+ * R107 — a seat is offered *its own* moves, not the turn player's.
+ *
+ * The seat selector filtered the board through `viewOf` and then asked
+ * `legalActions` for whoever held the turn, so p2's screen listed p1's plays
+ * over cards it had correctly been refused the identity of — "play to base"
+ * against a card named "hidden card". A client on the other end of a socket
+ * gets its own legal moves and nobody else's.
+ */
+describe("whose moves a seat is offered", () => {
+  it("offers the seat nothing while it is not their turn", () => {
+    const state = newGame(7);
+    const asP2 = viewOf(state, "p2");
+
+    // p1 holds the turn, so p1 has moves and p2 has none of their own.
+    expect(movesFor(asP2, "p1").length).toBeGreaterThan(0);
+    expect(movesFor(asP2, "p2")).toEqual([]);
+  });
+
+  /** And what p1's screen offers never names a card p2 cannot see. */
+  it("never offers a seat a move over a concealed card", () => {
+    const state = newGame(7);
+    const asP2 = viewOf(state, "p2");
+
+    for (const move of movesFor(asP2, "p2")) {
+      expect(move.subject === undefined || !isHiddenCard(move.subject)).toBe(true);
+    }
+  });
+});
+
+/** Every authored card the UI can start a game with has its printed art. */
+describe("card art", () => {
+  it("covers every card in all three decks", () => {
+    const missing = new Set<string>();
+    for (const [index] of DECKS.entries()) {
+      const state = newGame(1, index, (index + 1) % DECKS.length);
+      for (const card of Object.values(state.cards)) {
+        // Tokens are created during play and are not printed cards.
+        if (card.isToken === true) continue;
+        if (artFor(card.name) === undefined) missing.add(card.name);
+      }
+    }
+
+    expect([...missing]).toEqual([]);
   });
 });

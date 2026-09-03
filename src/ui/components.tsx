@@ -1,5 +1,6 @@
 import { totals } from "../cost.js";
 import { VICTORY_SCORE } from "../scoring.js";
+import { artFor } from "./card-art.js";
 import { characteristicsOf } from "../layers.js";
 import type { GameState, CardId, Location, PlayerId } from "../state.js";
 import { OPPONENT, controlOf, costLabel, nameOf, unitsAt } from "./game.js";
@@ -414,9 +415,28 @@ export function CardDetail({
       : "",
   ].filter(Boolean);
 
+  // The printed card, when the pool published art for it. Looked up by name
+  // because ids here are authored by hand; a token or a card with no entry
+  // falls through to the text below, which is the whole card either way.
+  const art = artFor(now.name);
+
   return (
     <section className="detail">
       <h4>{now.name}</h4>
+      {art !== undefined && (
+        <img
+          className="detail-art"
+          src={art}
+          // The engine's own words rather than the publisher's, so what a
+          // screen reader hears is what the game is actually playing — a card
+          // that has become a copy reads as what it copied.
+          alt={`${now.name}. ${printed?.text ?? ""}`}
+          // Not lazy: this is the one image on the panel and it is the thing
+          // the click was for. Deferring it means the card you just asked to
+          // look at arrives last.
+          fetchPriority="high"
+        />
+      )}
       <div className="detail-meta">
         <span>{now.type}</span>
         {cost !== undefined && <span>{cost}</span>}

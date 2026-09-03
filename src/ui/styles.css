@@ -290,3 +290,26 @@ button:disabled { opacity: 0.4; cursor: default; }
   padding: 0 0.35em;
   cursor: pointer;
 }
+
+/*
+ * Card art in the detail panel. Sized by width so the two orientations the
+ * pool publishes both fit — battlefields are landscape (1039x744), everything
+ * else portrait (744x1039).
+ */
+.detail-art {
+  display: block;
+  width: 100%;
+  max-width: 15rem;
+  margin: 0.5rem 0;
+  border-radius: 0.4rem;
+}
+
+.decks {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.decks select {
+  max-width: 11rem;
+}

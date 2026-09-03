@@ -18,6 +18,7 @@ import {
   dispatch,
   groupMoves,
   movesFor,
+  DECKS,
   newGame,
   promptArity,
   whyNotPlayable,
@@ -37,6 +38,11 @@ interface Snapshot {
 
 export function App() {
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 100000));
+  // Which list each seat brings. R485.5's choice of battlefield is left to
+  // `matchup`'s default; changing either only takes effect on a new game,
+  // which is why the pickers do not touch the running one.
+  const [p1Deck, setP1Deck] = useState(0);
+  const [p2Deck, setP2Deck] = useState(1);
   const [history, setHistory] = useState<Snapshot[]>(() => [
     { state: newGame(seed), events: [] },
   ]);
@@ -69,7 +75,17 @@ export function App() {
       ),
     [here.events, seat],
   );
-  const acting = actingPlayer(state);
+  /**
+   * Whose moves to offer.
+   *
+   * In hotseat that is whoever the game is waiting on. Once a seat is chosen
+   * it is *that seat*, always — a client on the other end of a socket receives
+   * its own legal moves and nobody else's. Asking for the acting player
+   * offered p2's screen a list of p1's plays, over cards it had correctly been
+   * refused the identity of: "play to base" against a card called "hidden
+   * card".
+   */
+  const acting = seat ?? actingPlayer(state);
   const moves = useMemo(() => movesFor(state, acting), [state, acting]);
 
   /**
@@ -180,7 +196,7 @@ export function App() {
   };
 
   const restart = (): void => {
-    setHistory([{ state: newGame(seed), events: [] }]);
+    setHistory([{ state: newGame(seed, p1Deck, p2Deck), events: [] }]);
     setSelected(null);
     setRejected(null);
   };
@@ -192,7 +208,12 @@ export function App() {
         <span className="turn">
           turn {state.turn.number} · {state.turn.player} · {state.turn.phase}
         </span>
-        <span className="acting">acting: {acting}</span>
+        {/* In hotseat this is whoever the game is waiting on; in a seat it is
+            simply whose screen this is, and calling that "acting" was wrong
+            the moment the seat stopped following the turn. */}
+        <span className="acting">
+          {seat === null ? `acting: ${acting}` : `you: ${acting}`}
+        </span>
         <span className="spacer" />
         <label className="seat">
           seat
@@ -209,6 +230,32 @@ export function App() {
             <option value="both">hotseat</option>
             <option value="p1">p1 only</option>
             <option value="p2">p2 only</option>
+          </select>
+        </label>
+        <label className="decks">
+          p1
+          <select
+            value={p1Deck}
+            onChange={(event) => setP1Deck(Number(event.target.value))}
+          >
+            {DECKS.map((entry, index) => (
+              <option key={entry.name} value={index}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="decks">
+          p2
+          <select
+            value={p2Deck}
+            onChange={(event) => setP2Deck(Number(event.target.value))}
+          >
+            {DECKS.map((entry, index) => (
+              <option key={entry.name} value={index}>
+                {entry.name}
+              </option>
+            ))}
           </select>
         </label>
         <label className="seed">

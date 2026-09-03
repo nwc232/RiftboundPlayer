@@ -144,7 +144,8 @@ destination.
 
 **All 38 distinct cards are authored**, in `src/decks/vex.ts` and
 `src/decks/rengar.ts`, with both battlefield sets. `src/decks/index.ts`
-assembles them into a legal `GameSetup`; `tests/decks.test.ts` checks the
+assembles them into a legal `GameSetup`, and the front-end's two deck pickers
+choose which two face off; `tests/decks.test.ts` checks the
 R103 requirements and `tests/playthrough.test.ts` plays 25 full games.
 
 Three things about a card are still approximations rather than the rule,
