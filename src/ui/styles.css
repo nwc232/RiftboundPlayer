@@ -479,3 +479,28 @@ button:disabled { opacity: 0.4; cursor: default; }
 .row:has(.muted:only-child) { margin-top: 1px; }
 .row:has(.muted:only-child) .row-cards { align-items: center; }
 .panel-head { margin-bottom: 2px; }
+
+/* Online: the room, and the wait before both seats are filled. */
+.room { width: 6rem; }
+
+.lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 40px;
+  max-width: 32rem;
+}
+.lobby h1 { margin: 0; letter-spacing: 0.08em; }
+.lobby-room strong { color: var(--accent); }
+.lobby-status { color: var(--warn); }
+.lobby-share { color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.lobby-share code {
+  color: var(--ink);
+  background: var(--panel-2);
+  padding: 5px 8px;
+  border-radius: 4px;
+  user-select: all;
+}
+.top { flex-wrap: wrap; row-gap: 6px; }
+.lobby-deck select { max-width: 14rem; }

@@ -4,6 +4,7 @@ import type { GameEvent } from "../events.js";
 import type { Action, RejectionReason } from "../actions.js";
 import type { CardId, GameState, PlayerId } from "../state.js";
 import { eventsFor, viewOf } from "../view.js";
+import { useOnline } from "./online.js";
 import {
   Battlefields,
   CardDetail,
@@ -36,13 +37,33 @@ interface Snapshot {
   events: GameEvent[];
 }
 
+/** A room code in the URL is what makes a link a link: `?room=badger`. */
+function roomFromUrl(): string | null {
+  const room = new URLSearchParams(window.location.search).get("room");
+  return room === null || room === "" ? null : room;
+}
+
 export function App() {
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 100000));
+  /**
+   * Online when a room code is set. The two modes differ in exactly one
+   * place — where the game comes from — because the server sends what
+   * `viewOf` and `eventsFor` already produced locally. Everything below this
+   * renders from a `GameState` and does not know which kind it is.
+   */
+  const [room, setRoom] = useState<string | null>(roomFromUrl);
+  const [roomDraft, setRoomDraft] = useState(() => roomFromUrl() ?? "");
   // Which list each seat brings. R485.5's choice of battlefield is left to
   // `matchup`'s default; changing either only takes effect on a new game,
   // which is why the pickers do not touch the running one.
   const [p1Deck, setP1Deck] = useState(0);
   const [p2Deck, setP2Deck] = useState(1);
+  /**
+   * Online there is only one deck to choose: your own. The two pickers above
+   * are a hotseat idea — one screen setting up both sides — and sending one of
+   * them as "my deck" is what had both seats arriving with Vex.
+   */
+  const [myDeck, setMyDeck] = useState(0);
   const [history, setHistory] = useState<Snapshot[]>(() => [
     { state: newGame(seed), events: [] },
   ]);
@@ -61,21 +82,37 @@ export function App() {
    */
   const [seat, setSeat] = useState<PlayerId | null>(null);
 
+  // Always called, connecting only when there is a room: a hook cannot be
+  // conditional, and `useOnline` treats a null room as "stay offline".
+  const online = useOnline(room, myDeck);
+  const isOnline = room !== null;
+
   const here = history[history.length - 1]!;
   const truth = here.state;
-  const state = useMemo(
+  const local = useMemo(
     () => (seat === null ? truth : viewOf(truth, seat)),
     [truth, seat],
   );
+  // Online, the filtering already happened on the server — this client was
+  // never sent the rest. Offline it happens here, from the same two functions.
+  //
+  // Online and not yet dealt, there is no game: the lobby returns before
+  // anything below is rendered. The local game stands in only so the hooks
+  // beneath have a shape to work on, because React will not let them be
+  // skipped.
+  const state = (isOnline ? online.state : local) ?? local;
   // R107 — the log through the same eyes as the board. `viewOf` closes the
   // state half and `eventsFor` closes the other: an opponent's draw arrives as
   // "a card", because the identity never reaches this client at all.
   const log = useMemo(
     () =>
-      (seat === null ? here.events : eventsFor(here.events, seat)).map(
-        renderEvent,
-      ),
-    [here.events, seat],
+      (isOnline
+        ? online.events
+        : seat === null
+          ? here.events
+          : eventsFor(here.events, seat)
+      ).map((event) => renderEvent(event)),
+    [isOnline, online.events, here.events, seat],
   );
   /**
    * Whose moves to offer.
@@ -87,7 +124,7 @@ export function App() {
    * refused the identity of: "play to base" against a card called "hidden
    * card".
    */
-  const acting = seat ?? actingPlayer(state);
+  const acting = (isOnline ? online.seat : seat) ?? actingPlayer(state);
   // Pointing at a card wins over the selection, so you can read anything on
   // the board without losing what you were about to play.
   const showing = hovered ?? selected;
@@ -120,6 +157,14 @@ export function App() {
 
   const play = useCallback(
     (action: Action) => {
+      // Online the server owns the game, so this is a request rather than a
+      // move: the new state comes back over the socket, or a refusal does.
+      if (isOnline) {
+        online.send(action);
+        setSelected(null);
+        setStaged([]);
+        return;
+      }
       const result = dispatch(state, action);
       if (result.rejected !== undefined) {
         setRejected(result.rejected);
@@ -139,7 +184,7 @@ export function App() {
         ];
       });
     },
-    [state],
+    [state, isOnline, online],
   );
 
   const arity = promptArity(state);
@@ -202,10 +247,62 @@ export function App() {
   };
 
   const restart = (): void => {
-    setHistory([{ state: newGame(seed, p1Deck, p2Deck), events: [] }]);
+    if (isOnline) {
+      online.restart();
+    } else {
+      setHistory([{ state: newGame(seed, p1Deck, p2Deck), events: [] }]);
+    }
     setSelected(null);
     setRejected(null);
   };
+
+  /**
+   * Nothing to show until the server has dealt, which needs both seats. The
+   * room code is the whole of the pairing — no accounts, no lobby list.
+   */
+  if (isOnline && online.state === null) {
+    return (
+      <div className="lobby">
+        <h1>Riftbound</h1>
+        <p className="lobby-room">
+          room <strong>{room}</strong>
+          {online.seat !== null && <> · you are {online.seat}</>}
+        </p>
+        <label className="decks lobby-deck">
+          your deck
+          <select
+            value={myDeck}
+            onChange={(event) => setMyDeck(Number(event.target.value))}
+          >
+            {DECKS.map((entry, index) => (
+              <option key={entry.name} value={index}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="lobby-status">
+          {online.status === "connecting" && "connecting…"}
+          {online.status === "waiting" &&
+            "waiting for the other player to join"}
+          {online.status === "closed" &&
+            `disconnected${online.rejected === null ? "" : ` — ${online.rejected}`}`}
+        </p>
+        <p className="lobby-share">
+          Send them this link:
+          <code>{`${window.location.origin}/?room=${room}`}</code>
+        </p>
+        <button
+          onClick={() => {
+            window.history.replaceState(null, "", window.location.pathname);
+            setRoom(null);
+          }}
+        >
+          play locally instead
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -221,6 +318,25 @@ export function App() {
           {seat === null ? `acting: ${acting}` : `you: ${acting}`}
         </span>
         <span className="spacer" />
+        {isOnline ? (
+          <label className="decks">
+            your deck
+            <select
+              value={myDeck}
+              // Rejoining mid-game would deal a new one out from under the
+              // other seat, so the choice is locked once the game exists.
+              disabled={online.state !== null}
+              onChange={(event) => setMyDeck(Number(event.target.value))}
+            >
+              {DECKS.map((entry, index) => (
+                <option key={entry.name} value={index}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {isOnline ? null : (
         <label className="seat">
           seat
           <select
@@ -238,6 +354,8 @@ export function App() {
             <option value="p2">p2 only</option>
           </select>
         </label>
+        )}
+        {isOnline ? null : (
         <label className="decks">
           p1
           <select
@@ -251,6 +369,8 @@ export function App() {
             ))}
           </select>
         </label>
+        )}
+        {isOnline ? null : (
         <label className="decks">
           p2
           <select
@@ -264,6 +384,30 @@ export function App() {
             ))}
           </select>
         </label>
+        )}
+        <label className="decks">
+          room
+          <input
+            className="room"
+            value={roomDraft}
+            placeholder="code"
+            onChange={(event) => setRoomDraft(event.target.value.trim())}
+          />
+          <button
+            onClick={() => {
+              if (isOnline) {
+                window.history.replaceState(null, "", window.location.pathname);
+                setRoom(null);
+                return;
+              }
+              if (roomDraft === "") return;
+              window.history.replaceState(null, "", `?room=${roomDraft}`);
+              setRoom(roomDraft);
+            }}
+          >
+            {isOnline ? "leave" : "play online"}
+          </button>
+        </label>
         <label className="seed">
           seed
           <input
@@ -274,7 +418,9 @@ export function App() {
         </label>
         <button onClick={restart}>new game</button>
         <button
-          disabled={history.length < 2}
+          // Online the server holds the game, and one seat cannot rewind a
+          // game the other is also playing.
+          disabled={isOnline || history.length < 2}
           onClick={() => {
             setHistory((past) => past.slice(0, -1));
             setSelected(null);
@@ -312,8 +458,12 @@ export function App() {
             )}
           </div>
         )}
-        {rejected !== null && (
-          <div className="rejected">rejected: {rejected}</div>
+        {/* Online the refusal comes back from the server, and it is the
+            engine's own reason either way. */}
+        {(isOnline ? online.rejected : rejected) !== null && (
+          <div className="rejected">
+            rejected: {isOnline ? online.rejected : rejected}
+          </div>
         )}
       </div>
 

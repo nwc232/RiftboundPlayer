@@ -21,7 +21,9 @@ See `/reference` for provenance notes.
 
 ## Scripts
 
-- `npm run ui` — React front-end; click to play the two real decks
+- `npm run ui` — React front-end; click to play any two of the three decks
+- `npm run server` — play someone else over a socket; open the link it
+  prints, pick your deck, and share the room code
 - `npm run demo` — interactive CLI to drive the engine by hand
 - `npm test` — run the test suite once
 - `npm run test:watch` — run tests in watch mode

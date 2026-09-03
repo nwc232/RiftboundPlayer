@@ -28,7 +28,10 @@ suggest the official Riot API.
   rule it departs from and why. That list is the project's memory of its
   own compromises; an unwritten shortcut is the failure mode.
 - **The engine core stays Node-free.** No Node-only imports outside
-  `src/demo/`, so the same source runs in the browser unchanged.
+  `src/demo/` and `src/server/index.ts`, so the same source runs in the
+  browser unchanged. `src/server/room.ts` and `protocol.ts` are Node-free on
+  purpose: the browser imports the protocol, and the room's rules — who may
+  act, what each seat sees — are testable without a socket.
 - **`legalActions` is the only legality authority.** It enumerates
   candidates and filters them through `applyAction`, so the two can never
   disagree. Never re-derive a rule in the UI or the CLI.
@@ -41,6 +44,7 @@ suggest the official Riot API.
 | `src/decks/` | the two authored decks, 38 cards, with printed text beside authored abilities |
 | `src/ui/` | React front-end (`npm run ui`) |
 | `src/demo/` | CLI (`npm run demo`) |
+| `src/server/` | the online server (`npm run server`) — authoritative game, one room per code |
 | `reference/ROADMAP.md` | what is built, what is next, in order |
 | `reference/mechanic-survey.md` | mechanic catalogue + the running deviations list |
 | `reference/decks.md` | the two decklists and their status |
