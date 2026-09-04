@@ -90,8 +90,15 @@ export function useOnline(
           setRejected(message.reason);
           return;
         case "gone":
-          setRejected(message.reason);
-          if (message.reason !== "opponentLeft") setStatus("closed");
+          // A `seat` means somebody *else* left. R651.2 has the game carry on
+          // when two players remain, so this connection is fine and the state
+          // that follows says what happened to the game.
+          setRejected(
+            message.seat === undefined
+              ? message.reason
+              : `${message.seat} left the game`,
+          );
+          if (message.seat === undefined) setStatus("closed");
           return;
       }
     };

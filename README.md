@@ -51,10 +51,10 @@ a client cannot show what it was not sent. A seat may only submit actions as
 itself, and legality is still decided by `applyAction` — the server does not
 get a second opinion about the rules.
 
-### Playing without deploying
+### Playing with someone remote — the way this is actually used
 
 A tunnel puts the local server on a public HTTPS URL, which is enough to play
-someone remote without hosting anything:
+people who are nowhere near you, with nothing hosted and nothing to pay for:
 
 ```
 npm run server                                   # one terminal
@@ -62,9 +62,20 @@ cloudflared tunnel --url http://localhost:8787   # another
 ```
 
 `cloudflared` needs no account; ngrok works too but wants a free token. Your
-machine stays the host, and the URL changes each run.
+machine stays the host, so it has to stay awake and on for the duration, and
+the URL changes each run — send the new one each time.
 
-### Deploying it
+Whoever opens the room picks its size (2, 3 or 4) and the mode follows; the
+room deals once every seat is filled, and the link to share is on the lobby
+screen.
+
+### Deploying it, if it ever needs to be always-on
+
+Not currently used — the tunnel above is the setup in practice. Kept because
+the constraints below are real for any host, not just this one.
+
+The `Dockerfile` builds the front-end and runs the server; any host that takes
+a container will do. `fly.toml` is set up for Fly.io:
 
 The `Dockerfile` builds the front-end and runs the server; any host that takes
 a container will do. `fly.toml` is set up for Fly.io:

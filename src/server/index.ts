@@ -13,6 +13,7 @@ import {
   leave,
   messageFor,
   restart,
+  seatsOf,
 } from "./room.js";
 import type { Room } from "./room.js";
 import type { PlayerId } from "../state.js";
@@ -184,15 +185,19 @@ sockets.on("connection", (socket) => {
 
     const left = leave(room, seated.seat);
     // An empty room is forgotten rather than kept: there are no accounts to
-    // hold it for, and a room code is cheap to agree on again.
-    if (left.seats.p1 === undefined && left.seats.p2 === undefined) {
+    // hold it for, and a room code is cheap to agree on again. Asked of every
+    // seat the mode uses — checking p1 and p2 dropped a Skirmish the moment
+    // those two left, with p3 still sitting in it.
+    if (seatsOf(left).every((id) => left.seats[id] === undefined)) {
       rooms.delete(room.id);
       return;
     }
     rooms.set(room.id, left);
     for (const [other, seat] of sitting) {
       if (seat.room !== room.id) continue;
-      tell(other, { kind: "gone", reason: "opponentLeft" });
+      // R650/R652 — with three seats the game carries on, so this is news
+      // rather than the end of it. The state that follows says which.
+      tell(other, { kind: "gone", reason: "playerLeft", seat: seated.seat });
       tell(other, messageFor(left, seat.seat));
     }
   });

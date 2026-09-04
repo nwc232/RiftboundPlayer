@@ -63,7 +63,13 @@ export type ServerMessage =
       events: GameEvent[];
     }
   | { kind: "rejected"; reason: string }
-  | { kind: "gone"; reason: string };
+  /**
+   * Something ended for this client. `seat` distinguishes the two cases that
+   * matter: with it, *another* player left and — in a Skirmish or a War — the
+   * game carries on, so this is news rather than a disconnection. Without it,
+   * this connection is finished.
+   */
+  | { kind: "gone"; reason: string; seat?: PlayerId };
 
 /** Parses a message without trusting it. Anything malformed is simply not one. */
 export function parseClientMessage(text: string): ClientMessage | undefined {

@@ -297,6 +297,27 @@ export function App() {
             ))}
           </select>
         </label>
+        {/* R483.1 — the room's size. The server honours it only from whoever
+            opens the room, so it is shown to everyone (a joiner needs to know
+            what they have walked into) but changing it is only meaningful for
+            the first to arrive, which is what p1 means here. */}
+        <label className="decks lobby-deck">
+          players
+          <select
+            // Whoever opened the room decided this, and the server ignores
+            // anyone else's answer — so a joiner is shown the room's real
+            // size rather than whatever their own picker happened to say.
+            value={online.seated?.of ?? decks.length}
+            disabled={online.seat !== null && online.seat !== "p1"}
+            onChange={(event) => setPlayers(Number(event.target.value))}
+          >
+            {MODES.map((mode) => (
+              <option key={mode.id} value={mode.players}>
+                {mode.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <p className="lobby-status">
           {online.status === "connecting" && "connecting…"}
           {online.status === "waiting" &&
