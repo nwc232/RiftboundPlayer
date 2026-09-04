@@ -45,6 +45,19 @@ a client cannot show what it was not sent. A seat may only submit actions as
 itself, and legality is still decided by `applyAction` — the server does not
 get a second opinion about the rules.
 
+### Playing without deploying
+
+A tunnel puts the local server on a public HTTPS URL, which is enough to play
+someone remote without hosting anything:
+
+```
+npm run server                                   # one terminal
+cloudflared tunnel --url http://localhost:8787   # another
+```
+
+`cloudflared` needs no account; ngrok works too but wants a free token. Your
+machine stays the host, and the URL changes each run.
+
 ### Deploying it
 
 The `Dockerfile` builds the front-end and runs the server; any host that takes
@@ -65,6 +78,12 @@ Two settings in there are deliberate, and matter on any host:
 
 The same two caveats apply on Render or Railway. Render's free tier sleeps
 after fifteen minutes, so a game left open over a break will be gone.
+
+**The image has never been built.** Docker was not running on the machine
+this was written on, so `Dockerfile` is verified only by having built the
+production tree by hand — the files it copies, `npm ci --omit=dev`, then a
+real game over a socket against it. `docker build -t rb .` before deploying is
+the cheap way to find out.
 
 Games are not persisted: restarting the server ends everything in progress.
 That is fine for playing a friend and is the first thing to change if this

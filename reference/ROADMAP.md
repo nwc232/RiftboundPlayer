@@ -425,6 +425,35 @@ step-3 slot `costing.ts` was carrying.
 | ~~**Score a point** as an effect~~ | 12 | Done — and R471.1's near-victory restriction does not catch it, because it is not a conquer. |
 | **Gain control of a card** | 3 | `takeControl` exists — the inverse ("they gain control") does not. |
 
+### 6e. More than two players
+
+Riftbound's Core Rules describe several Modes of Play; the engine assumes
+exactly two seats throughout. Measured rather than estimated, on
+2026-09-04: `PlayerId = "p1" | "p2"` and the two literals appear **109 times
+across 22 files**, of which **18** compute "the opponent" as *the other one*
+(`viewer === "p1" ? "p2" : "p1"`).
+
+It splits into three unequal parts.
+
+**Mechanical, and most of it.** `Record<PlayerId, PlayerState>` becomes a
+list, `["p1", "p2"] as const` becomes "every seat", and the eighteen opponent
+flips become "every other seat". Tedious and low-risk: the type checker finds
+every one.
+
+**Genuinely new.** "Opponent" stops being singular. `TargetFilter`'s `player`
+already chooses one and is fine; what is not fine is `restrictionAura`'s
+`affects: "enemy"`, which today means one person. Turn order becomes a
+rotation rather than a flip. R190's Contested and the showdown rules assume
+two sides at a battlefield.
+
+**A rules question before a code question.** Team formats make Gloomist's
+"when you **or an ally** hold" mean something, and allies are not modelled at
+all. Read the Modes of Play rules before designing this.
+
+**Already done, and a prerequisite either way:** ids belong to a seat rather
+than to a deck (`instantiate(list, seat)`). With ids baked into decks, four
+players could not have been seated at all.
+
 ### 6d. Structural deviations worth closing
 
 The running list at the end of `mechanic-survey.md` is the live count. The
