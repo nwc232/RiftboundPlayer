@@ -192,23 +192,46 @@ describe("whole games with more than two seats", () => {
     return state.turn.player;
   }
 
-  /** R462.3 — no battlefield may ever hold three players' units at once. */
-  function checkNoThreeWay(state: GameState, after: Action): void {
+  /**
+   * The two board invariants worth checking after *every* action rather than
+   * at the end, because both describe a board that should never exist rather
+   * than an outcome.
+   *
+   * R462.3 — no battlefield may hold three players' units at once. Units, not
+   * permanents: R461 defines a staged combat by units and R449.2 counts them,
+   * so a gear standing there is not a third side.
+   *
+   * R149.3 — and no unattached non-Unit gear is left at a battlefield once
+   * the queue is quiet, because the cleanup recalls it.
+   */
+  function checkBoard(state: GameState, after: Action): void {
     for (const battlefieldId of state.battlefieldOrder) {
       const present = new Set(
         Object.values(state.permanents)
           .filter(
             (permanent) =>
               permanent.location.kind === "battlefield" &&
-              permanent.location.id === battlefieldId,
+              permanent.location.id === battlefieldId &&
+              state.cards[permanent.cardId]?.type === "unit",
           )
           .map((permanent) => permanent.controller),
       );
       if (present.size > 2) {
         throw new Error(
-          `three players at ${battlefieldId} after ${JSON.stringify(after)}`,
+          `three players' units at ${battlefieldId} after ${JSON.stringify(after)}`,
         );
       }
+    }
+
+    if (state.tasks.length > 0 || state.chain.length > 0) return;
+    for (const [cardId, permanent] of Object.entries(state.permanents)) {
+      if (permanent.location.kind !== "battlefield") continue;
+      if (permanent.attachedTo !== undefined) continue;
+      if (state.cards[cardId]?.type !== "gear") continue;
+      throw new Error(
+        `loose gear ${cardId} left at ${permanent.location.id} after ` +
+          JSON.stringify(after),
+      );
     }
   }
 
@@ -250,13 +273,45 @@ describe("whole games with more than two seats", () => {
       }
       state = result.state;
       steps += 1;
-      checkNoThreeWay(state, action);
+      checkBoard(state, action);
     }
 
     return state;
   }
 
   const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  /**
+   * Every distinct trio and quartet of the five lists, rather than one fixed
+   * set. The gear-recall bug (R149.3) lived in a combination the fixed pairs
+   * never reached, which is the argument for enumerating them.
+   */
+  const trios: number[][] = [];
+  const quartets: number[][] = [];
+  for (let a = 0; a < 5; a += 1) {
+    for (let b = a + 1; b < 5; b += 1) {
+      for (let c = b + 1; c < 5; c += 1) {
+        trios.push([a, b, c]);
+        for (let d = c + 1; d < 5; d += 1) quartets.push([a, b, c, d]);
+      }
+    }
+  }
+
+  it.each(trios)("R487 — three seats, decks %i/%i/%i", (a, b, c) => {
+    for (let seed = 1; seed <= 3; seed += 1) {
+      const state = play([a, b, c], seed);
+      expect(state.winner).not.toBeNull();
+      expect(state.pending).toBeNull();
+    }
+  });
+
+  it.each(quartets)("R488 — four seats, decks %i/%i/%i/%i", (a, b, c, d) => {
+    for (let seed = 1; seed <= 3; seed += 1) {
+      const state = play([a, b, c, d], seed);
+      expect(state.winner).not.toBeNull();
+      expect(state.turnOrder).toHaveLength(4);
+    }
+  });
 
   it.each(seeds)("R487 — three seats, seed %i", (seed) => {
     const state = play([0, 1, 2], seed);

@@ -162,6 +162,11 @@ export type GameEvent =
        */
       abilities: Ability[];
     }
+  /**
+   * R149.3 / R457.1 — an unattached non-Unit Gear left at a battlefield is
+   * recalled to its controller's Base as a corrective action in the cleanup.
+   */
+  | { type: "gearRecalled"; playerId: PlayerId; cardId: CardId }
   | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId }
   | { type: "returnedToHand"; playerId: PlayerId; cardId: CardId }
   | { type: "banished"; playerId: PlayerId; cardId: CardId }

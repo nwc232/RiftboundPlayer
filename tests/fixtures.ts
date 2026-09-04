@@ -78,6 +78,8 @@ interface PermanentSpec {
   exhausted?: boolean;
   damage?: number;
   location?: Location;
+  /** R716 — set directly in tests about equipment following its host. */
+  attachedTo?: string;
   /** R323.2 — set directly in tests that need Assault or Shield to apply. */
   designation?: "attacker" | "defender";
   /** R423 — set directly rather than through an effect that has to resolve. */
@@ -113,6 +115,7 @@ export function makeState(options: {
         ? { designation: spec.designation }
         : {}),
       ...(spec.stunned !== undefined ? { stunned: spec.stunned } : {}),
+      ...(spec.attachedTo !== undefined ? { attachedTo: spec.attachedTo } : {}),
     };
   }
 

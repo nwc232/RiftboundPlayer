@@ -333,3 +333,93 @@ describe("choosing which staged showdown opens (R323.12)", () => {
     expect(result.state.showdown?.battlefieldId).toBe("bf-north");
   });
 });
+
+
+/**
+ * R149.3 / R457.1 — "If an unattached non-Unit Gear is at a Battlefield for
+ * any reason during a cleanup, then it is recalled to its controller's Base as
+ * a corrective action."
+ *
+ * A [Hidden] gear played from face down lands at the battlefield it was hidden
+ * at (R811.1.d.1), so this is not a hypothetical: it is where every loose gear
+ * in the pool comes from, and without the recall one sits there for the rest
+ * of the game.
+ */
+describe("R149.3 — a loose gear goes home", () => {
+  const NORTH: Location = { kind: "battlefield", id: "bf-north" };
+
+  function board(): GameState {
+    return makeState({
+      cards: [
+        { ...unit("hourglass"), type: "gear" as const },
+        unit("ally", { might: 2 }),
+        unit("blade"),
+      ],
+      permanents: [
+        { cardId: "hourglass", controller: "p1", location: NORTH },
+        { cardId: "ally", controller: "p1", location: NORTH },
+      ],
+      battlefields: ["bf-north", "bf-south"],
+    });
+  }
+
+  it("recalls it to its controller's base in the cleanup", () => {
+    const { state, events } = runCleanup(board());
+
+    expect(state.permanents["hourglass"]?.location).toEqual({
+      kind: "base",
+      player: "p1",
+    });
+    expect(events).toContainEqual({
+      type: "gearRecalled",
+      playerId: "p1",
+      cardId: "hourglass",
+    });
+  });
+
+  /** R456 — a Recall is not a Move, so the unit beside it is untouched. */
+  it("leaves the units there alone", () => {
+    const { state } = runCleanup(board());
+
+    expect(state.permanents["ally"]?.location).toEqual(NORTH);
+  });
+
+  /**
+   * R718.5.c — an *attached* gear follows its host, so equipment worn by a
+   * unit at a battlefield stays with it. Only unattached gear is corrected.
+   */
+  it("leaves attached gear where its host is", () => {
+    const worn = makeState({
+      cards: [
+        { ...unit("blade"), type: "gear" as const },
+        unit("ally", { might: 2 }),
+      ],
+      permanents: [
+        { cardId: "ally", controller: "p1", location: NORTH },
+        { cardId: "blade", controller: "p1", location: NORTH, attachedTo: "ally" },
+      ],
+      battlefields: ["bf-north", "bf-south"],
+    });
+
+    const { state } = runCleanup(worn);
+
+    expect(state.permanents["blade"]?.location).toEqual(NORTH);
+  });
+
+  /** A gear at its own base was never misplaced, so nothing happens to it. */
+  it("does not disturb a gear already at a base", () => {
+    const home = makeState({
+      cards: [{ ...unit("hourglass"), type: "gear" as const }],
+      permanents: [{ cardId: "hourglass", controller: "p1" }],
+      battlefields: ["bf-north"],
+    });
+
+    const { state, events } = runCleanup(home);
+
+    expect(state.permanents["hourglass"]?.location).toEqual({
+      kind: "base",
+      player: "p1",
+    });
+    expect(events.filter((e) => e.type === "gearRecalled")).toEqual([]);
+  });
+});

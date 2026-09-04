@@ -319,6 +319,36 @@ export function runCleanup(
   }
   if (movedAny) current = { ...current, permanents: attachments };
 
+  // R149.3 / R457.1 — "If an unattached non-Unit Gear is at a Battlefield for
+  // any reason during a cleanup, then it is recalled to its controller's Base
+  // as a corrective action." Run after attachments settle above, so a piece of
+  // equipment whose host has just died is unattached *by then* and goes home
+  // in the same cleanup rather than lingering a step.
+  //
+  // R456 — a Recall is not a Move: no move triggers fire, and R458 leaves the
+  // gear's damage and statuses alone.
+  const recalled: GameState["permanents"] = { ...current.permanents };
+  let recalledAny = false;
+  for (const [cardId, permanent] of Object.entries(current.permanents)) {
+    if (permanent.location.kind !== "battlefield") continue;
+    if (permanent.attachedTo !== undefined) continue;
+    // R152.2 allows a Gear that *is* a Unit to be at a battlefield on its
+    // own; `CardType` is one value per card, so "gear" already excludes it.
+    if (current.cards[cardId]?.type !== "gear") continue;
+
+    recalled[cardId] = {
+      ...permanent,
+      location: { kind: "base", player: permanent.controller },
+    };
+    recalledAny = true;
+    events.push({
+      type: "gearRecalled",
+      playerId: permanent.controller,
+      cardId,
+    });
+  }
+  if (recalledAny) current = { ...current, permanents: recalled };
+
   // R190.4.c — a controller with no units there loses control in the cleanup.
   for (const battlefieldId of current.battlefieldOrder) {
     const battlefield = current.battlefields[battlefieldId];

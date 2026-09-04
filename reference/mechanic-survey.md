@@ -855,6 +855,12 @@ built when a card asks for it.
   than the rules place it. Closing it means routing draws through a
   chokepoint, which is the deviation directly above; the two want the same
   fix.
+- ~~**An unattached gear left at a battlefield stayed there.**~~ Closed.
+  R149.3/R457.1 recall it to its controller's Base as a corrective action in
+  the cleanup, and nothing did. Every [Hidden] gear in the pool produces one:
+  R811.1.d.1 puts it back at the battlefield it was hidden at, and it then sat
+  there for the rest of the game. Found by a soak over every deck combination,
+  not by reading — the fixed deck pairs in the playthroughs never reached it.
 - **A player removed under R652 is removed, not replaced.** R652.5's handoffs
   are built — turn, Focus and Priority all pass to the next player in order —
   but `Room` will not seat a newcomer in the vacated chair, and a player who

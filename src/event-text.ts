@@ -37,6 +37,9 @@ export function renderEvent(event: GameEvent): string {
   switch (event.type) {
     case "cardDrawn":
       return `${event.playerId} drew ${named(event.cardId)}`;
+    // R149.3 — a loose gear left at a battlefield goes home.
+    case "gearRecalled":
+      return `${named(event.cardId)} was recalled to ${event.playerId}'s base`;
     // R650/R652 — a player leaves the game in progress.
     case "conceded":
       return `${event.playerId} conceded`;
