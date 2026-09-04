@@ -246,7 +246,7 @@ describe("card art", () => {
   it("covers every card in all three decks", () => {
     const missing = new Set<string>();
     for (const [index] of DECKS.entries()) {
-      const state = newGame(1, index, (index + 1) % DECKS.length);
+      const state = newGame(1, [index, (index + 1) % DECKS.length]);
       for (const card of Object.values(state.cards)) {
         // Tokens are created during play and are not printed cards.
         if (card.isToken === true) continue;

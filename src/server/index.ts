@@ -115,7 +115,18 @@ sockets.on("connection", (socket) => {
         tell(socket, { kind: "rejected", reason: "alreadySeated" });
         return;
       }
-      const room = rooms.get(message.room) ?? emptyRoom(message.room);
+      // R483.1 — the room's size is whatever the person who opened it asked
+      // for, and a later joiner cannot change it. An unsanctioned count has
+      // no mode, so `emptyRoom` refuses it rather than seating anyone.
+      let room = rooms.get(message.room);
+      if (room === undefined) {
+        try {
+          room = emptyRoom(message.room, message.players ?? 2);
+        } catch {
+          tell(socket, { kind: "rejected", reason: "noSuchMode" });
+          return;
+        }
+      }
       const seat = freeSeat(room);
       if (seat === undefined) {
         tell(socket, { kind: "gone", reason: "roomFull" });

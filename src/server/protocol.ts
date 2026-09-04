@@ -15,7 +15,7 @@ import type { GameState, PlayerId } from "../state.js";
  * server thin: it owns the game, and it owns nothing else.
  */
 
-/** How a seat is named to a person. Two rooms, two seats, no accounts. */
+/** How a room is named to a person. A code, no accounts. */
 export type RoomId = string;
 
 export type ClientMessage =
@@ -24,6 +24,12 @@ export type ClientMessage =
       room: RoomId;
       /** Which authored list this seat brings, by index into `DECKS`. */
       deck: number;
+      /**
+       * R483.1 — how many people the room is for, honoured only from whoever
+       * opens it. A joiner cannot resize a room that already exists, and
+       * omitting it means a Duel.
+       */
+      players?: number;
     }
   /**
    * R355 and everything else: the server runs this through `applyAction`
@@ -35,8 +41,15 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { kind: "joined"; room: RoomId; seat: PlayerId }
-  /** Both seats are not yet filled, so there is no game to send. */
-  | { kind: "waiting"; room: RoomId; seat: PlayerId }
+  /** Seats are still empty, so there is no game to send. */
+  | {
+      kind: "waiting";
+      room: RoomId;
+      seat: PlayerId;
+      /** How many have arrived, of how many the room is for. */
+      seated: number;
+      players: number;
+    }
   /**
    * The game as this seat is entitled to see it — R107 applied at the socket
    * rather than at the renderer. A client that never receives a card's
@@ -65,10 +78,17 @@ export function parseClientMessage(text: string): ClientMessage | undefined {
   const message = value as Partial<ClientMessage>;
   switch (message.kind) {
     case "join":
-      return typeof (message as { room?: unknown }).room === "string" &&
-        typeof (message as { deck?: unknown }).deck === "number"
-        ? (message as ClientMessage)
-        : undefined;
+      {
+        const players = (message as { players?: unknown }).players;
+        const sane =
+          players === undefined ||
+          (typeof players === "number" && Number.isInteger(players));
+        return typeof (message as { room?: unknown }).room === "string" &&
+          typeof (message as { deck?: unknown }).deck === "number" &&
+          sane
+          ? (message as ClientMessage)
+          : undefined;
+      }
     case "act":
       return typeof (message as { action?: unknown }).action === "object" &&
         (message as { action?: unknown }).action !== null

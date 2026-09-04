@@ -8,6 +8,7 @@ import {
   leave,
   messageFor,
   restart,
+  seatsOf,
 } from "../src/server/room.js";
 import { HIDDEN_CARD } from "../src/view.js";
 import { seatOf } from "../src/state.js";
@@ -207,5 +208,79 @@ describe("restarting", () => {
   it("does nothing while a seat is empty", () => {
     const room = join(emptyRoom("abc"), "p1", 0, 1);
     expect(restart(room, 5).game).toBeUndefined();
+  });
+});
+
+/**
+ * R483.1 — a room is for as many people as its mode seats. The engine's rules
+ * for three and four players are tested in `multiplayer.test.ts`; what matters
+ * here is that a room holds the seats open and deals only when the table is
+ * full.
+ */
+describe("rooms for more than two", () => {
+  it("holds three seats open until the third arrives (R487.1)", () => {
+    let room = emptyRoom("abc", 3);
+
+    expect(seatsOf(room)).toEqual(["p1", "p2", "p3"]);
+    room = join(room, "p1", 0, 1);
+    expect(room.game).toBeUndefined();
+    room = join(room, "p2", 1, 1);
+    // Two of three: a Duel would be dealt by now, a Skirmish is not.
+    expect(room.game).toBeUndefined();
+    expect(freeSeat(room)).toBe("p3");
+
+    room = join(room, "p3", 2, 1);
+    expect(room.game).toBeDefined();
+    expect(room.game?.state.turnOrder).toEqual(["p1", "p2", "p3"]);
+    expect(room.game?.state.mode).toBe("skirmish");
+    expect(freeSeat(room)).toBeUndefined();
+  });
+
+  it("seats four for a War (R488.1)", () => {
+    let room = emptyRoom("abc", 4);
+    for (const [at, seat] of seatsOf(room).entries()) {
+      room = join(room, seat, at, 1);
+    }
+
+    expect(room.game?.state.mode).toBe("war");
+    // R488.4 — three battlefields, because R488.4.b takes the first player's.
+    expect(room.game?.state.battlefieldOrder).toHaveLength(3);
+  });
+
+  /** An unsanctioned count has no mode, so there is no game to open. */
+  it("refuses a size no mode seats (R483)", () => {
+    expect(() => emptyRoom("abc", 5)).toThrow();
+    expect(() => emptyRoom("abc", 1)).toThrow();
+  });
+
+  /** R107 at the socket, with two opponents rather than one to hide. */
+  it("hides both opponents' hands from the third seat", () => {
+    let room = emptyRoom("abc", 3);
+    for (const [at, seat] of seatsOf(room).entries()) {
+      room = join(room, seat, at, 1);
+    }
+
+    const message = messageFor(room, "p2");
+    if (message.kind !== "state") throw new Error("expected a state");
+    expect(seatOf(message.state, "p2").hand.every((id) => !id.startsWith(HIDDEN_CARD))).toBe(true);
+    for (const other of ["p1", "p3"] as const) {
+      expect(
+        seatOf(message.state, other).hand.every((id) => id.startsWith(HIDDEN_CARD)),
+      ).toBe(true);
+    }
+  });
+
+  it("says how many seats are still empty", () => {
+    let room = emptyRoom("abc", 3);
+    room = join(room, "p1", 0, 1);
+
+    const message = messageFor(room, "p1");
+    expect(message).toEqual({
+      kind: "waiting",
+      room: "abc",
+      seat: "p1",
+      seated: 1,
+      players: 3,
+    });
   });
 });

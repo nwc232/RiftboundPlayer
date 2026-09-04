@@ -250,7 +250,7 @@ export function App() {
     if (isOnline) {
       online.restart();
     } else {
-      setHistory([{ state: newGame(seed, p1Deck, p2Deck), events: [] }]);
+      setHistory([{ state: newGame(seed, [p1Deck, p2Deck]), events: [] }]);
     }
     setSelected(null);
     setRejected(null);

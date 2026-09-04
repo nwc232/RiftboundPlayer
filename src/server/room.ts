@@ -4,10 +4,11 @@ import type { GameEvent } from "../events.js";
 import { newGame } from "../ui/game.js";
 import type { GameState, PlayerId } from "../state.js";
 import { eventsFor, viewOf } from "../view.js";
+import { modeFor, seatsFor } from "../modes-of-play.js";
 import type { RoomId, ServerMessage } from "./protocol.js";
 
 /**
- * A room: one authoritative game and the two seats watching it.
+ * A room: one authoritative game and the seats watching it.
  *
  * Node-free and pure, so it is testable without a socket — which matters,
  * because the interesting rules here are not about networking. Who may act,
@@ -24,27 +25,44 @@ export interface Seat {
 
 export interface Room {
   id: RoomId;
+  /**
+   * R483.1 — how many people this room is for, fixed by whoever opened it.
+   * The mode follows from the count: R485 seats two, R487 three, R488 four.
+   */
+  players: number;
   /** Filled in join order: the first to arrive is p1. */
   seats: Partial<Record<PlayerId, Seat>>;
-  /** Absent until both seats are filled and the game has been dealt. */
+  /** Absent until every seat is filled and the game has been dealt. */
   game: { state: GameState; events: GameEvent[] } | undefined;
 }
 
-export function emptyRoom(id: RoomId): Room {
-  return { id, seats: {}, game: undefined };
+export function emptyRoom(id: RoomId, players = 2): Room {
+  // An unsanctioned player count has no mode, so it cannot be played at all.
+  modeFor(players);
+  return { id, players, seats: {}, game: undefined };
+}
+
+/** Every seat this room's mode uses, in turn order. */
+export function seatsOf(room: Room): PlayerId[] {
+  return seatsFor(modeFor(room.players));
 }
 
 /** The seat a joiner gets, or undefined when the room is full. */
 export function freeSeat(room: Room): PlayerId | undefined {
-  if (room.seats.p1 === undefined) return "p1";
-  if (room.seats.p2 === undefined) return "p2";
-  return undefined;
+  return seatsOf(room).find((id) => room.seats[id] === undefined);
+}
+
+/** The decks at the table in turn order, or undefined while a seat is empty. */
+function tableDecks(room: Room): number[] | undefined {
+  const seats = seatsOf(room).map((id) => room.seats[id]);
+  if (seats.some((seat) => seat === undefined)) return undefined;
+  return seats.map((seat) => seat!.deck);
 }
 
 /**
- * Seats a player. The game is dealt the moment the second one arrives —
- * there is nothing to look at before that, and dealing earlier would mean
- * choosing a deck for someone who has not said which they want.
+ * Seats a player. The game is dealt the moment the last one arrives — there
+ * is nothing to look at before that, and dealing earlier would mean choosing
+ * a deck for someone who has not said which they want.
  */
 export function join(
   room: Room,
@@ -52,15 +70,18 @@ export function join(
   deck: number,
   seed: number,
 ): Room {
-  const seats = { ...room.seats, [seat]: { player: seat, deck } };
-  const both = seats.p1 !== undefined && seats.p2 !== undefined;
+  const filled: Room = {
+    ...room,
+    seats: { ...room.seats, [seat]: { player: seat, deck } },
+  };
+  const decks = tableDecks(filled);
 
   return {
-    ...room,
-    seats,
-    game: both
-      ? { state: newGame(seed, seats.p1!.deck, seats.p2!.deck), events: [] }
-      : undefined,
+    ...filled,
+    game:
+      decks === undefined
+        ? undefined
+        : { state: newGame(seed, decks), events: [] },
   };
 }
 
@@ -105,11 +126,11 @@ export function act(room: Room, seat: PlayerId, action: Action): ActOutcome {
   };
 }
 
-/** Deals again, keeping both seats and their decks. */
+/** Deals again, keeping every seat and their decks. */
 export function restart(room: Room, seed: number): Room {
-  const { p1, p2 } = room.seats;
-  if (p1 === undefined || p2 === undefined) return room;
-  return { ...room, game: { state: newGame(seed, p1.deck, p2.deck), events: [] } };
+  const decks = tableDecks(room);
+  if (decks === undefined) return room;
+  return { ...room, game: { state: newGame(seed, decks), events: [] } };
 }
 
 /**
@@ -122,7 +143,16 @@ export function restart(room: Room, seed: number): Room {
  */
 export function messageFor(room: Room, seat: PlayerId): ServerMessage {
   if (room.game === undefined) {
-    return { kind: "waiting", room: room.id, seat };
+    const taken = seatsOf(room).filter(
+      (id) => room.seats[id] !== undefined,
+    ).length;
+    return {
+      kind: "waiting",
+      room: room.id,
+      seat,
+      seated: taken,
+      players: room.players,
+    };
   }
   return {
     kind: "state",

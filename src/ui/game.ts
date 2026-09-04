@@ -45,8 +45,12 @@ export const DECKS = DECK_LISTS.map((list, index) => ({
   index,
 }));
 
-export function newGame(seed: number, p1 = 0, p2 = 1): GameState {
-  const started = startGame(matchup({ seed, decks: [p1, p2] }));
+/**
+ * `decks` is the table in turn order, by index into `DECKS` — two for a Duel,
+ * three for a Skirmish, four for a War. The mode follows from its length.
+ */
+export function newGame(seed: number, decks: number[] = [0, 1]): GameState {
+  const started = startGame(matchup({ seed, decks }));
   if (!started.ok) {
     throw new Error(`deck setup failed: ${JSON.stringify(started.errors)}`);
   }
