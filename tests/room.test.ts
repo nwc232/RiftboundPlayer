@@ -68,8 +68,10 @@ describe("filling a room", () => {
     if (message.kind !== "state") throw new Error("expected a game");
 
     // Deck 0 is Vex, deck 1 is Rengar.
-    expect(message.state.players.p1.legend).toBe("gloomist");
-    expect(message.state.players.p2.legend).toBe("pridestalker");
+    // Ids belong to a seat, so a Legend's is stamped with the seat that
+    // brought it — which is what lets two players bring the same list.
+    expect(message.state.players.p1.legend).toBe("p1-gloomist");
+    expect(message.state.players.p2.legend).toBe("p2-pridestalker");
   });
 });
 

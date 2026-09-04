@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateDeck } from "../src/deck.js";
-import {
-  AKALI_DECK,
-  ALL_CARDS,
-  DIANA_DECK,
-  LEBLANC_DECK,
-} from "../src/decks/index.js";
+import { DECK_LISTS, instantiate } from "../src/decks/index.js";
 import { blackFlameAltar } from "../src/decks/leblanc.js";
 import { keywordsOf } from "../src/layers.js";
 import type {
@@ -19,9 +14,16 @@ import { makeState, unit } from "./fixtures.js";
 
 const HERE: Location = { kind: "battlefield", id: "black-flame-altar" };
 
+// A list has ids only once a seat has been given one, so each is instantiated
+// before it can be checked.
+const SEATED = DECK_LISTS.map((list) => instantiate(list, "p1"));
 const registry: Record<CardId, CardInstance> = Object.fromEntries(
-  ALL_CARDS.map((card) => [card.id, card]),
+  SEATED.flatMap((each) => each.cards).map((card) => [card.id, card]),
 );
+
+const LEBLANC_DECK = SEATED[2]!.deck;
+const AKALI_DECK = SEATED[3]!.deck;
+const DIANA_DECK = SEATED[4]!.deck;
 
 /** R103 — the deck-building requirements, checked on the real list. */
 describe("the LeBlanc deck is legal", () => {

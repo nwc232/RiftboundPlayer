@@ -8,15 +8,7 @@ import type { TargetFilter } from "../decisions.js";
 import { canPay, totals } from "../cost.js";
 import { totalCostOf } from "../costing.js";
 import { characteristicsOf, controllerOf } from "../layers.js";
-import {
-  AKALI_DECK,
-  DIANA_DECK,
-  LEBLANC_DECK,
-  RENGAR_DECK,
-  VEX_DECK,
-  matchup,
-} from "../decks/index.js";
-import type { Deck } from "../deck.js";
+import { DECK_LISTS, matchup } from "../decks/index.js";
 import { permanentsAt } from "../state.js";
 import type {
   CardId,
@@ -49,18 +41,14 @@ export function actingPlayer(state: GameState): PlayerId {
  * UI names them by their Legend, which is how the deck files and
  * `reference/decks.md` name them too.
  */
-export const DECKS: { name: string; deck: Deck }[] = [
-  { name: "Vex, Gloomist", deck: VEX_DECK },
-  { name: "Rengar, Pridestalker", deck: RENGAR_DECK },
-  { name: "Deceiver (LeBlanc)", deck: LEBLANC_DECK },
-  { name: "Rogue Assassin (Akali)", deck: AKALI_DECK },
-  { name: "Scorn of the Moon (Diana)", deck: DIANA_DECK },
-];
+/** The lists a game can be started with, named by their Legend. */
+export const DECKS = DECK_LISTS.map((list, index) => ({
+  name: list.name,
+  index,
+}));
 
 export function newGame(seed: number, p1 = 0, p2 = 1): GameState {
-  const first = DECKS[p1]?.deck ?? VEX_DECK;
-  const second = DECKS[p2]?.deck ?? RENGAR_DECK;
-  const started = startGame(matchup({ seed, decks: [first, second] }));
+  const started = startGame(matchup({ seed, decks: [p1, p2] }));
   if (!started.ok) {
     throw new Error(`deck setup failed: ${JSON.stringify(started.errors)}`);
   }

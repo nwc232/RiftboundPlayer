@@ -4,15 +4,7 @@ import type { Action } from "../src/actions.js";
 import { startGame } from "../src/deck.js";
 import { legalActions } from "../src/legal.js";
 import type { CardId, CardInstance, GameState, Location } from "../src/state.js";
-import {
-  AKALI_DECK,
-  ALL_CARDS,
-  DIANA_DECK,
-  LEBLANC_DECK,
-  RENGAR_DECK,
-  VEX_DECK,
-  matchup,
-} from "../src/decks/index.js";
+import { DECK_LISTS, instantiate, matchup } from "../src/decks/index.js";
 import type { Deck } from "../src/deck.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -46,7 +38,7 @@ interface Outcome {
  * share, and the only way to check it is to exercise every branch a real game
  * reaches.
  */
-function play(seed: number, maxSteps = 4000, decks?: [Deck, Deck]): Outcome {
+function play(seed: number, maxSteps = 4000, decks?: [number, number]): Outcome {
   const started = startGame(
     matchup(decks === undefined ? {} : { decks }),
   );
@@ -114,12 +106,15 @@ describe("full games with the two real decks", () => {
  * authoring slip — a cost in the wrong shape, a filter nothing can satisfy —
  * across all 38 at once, which random play would only find by luck.
  */
-describe("every card in both decks can be played", () => {
+describe("every card in every deck can be played", () => {
+  // Every list, seated, so the registry covers all five rather than the two
+  // that happen to be playing.
+  const SEATED = DECK_LISTS.map((list) => instantiate(list, "p1"));
   const byId: Record<CardId, CardInstance> = {};
-  for (const card of ALL_CARDS) byId[card.id] = card;
+  for (const card of SEATED.flatMap((each) => each.cards)) byId[card.id] = card;
 
   /** One of each distinct name from a deck's main deck. */
-  function distinct(deck: typeof VEX_DECK): CardInstance[] {
+  function distinct(deck: Deck): CardInstance[] {
     const seen = new Set<string>();
     const out: CardInstance[] = [];
     for (const id of deck.mainDeck) {
@@ -151,11 +146,17 @@ describe("every card in both decks can be played", () => {
         card,
         unit("ally", { might: 3 }),
         unit("enemy", { might: 3 }),
+        // A gear on the board, for the cards that choose one — Brittle Steel
+        // kills a gear and a board with none affords it nothing.
+        { ...unit("trinket"), type: "gear" as const },
         ...["d1", "d2", "d3", "d4", "e1", "e2"].map((id) => unit(id)),
       ],
       permanents: [
-        { cardId: "ally", controller: "p1", location: NORTH },
-        { cardId: "enemy", controller: "p2", location: NORTH },
+        // R323.2's designations, so the cards that choose by one have
+        // something to choose: Thwonk! stuns *an attacking unit*.
+        { cardId: "ally", controller: "p1", location: NORTH, designation: "attacker" },
+        { cardId: "enemy", controller: "p2", location: NORTH, designation: "defender" },
+        { cardId: "trinket", controller: "p1" },
       ],
       battlefields: [["bf-north", "p1"], "bf-south"],
     });
@@ -192,7 +193,12 @@ describe("every card in both decks can be played", () => {
     };
   }
 
-  const cards = [...distinct(VEX_DECK), ...distinct(RENGAR_DECK)];
+  // Every authored card across all five lists, deduplicated by name — four of
+  // them share Discipline, and one check of it is enough.
+  const cards = SEATED.flatMap((each) => distinct(each.deck)).filter(
+    (card, index, all) =>
+      all.findIndex((other) => other.name === card.name) === index,
+  );
 
   it.each(cards.map((card) => [card.name, card] as const))(
     "%s",
@@ -218,7 +224,7 @@ describe("full games with the LeBlanc deck", () => {
   const seeds = Array.from({ length: 15 }, (_, i) => i + 1);
 
   it.each(seeds)("plays against Vex, seed %i", (seed) => {
-    const { state, stuck } = play(seed, 4000, [LEBLANC_DECK, VEX_DECK]);
+    const { state, stuck } = play(seed, 4000, [2, 0]);
 
     expect(stuck).toBe(false);
     expect(state.winner).not.toBeNull();
@@ -226,7 +232,7 @@ describe("full games with the LeBlanc deck", () => {
   });
 
   it.each(seeds)("plays against Rengar, seed %i", (seed) => {
-    const { state, stuck } = play(seed, 4000, [LEBLANC_DECK, RENGAR_DECK]);
+    const { state, stuck } = play(seed, 4000, [2, 1]);
 
     expect(stuck).toBe(false);
     expect(state.winner).not.toBeNull();
@@ -241,16 +247,16 @@ describe("full games with the LeBlanc deck", () => {
  */
 describe("full games with the sent decks", () => {
   const seeds = Array.from({ length: 8 }, (_, i) => i + 1);
-  const others: [string, Deck][] = [
-    ["Vex", VEX_DECK],
-    ["Rengar", RENGAR_DECK],
-    ["LeBlanc", LEBLANC_DECK],
+  const others: [string, number][] = [
+    ["Vex", 0],
+    ["Rengar", 1],
+    ["LeBlanc", 2],
   ];
 
   for (const [mine, deck] of [
-    ["Akali", AKALI_DECK],
-    ["Diana", DIANA_DECK],
-  ] as [string, Deck][]) {
+    ["Akali", 3],
+    ["Diana", 4],
+  ] as [string, number][]) {
     for (const [theirs, against] of others) {
       it.each(seeds)(`${mine} vs ${theirs}, seed %i`, (seed) => {
         const { state, stuck } = play(seed, 4000, [deck, against]);
@@ -264,7 +270,7 @@ describe("full games with the sent decks", () => {
 
   /** And against each other, which is what the two of them will actually do. */
   it.each(seeds)("Akali vs Diana, seed %i", (seed) => {
-    const { state, stuck } = play(seed, 4000, [AKALI_DECK, DIANA_DECK]);
+    const { state, stuck } = play(seed, 4000, [3, 4]);
 
     expect(stuck).toBe(false);
     expect(state.winner).not.toBeNull();

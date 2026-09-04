@@ -147,10 +147,8 @@ before a card was authored: thirteen mechanisms were missing between them, and
 all thirteen were built first.
 
 Seven cards of each were already authored for decks 1 and 2 and are referenced
-rather than written twice — which is what turned up the id collision the
-prefixing in `expand` now prevents: four of these decks play Discipline, and
-without a per-deck prefix they would all have called their copies
-`discipline-1`.
+rather than written twice, which is what turned up a bug in how card ids were
+made at all. See **Ids belong to a seat** below.
 
 ### Rogue Assassin (Calm / Fury) — the Akali list
 
@@ -189,6 +187,29 @@ fix, and Rockfall Path's "units can't be played here" had been a test fixture.
 | Fizz, Trickster | A granted **play from the trash**, waiving only the Energy half |
 | Hard Bargain | Asking the **opponent** to pay, mid-resolution. The only card in the pool that does |
 | Abandon | Countering **to hand** instead of the trash |
+
+---
+
+## Ids belong to a seat, not to a deck
+
+A `DeckList` is cards and counts with no ids in it. Ids are stamped by
+`instantiate(list, seat)` when a player brings the list to a game.
+
+That is not a detail. Ids were originally baked into each deck at module load,
+which meant two lists sharing a card gave their copies the same id — four of
+these decks play Discipline, and all four called their copies `discipline-1`.
+Prefixing by *deck* fixed that and was still wrong: two players bringing the
+**same** list would each hold `vex-gust-1`, so 35 cards sat in both decks at
+once and a mirror match was quietly broken.
+
+Stamping by seat keeps the two facts apart that need keeping apart:
+
+- Two people may turn up with the same forty cards. R103 has nothing to say
+  against it.
+- One card cannot be in both their decks. `p1-gust-1` and `p2-gust-1` are two
+  cards with one name, which is what they physically are.
+
+R103.2.b counts *names*, and names are untouched by any of this.
 
 ---
 

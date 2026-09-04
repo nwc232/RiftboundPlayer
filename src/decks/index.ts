@@ -25,23 +25,25 @@ type Entry = [CardInstance, number];
  * three-per-*name* limit is unaffected — the name is what it counts, and the
  * name is untouched.
  */
-function idIn(deck: string, card: CardInstance): CardId {
-  return `${deck}-${card.id}`;
-}
-
-function expand(deck: string, entries: Entry[]): CardInstance[] {
-  return entries.flatMap(([card, count]) =>
-    copies({ ...card, id: `${deck}-${card.id}` }, count),
-  );
-}
-
-/** R103.3 — twelve runes. Ids are per player, since both decks use basics. */
-function runes(owner: string, split: [Domain, number][]): CardInstance[] {
-  return split.flatMap(([domain, count]) =>
-    Array.from({ length: count }, (_, i) =>
-      basicRune(`${owner}-${domain}-${i + 1}`, domain),
-    ),
-  );
+/**
+ * A deck as written down: cards and counts, with no ids yet.
+ *
+ * Ids are not part of a list because they are not part of a *deck* — they
+ * belong to the copy a particular player brought to a particular game. Two
+ * people can turn up with the same 40 cards, and R103 has nothing to say
+ * against it; what cannot happen is one card being in both their decks at
+ * once. Stamping the ids per seat is what keeps those two facts apart.
+ */
+export interface DeckList {
+  name: string;
+  legend: CardInstance;
+  /** R103.2.a.1 — counted in the 40 and lifted into the Champion Zone. */
+  champion: CardInstance;
+  main: Entry[];
+  /** R485.5 — three, of which one is used. */
+  battlefields: CardInstance[];
+  /** R103.3 — twelve, of the list's Domain Identity. */
+  runes: [Domain, number][];
 }
 
 const VEX_MAIN: Entry[] = [
@@ -188,106 +190,89 @@ const DIANA_BATTLEFIELDS = [
   diana.rockfallPath,
 ];
 
-const VEX_RUNES = runes("p1", [
-  ["chaos", 7],
-  ["calm", 5],
-]);
-const RENGAR_RUNES = runes("p2", [
-  ["body", 7],
-  ["fury", 5],
-]);
 
-const AKALI_RUNES = runes("p4", [
-  ["fury", 6],
-  ["calm", 6],
-]);
-const DIANA_RUNES = runes("p5", [
-  ["mind", 5],
-  ["chaos", 7],
-]);
+/**
+ * One player's copy of a list: the cards themselves, with ids that belong to
+ * that seat.
+ *
+ * `copies` gives each copy of a card its own id and leaves the name alone,
+ * which is what R103.2.b's three-per-*name* limit counts. The seat prefix on
+ * top of that is what lets two players bring the same list: `p1-gust-1` and
+ * `p2-gust-1` are two cards with one name, which is exactly what they are.
+ */
+export function instantiate(
+  list: DeckList,
+  seat: PlayerId,
+): { deck: Deck; cards: CardInstance[] } {
+  const stamp = (card: CardInstance): CardInstance => ({
+    ...card,
+    id: `${seat}-${card.id}`,
+  });
 
-const LEBLANC_RUNES = runes("p3", [
-  ["mind", 8],
-  ["order", 4],
-]);
+  const legend = stamp(list.legend);
+  const main = list.main.flatMap(([card, count]) => copies(stamp(card), count));
+  const battlefields = list.battlefields.map(stamp);
+  const runeCards = list.runes.flatMap(([domain, count]) =>
+    Array.from({ length: count }, (_, i) =>
+      basicRune(`${seat}-${domain}-${i + 1}`, domain),
+    ),
+  );
 
-const vexMain = expand("vex", VEX_MAIN);
-const rengarMain = expand("rengar", RENGAR_MAIN);
-const leblancMain = expand("leblanc", LEBLANC_MAIN);
-const akaliMain = expand("akali", AKALI_MAIN);
-const dianaMain = expand("diana", DIANA_MAIN);
-
-/** Every card either deck needs, ready for `startGame`'s registry. */
-export const ALL_CARDS: CardInstance[] = [
-  vex.gloomist,
-  rengar.pridestalker,
-  ...vexMain,
-  ...rengarMain,
-  ...VEX_BATTLEFIELDS,
-  ...RENGAR_BATTLEFIELDS,
-  ...VEX_RUNES,
-  ...RENGAR_RUNES,
-  leblanc.deceiver,
-  ...leblancMain,
-  ...LEBLANC_BATTLEFIELDS,
-  ...LEBLANC_RUNES,
-  akali.rogueAssassin,
-  ...akaliMain,
-  ...AKALI_RUNES,
-  diana.scornOfTheMoon,
-  ...dianaMain,
-  diana.rockfallPath,
-  ...DIANA_RUNES,
-];
-
-export const VEX_DECK: Deck = {
-  legend: vex.gloomist.id,
-  // R103.2.a.1 — the Chosen Champion is counted in the 40 but starts in the
-  // Champion Zone, so it is listed here and lifted out by setup.
-  champion: idIn("vex", vex.vexApathetic),
-  mainDeck: vexMain.map((card) => card.id),
-  runeDeck: VEX_RUNES.map((card) => card.id),
-  battlefields: VEX_BATTLEFIELDS.map((card) => card.id),
-};
-
-export const RENGAR_DECK: Deck = {
-  legend: rengar.pridestalker.id,
-  champion: idIn("rengar", rengar.rengarTrophyHunter),
-  mainDeck: rengarMain.map((card) => card.id),
-  runeDeck: RENGAR_RUNES.map((card) => card.id),
-  battlefields: RENGAR_BATTLEFIELDS.map((card) => card.id),
-};
-
-export const LEBLANC_DECK: Deck = {
-  legend: leblanc.deceiver.id,
-  champion: idIn("leblanc", leblanc.leblancEverywhereAtOnce),
-  mainDeck: leblancMain.map((card) => card.id),
-  runeDeck: LEBLANC_RUNES.map((card) => card.id),
-  battlefields: LEBLANC_BATTLEFIELDS.map((card) => card.id),
-};
-
-export const AKALI_DECK: Deck = {
-  legend: akali.rogueAssassin.id,
-  champion: idIn("akali", akali.akaliDeadlyWeapon),
-  mainDeck: akaliMain.map((card) => card.id),
-  runeDeck: AKALI_RUNES.map((card) => card.id),
-  battlefields: AKALI_BATTLEFIELDS.map((card) => card.id),
-};
-
-export const DIANA_DECK: Deck = {
-  legend: diana.scornOfTheMoon.id,
-  champion: idIn("diana", diana.dianaLunari),
-  mainDeck: dianaMain.map((card) => card.id),
-  runeDeck: DIANA_RUNES.map((card) => card.id),
-  battlefields: DIANA_BATTLEFIELDS.map((card) => card.id),
-};
-
-/** Which battlefield a list opens on when the caller does not say. */
-function defaultBattlefield(deck: Deck): CardId {
-  if (deck === VEX_DECK) return vex.abandonedHall.id;
-  if (deck === RENGAR_DECK) return rengar.seatOfPower.id;
-  return deck.battlefields[0]!;
+  return {
+    deck: {
+      legend: legend.id,
+      // R103.2.a.1 — a champion is one copy, so `copies` leaves its id alone.
+      champion: `${seat}-${list.champion.id}`,
+      mainDeck: main.map((card) => card.id),
+      runeDeck: runeCards.map((card) => card.id),
+      battlefields: battlefields.map((card) => card.id),
+    },
+    cards: [legend, ...main, ...battlefields, ...runeCards],
+  };
 }
+
+export const DECK_LISTS: DeckList[] = [
+  {
+    name: "Vex, Gloomist",
+    legend: vex.gloomist,
+    champion: vex.vexApathetic,
+    main: VEX_MAIN,
+    battlefields: VEX_BATTLEFIELDS,
+    runes: [["chaos", 7], ["calm", 5]],
+  },
+  {
+    name: "Rengar, Pridestalker",
+    legend: rengar.pridestalker,
+    champion: rengar.rengarTrophyHunter,
+    main: RENGAR_MAIN,
+    battlefields: RENGAR_BATTLEFIELDS,
+    runes: [["body", 7], ["fury", 5]],
+  },
+  {
+    name: "Deceiver (LeBlanc)",
+    legend: leblanc.deceiver,
+    champion: leblanc.leblancEverywhereAtOnce,
+    main: LEBLANC_MAIN,
+    battlefields: LEBLANC_BATTLEFIELDS,
+    runes: [["mind", 8], ["order", 4]],
+  },
+  {
+    name: "Rogue Assassin (Akali)",
+    legend: akali.rogueAssassin,
+    champion: akali.akaliDeadlyWeapon,
+    main: AKALI_MAIN,
+    battlefields: AKALI_BATTLEFIELDS,
+    runes: [["fury", 6], ["calm", 6]],
+  },
+  {
+    name: "Scorn of the Moon (Diana)",
+    legend: diana.scornOfTheMoon,
+    champion: diana.dianaLunari,
+    main: DIANA_MAIN,
+    battlefields: DIANA_BATTLEFIELDS,
+    runes: [["mind", 5], ["chaos", 7]],
+  },
+];
 
 /**
  * A deterministic shuffle. The engine has no RNG on purpose — deck order is
@@ -310,7 +295,7 @@ function shuffled(ids: CardId[], seed: number): CardId[] {
 
 /**
  * R485.5 — each player brings three battlefields and one is used. Which one is
- * a choice; these are the defaults the demo and tests start from.
+ * a choice; the first of each list is the default the demo and tests open on.
  *
  * `seed` shuffles both main decks. Omitting it keeps list order, which is what
  * the tests want: the same game every time.
@@ -320,26 +305,26 @@ export function matchup(
     p1?: string;
     p2?: string;
     seed?: number;
-    /** Which two lists face off. Defaults to the first two. */
-    decks?: [Deck, Deck];
+    /** Which two lists face off, by index into `DECK_LISTS`. */
+    decks?: [number, number];
   } = {},
 ): GameSetup {
+  const [first, second] = options.decks ?? [0, 1];
+  const one = instantiate(DECK_LISTS[first] ?? DECK_LISTS[0]!, "p1");
+  const two = instantiate(DECK_LISTS[second] ?? DECK_LISTS[1]!, "p2");
+
   const order = (deck: Deck): Deck =>
     options.seed === undefined
       ? deck
       : { ...deck, mainDeck: shuffled(deck.mainDeck, options.seed) };
 
-  const [first, second] = options.decks ?? [VEX_DECK, RENGAR_DECK];
-
   return {
-    cards: ALL_CARDS,
-    p1: order(first),
-    p2: order(second),
+    cards: [...one.cards, ...two.cards],
+    p1: order(one.deck),
+    p2: order(two.deck),
     choices: {
-      // The first two lists keep the battlefields they have always opened on,
-      // so the 25 tested games stay the same 25 games.
-      p1: { battlefield: options.p1 ?? defaultBattlefield(first) },
-      p2: { battlefield: options.p2 ?? defaultBattlefield(second) },
+      p1: { battlefield: options.p1 ?? one.deck.battlefields[0]! },
+      p2: { battlefield: options.p2 ?? two.deck.battlefields[0]! },
     },
   };
 }
