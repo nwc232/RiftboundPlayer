@@ -425,34 +425,79 @@ step-3 slot `costing.ts` was carrying.
 | ~~**Score a point** as an effect~~ | 12 | Done — and R471.1's near-victory restriction does not catch it, because it is not a conquer. |
 | **Gain control of a card** | 3 | `takeControl` exists — the inverse ("they gain control") does not. |
 
-### 6e. More than two players
+### 6e. Other Modes of Play
 
-Riftbound's Core Rules describe several Modes of Play; the engine assumes
-exactly two seats throughout. Measured rather than estimated, on
-2026-09-04: `PlayerId = "p1" | "p2"` and the two literals appear **109 times
-across 22 files**, of which **18** compute "the opponent" as *the other one*
-(`viewer === "p1" ? "p2" : "p1"`).
+R481 defines five sanctioned modes. The engine plays one of them.
 
-It splits into three unequal parts.
+| Mode | Rule | Players | Victory | Battlefields | Status |
+|---|---|---|---|---|---|
+| 1v1 (Duel) | R485 | 2 | 8 | 2 | Built — this is the engine. |
+| 1v1 (Match) | R486 | 2 | 8 | 2, rotating between games | Built — `src/match.ts`. |
+| FFA3 (Skirmish) | R487 | 3 | 8 | 3 | Next. |
+| FFA4 (War) | R488 | 4 | 8 | 3 | Falls out of FFA3. |
+| 2v2 (Magma Chamber) | R489 | 4 | 11 | 3 | Deferred by decision. |
 
-**Mechanical, and most of it.** `Record<PlayerId, PlayerState>` becomes a
-list, `["p1", "p2"] as const` becomes "every seat", and the eighteen opponent
-flips become "every other seat". Tedious and low-risk: the type checker finds
-every one.
+The earlier note here said a rules question came before a code question:
+whether teams and allies were modelled well enough to design against. They
+are — R489.8.a–i spells out all nine adjustments — so it is a specification
+rather than a question. It is deferred because nobody wants to play it yet,
+not because it is unclear.
 
-**Genuinely new.** "Opponent" stops being singular. `TargetFilter`'s `player`
-already chooses one and is fine; what is not fine is `restrictionAura`'s
-`affects: "enemy"`, which today means one person. Turn order becomes a
-rotation rather than a flip. R190's Contested and the showdown rules assume
-two sides at a battlefield.
+Two things the rules settle that change the estimate:
 
-**A rules question before a code question.** Team formats make Gloomist's
-"when you **or an ally** hold" mean something, and allies are not modelled at
-all. Read the Modes of Play rules before designing this.
+- **R462 — combat is always exactly two players.** "Combat can only occur
+  between Units controlled by exactly two players", and R462.3 makes *any
+  choice* that would produce a three-way combat invalid. So `combat.ts`'s
+  attacker/defender pair survives more players untouched. Combat was the
+  part that looked expensive; it is not.
+- **R489.8.e redefines "friendly" to include a teammate's objects** — and
+  friendly/enemy resolves in exactly one place, `collectCandidates` in
+  `decisions.ts`. The card-facing half of teams is a lookup change, not a
+  sweep over 25 filter sites.
+
+**The mechanical part.** Measured on 2026-09-04: `PlayerId = "p1" | "p2"`
+and the two literals appear **109 times across 22 files**, of which 15
+compute "the opponent" as *the other one*. The type checker finds every one.
+
+**The genuinely new part**, shared by every mode with more than two players:
+
+- `opponentOf` is conflating two different things. Three sites mean *next in
+  turn order* (`turn.ts`, `chain.ts`, `showdown.ts`); the rest mean *the one
+  other player*. They have to be told apart before anything else moves.
+- Passing is counted against a hardcoded two — `consecutivePasses >= 2`,
+  `priorityPasses < 2`. R347.2.a is "all players have passed once in
+  sequence".
+- R194.2 wants points ≥ the Victory Score **and more than any other player**.
+  `checkForWinner` compares against one opponent.
+- R431.2.c — a player who Burns Out *chooses* an opponent to gain the point.
+  Today it is handed to the only candidate.
+- New legality with no analogue today: R447.2.a and R462.1–.2 make a
+  battlefield with a staged or ongoing combat an invalid destination *and* an
+  invalid place to play a unit, for anyone not already involved; R449.2
+  forbids moving where two other players already have units; R462.2.a
+  redirects such a unit to its controller's Base and reassigns "here".
+- R464.2.e.1 — players outside a combat still take Focus in the showdown
+  rotation and still add triggers, in turn order, between attacker and
+  defender.
+- **R649–652, removal of a player, does not exist.** In a Duel a concession
+  is "the other player wins". With three seats it is a subsystem: banish
+  everything they control and own, replace their battlefield with a blank
+  token battlefield (R652.2.a), remove their cards from the game, counter
+  their chain items, and hand off turn, focus and priority.
 
 **Already done, and a prerequisite either way:** ids belong to a seat rather
 than to a deck (`instantiate(list, seat)`). With ids baked into decks, four
 players could not have been seated at all.
+
+**2v2 only, on top of all of that:** points are shared by a team (R489.8.d,
+including that an ability checking whether *a player* gained points checks
+the team); a teammate may act on your turn only when you invite them with
+your own Priority (R489.8.a, R316.5.b.1) — a new action and a new priority
+holder, and the most genuinely novel item on this list; battlefields your
+teammate controlled at your Beginning Phase scoring step are disqualified
+(R489.8.b, R469.1.a), which needs a per-turn snapshot; the Final Point
+criteria change (R489.8.g.1); control is not shared (R489.8.c) and a
+teammate's battlefield is an invalid destination (R447.2.b).
 
 ### 6d. Structural deviations worth closing
 
