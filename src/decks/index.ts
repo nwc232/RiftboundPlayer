@@ -5,6 +5,8 @@ import type { CardId, CardInstance, Domain, PlayerId } from "../state.js";
 import * as vex from "./vex.js";
 import * as rengar from "./rengar.js";
 import * as leblanc from "./leblanc.js";
+import * as akali from "./akali.js";
+import * as diana from "./diana.js";
 
 /**
  * The two real constructed lists from `reference/decks.md`, assembled into
@@ -14,8 +16,23 @@ import * as leblanc from "./leblanc.js";
  */
 type Entry = [CardInstance, number];
 
-function expand(entries: Entry[]): CardInstance[] {
-  return entries.flatMap(([card, count]) => copies(card, count));
+/**
+ * Every copy in one list, each with its own id.
+ *
+ * The `deck` prefix is what keeps two lists that share a card apart. Four of
+ * these decks play Discipline; without it they would all call their copies
+ * `discipline-1`, and two players would own the same card. R103.2.b's
+ * three-per-*name* limit is unaffected — the name is what it counts, and the
+ * name is untouched.
+ */
+function idIn(deck: string, card: CardInstance): CardId {
+  return `${deck}-${card.id}`;
+}
+
+function expand(deck: string, entries: Entry[]): CardInstance[] {
+  return entries.flatMap(([card, count]) =>
+    copies({ ...card, id: `${deck}-${card.id}` }, count),
+  );
 }
 
 /** R103.3 — twelve runes. Ids are per player, since both decks use basics. */
@@ -90,6 +107,55 @@ const LEBLANC_MAIN: Entry[] = [
   [leblanc.clothArmor, 2],
 ];
 
+/**
+ * Deck 4 — the Akali list. Seven of its cards are the first two decks' and are
+ * referenced from there rather than authored twice.
+ */
+const AKALI_MAIN: Entry[] = [
+  [akali.akaliDeadlyWeapon, 1],
+  [akali.scuttleCrab, 3],
+  [akali.zhonyasHourglass, 3],
+  [akali.shurikenFlip, 3],
+  [akali.stellacornHerder, 3],
+  [akali.jhinMurderousArtist, 3],
+  [vex.discipline, 3],
+  [vex.defy, 3],
+  [vex.backOff, 2],
+  [akali.block, 2],
+  [vex.astralHeron, 3],
+  [akali.longSword, 3],
+  [akali.fallingStar, 2],
+  [akali.thwonk, 1],
+  [akali.akaliSilent, 1],
+  [akali.nasusAscended, 2],
+  [akali.brittleSteel, 1],
+  [akali.perfectExecution, 1],
+];
+
+/** Deck 5 — the Diana list, on the same basis. */
+const DIANA_MAIN: Entry[] = [
+  [diana.dianaLunari, 1],
+  [diana.hweiBroodingPainter, 3],
+  [vex.tideturner, 2],
+  [diana.travelingMerchant, 2],
+  [diana.ravenbloomStudent, 3],
+  [diana.thousandTailedWatcher, 2],
+  [diana.fizzTrickster, 2],
+  [diana.rideTheWind, 3],
+  [diana.flash, 1],
+  [diana.moonfall, 3],
+  [vex.gust, 3],
+  [diana.eclipse, 2],
+  [vex.stackedDeck, 3],
+  [diana.lastRites, 1],
+  [diana.theSyren, 1],
+  [diana.stupefy, 3],
+  [diana.abandon, 1],
+  [diana.hardBargain, 1],
+  [vex.starCrossed, 2],
+  [vex.vexApathetic, 1],
+];
+
 const VEX_BATTLEFIELDS = [
   vex.targonsPeak,
   vex.abandonedHall,
@@ -109,6 +175,19 @@ const LEBLANC_BATTLEFIELDS = [
   leblanc.backAlleyBar,
 ];
 
+// R485.5 — three each. Both lists borrow from the pool already authored;
+// Rockfall Path is the one new one.
+const AKALI_BATTLEFIELDS = [
+  vex.thresholdOfTheGray,
+  rengar.starSpring,
+  vex.targonsPeak,
+];
+const DIANA_BATTLEFIELDS = [
+  vex.abandonedHall,
+  rengar.starSpring,
+  diana.rockfallPath,
+];
+
 const VEX_RUNES = runes("p1", [
   ["chaos", 7],
   ["calm", 5],
@@ -118,14 +197,25 @@ const RENGAR_RUNES = runes("p2", [
   ["fury", 5],
 ]);
 
+const AKALI_RUNES = runes("p4", [
+  ["fury", 6],
+  ["calm", 6],
+]);
+const DIANA_RUNES = runes("p5", [
+  ["mind", 5],
+  ["chaos", 7],
+]);
+
 const LEBLANC_RUNES = runes("p3", [
   ["mind", 8],
   ["order", 4],
 ]);
 
-const vexMain = expand(VEX_MAIN);
-const rengarMain = expand(RENGAR_MAIN);
-const leblancMain = expand(LEBLANC_MAIN);
+const vexMain = expand("vex", VEX_MAIN);
+const rengarMain = expand("rengar", RENGAR_MAIN);
+const leblancMain = expand("leblanc", LEBLANC_MAIN);
+const akaliMain = expand("akali", AKALI_MAIN);
+const dianaMain = expand("diana", DIANA_MAIN);
 
 /** Every card either deck needs, ready for `startGame`'s registry. */
 export const ALL_CARDS: CardInstance[] = [
@@ -141,13 +231,20 @@ export const ALL_CARDS: CardInstance[] = [
   ...leblancMain,
   ...LEBLANC_BATTLEFIELDS,
   ...LEBLANC_RUNES,
+  akali.rogueAssassin,
+  ...akaliMain,
+  ...AKALI_RUNES,
+  diana.scornOfTheMoon,
+  ...dianaMain,
+  diana.rockfallPath,
+  ...DIANA_RUNES,
 ];
 
 export const VEX_DECK: Deck = {
   legend: vex.gloomist.id,
   // R103.2.a.1 — the Chosen Champion is counted in the 40 but starts in the
   // Champion Zone, so it is listed here and lifted out by setup.
-  champion: vex.vexApathetic.id,
+  champion: idIn("vex", vex.vexApathetic),
   mainDeck: vexMain.map((card) => card.id),
   runeDeck: VEX_RUNES.map((card) => card.id),
   battlefields: VEX_BATTLEFIELDS.map((card) => card.id),
@@ -155,7 +252,7 @@ export const VEX_DECK: Deck = {
 
 export const RENGAR_DECK: Deck = {
   legend: rengar.pridestalker.id,
-  champion: rengar.rengarTrophyHunter.id,
+  champion: idIn("rengar", rengar.rengarTrophyHunter),
   mainDeck: rengarMain.map((card) => card.id),
   runeDeck: RENGAR_RUNES.map((card) => card.id),
   battlefields: RENGAR_BATTLEFIELDS.map((card) => card.id),
@@ -163,10 +260,26 @@ export const RENGAR_DECK: Deck = {
 
 export const LEBLANC_DECK: Deck = {
   legend: leblanc.deceiver.id,
-  champion: leblanc.leblancEverywhereAtOnce.id,
+  champion: idIn("leblanc", leblanc.leblancEverywhereAtOnce),
   mainDeck: leblancMain.map((card) => card.id),
   runeDeck: LEBLANC_RUNES.map((card) => card.id),
   battlefields: LEBLANC_BATTLEFIELDS.map((card) => card.id),
+};
+
+export const AKALI_DECK: Deck = {
+  legend: akali.rogueAssassin.id,
+  champion: idIn("akali", akali.akaliDeadlyWeapon),
+  mainDeck: akaliMain.map((card) => card.id),
+  runeDeck: AKALI_RUNES.map((card) => card.id),
+  battlefields: AKALI_BATTLEFIELDS.map((card) => card.id),
+};
+
+export const DIANA_DECK: Deck = {
+  legend: diana.scornOfTheMoon.id,
+  champion: idIn("diana", diana.dianaLunari),
+  mainDeck: dianaMain.map((card) => card.id),
+  runeDeck: DIANA_RUNES.map((card) => card.id),
+  battlefields: DIANA_BATTLEFIELDS.map((card) => card.id),
 };
 
 /** Which battlefield a list opens on when the caller does not say. */

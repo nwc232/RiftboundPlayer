@@ -140,6 +140,58 @@ destination.
 
 ---
 
+## Decks 4 and 5 — sent by players
+
+Two lists a pair of testers asked for. Both were audited against the engine
+before a card was authored: thirteen mechanisms were missing between them, and
+all thirteen were built first.
+
+Seven cards of each were already authored for decks 1 and 2 and are referenced
+rather than written twice — which is what turned up the id collision the
+prefixing in `expand` now prevents: four of these decks play Discipline, and
+without a per-deck prefix they would all have called their copies
+`discipline-1`.
+
+### Rogue Assassin (Calm / Fury) — the Akali list
+
+**Legend:** Rogue Assassin · **Champion:** Akali, Deadly Weapon
+**Battlefields:** Threshold of the Gray · Star Spring · Targon's Peak
+**Runes:** 6 Fury · 6 Calm
+
+What it needed that did not exist:
+
+| Card | What was missing |
+|---|---|
+| Rogue Assassin | A Legend that can be **Empowered** — R107.4.c makes it a Game Object, and it has no permanent to carry the status |
+| Akali, Deadly Weapon | Choosing "at a battlefield I moved **to or from**" — neither end is where she is by then |
+| Thwonk!, Rogue Assassin | Choosing by **designation** — "an attacking unit", "a unit in a showdown" |
+| Shuriken Flip | A target that may be **declined** — "up to one enemy unit" |
+| Scuttle Crab | **Looking** at facedown cards, which R424.2.b says is explicitly not revealing |
+| Brittle Steel | Killing a **chosen** thing. Only `killSelf` existed |
+
+### Scorn of the Moon (Mind / Chaos) — the Diana list
+
+**Legend:** Scorn of the Moon · **Champion:** Diana, Lunari
+**Battlefields:** Abandoned Hall · Star Spring · Rockfall Path
+**Runes:** 5 Mind · 7 Chaos
+
+Three of its cards worked on arrival because of work done for other reasons:
+the Legend's "spend this Energy only during showdowns" is the card the
+resource restrictions were built for, its activated ability needed the Legend
+fix, and Rockfall Path's "units can't be played here" had been a test fixture.
+
+| Card | What was missing |
+|---|---|
+| Thousand-Tailed Watcher, Moonfall | Modifying **every** unit that matches. R355.5.a: criteria are not choices, so [Deflect] does not tax it |
+| Moonfall | A battlefield "**where you have units**", and moving something to a *chosen* one |
+| Hwei, Diana Lunari | Branching on a **card's type** — the card has to be found first, so the finding is part of the effect |
+| Last Rites | A cost paid out of the **trash** |
+| Fizz, Trickster | A granted **play from the trash**, waiving only the Energy half |
+| Hard Bargain | Asking the **opponent** to pay, mid-resolution. The only card in the pool that does |
+| Abandon | Countering **to hand** instead of the trash |
+
+---
+
 ## Status
 
 **All 38 distinct cards are authored**, in `src/decks/vex.ts` and

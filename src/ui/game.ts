@@ -9,6 +9,8 @@ import { canPay, totals } from "../cost.js";
 import { totalCostOf } from "../costing.js";
 import { characteristicsOf, controllerOf } from "../layers.js";
 import {
+  AKALI_DECK,
+  DIANA_DECK,
   LEBLANC_DECK,
   RENGAR_DECK,
   VEX_DECK,
@@ -51,6 +53,8 @@ export const DECKS: { name: string; deck: Deck }[] = [
   { name: "Vex, Gloomist", deck: VEX_DECK },
   { name: "Rengar, Pridestalker", deck: RENGAR_DECK },
   { name: "Deceiver (LeBlanc)", deck: LEBLANC_DECK },
+  { name: "Rogue Assassin (Akali)", deck: AKALI_DECK },
+  { name: "Scorn of the Moon (Diana)", deck: DIANA_DECK },
 ];
 
 export function newGame(seed: number, p1 = 0, p2 = 1): GameState {

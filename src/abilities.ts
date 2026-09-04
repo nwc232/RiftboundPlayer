@@ -178,6 +178,12 @@ export type Effect =
   | { op: "recall"; targetIndex: number }
   /** R816 — what [Temporary] does. Kills the ability's own source. */
   | { op: "killSelf" }
+  /**
+   * Brittle Steel — "Kill a gear"; Rocket Barrage's second mode. R412's kill,
+   * pointed at something chosen rather than at the source, so R372's death
+   * replacements apply exactly as they do to any other death.
+   */
+  | { op: "kill"; targetIndex: number }
   /** Gust, Rebuke, Star-Crossed — back to its *owner's* hand (R56). */
   | { op: "returnToHand"; targetIndex: number }
   /** R415 — readying an already-ready unit does nothing (R415.1.c). */
@@ -189,7 +195,21 @@ export type Effect =
   /** R423 — a binary status, not a kill. */
   | { op: "stun"; targetIndex: number }
   /** R420 — moving as an *effect*, which is a Limited Action, not a move. */
-  | { op: "moveUnit"; targetIndex: number; to: "sourceLocation" | "base" }
+  /**
+   * R420 — moving as an *effect*, which is a Limited Action rather than a move.
+   *
+   * `chosenBattlefield` is Moonfall's "move up to one enemy unit to **that**
+   * battlefield" — the destination is one of the spell's own choices, made at
+   * R355.4 alongside its targets, so it arrives as another index rather than
+   * as a place the effect works out for itself.
+   */
+  | {
+      op: "moveUnit";
+      targetIndex: number;
+      to: "sourceLocation" | "base" | "chosenBattlefield";
+      /** Which chosen battlefield, for `chosenBattlefield`. */
+      atTargetIndex?: number;
+    }
   /**
    * R383.2.a.1's second half — a conditional statement that is *not*
    * immediately after the trigger condition is part of the effect, so it is
@@ -1790,10 +1810,26 @@ export function execute(
       if (targetId === undefined || permanent === undefined) {
         return { state, events: [] };
       }
+      // Moonfall's "that battlefield" — one of the spell's own choices, so it
+      // arrives as an index rather than being worked out here. A choice that
+      // named nothing leaves the unit where it is, which is what R355.8's
+      // declined optional target amounts to.
+      const chosen =
+        effect.to === "chosenBattlefield" && effect.atTargetIndex !== undefined
+          ? context.targets[effect.atTargetIndex]
+          : undefined;
+      if (effect.to === "chosenBattlefield") {
+        if (chosen === undefined || state.battlefields[chosen] === undefined) {
+          return { state, events: [] };
+        }
+      }
+
       const to: Location =
-        effect.to === "sourceLocation" && context.sourceLocation !== undefined
-          ? context.sourceLocation
-          : { kind: "base", player: controllerOf(state, targetId) };
+        chosen !== undefined
+          ? { kind: "battlefield", id: chosen }
+          : effect.to === "sourceLocation" && context.sourceLocation !== undefined
+            ? context.sourceLocation
+            : { kind: "base", player: controllerOf(state, targetId) };
 
       return {
         state: {
@@ -1813,6 +1849,13 @@ export function execute(
           },
         ],
       };
+    }
+
+    case "kill": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      if (state.permanents[targetId] === undefined) return { state, events: [] };
+      return killUnits(state, [targetId]);
     }
 
     case "killSelf": {

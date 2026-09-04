@@ -5,7 +5,9 @@ import { startGame } from "../src/deck.js";
 import { legalActions } from "../src/legal.js";
 import type { CardId, CardInstance, GameState, Location } from "../src/state.js";
 import {
+  AKALI_DECK,
   ALL_CARDS,
+  DIANA_DECK,
   LEBLANC_DECK,
   RENGAR_DECK,
   VEX_DECK,
@@ -229,5 +231,42 @@ describe("full games with the LeBlanc deck", () => {
     expect(stuck).toBe(false);
     expect(state.winner).not.toBeNull();
     expect(state.pending).toBeNull();
+  });
+});
+
+/**
+ * The two lists a player sent, against every other deck. Between them they
+ * needed fifteen new mechanisms; the point of playing them is that a random
+ * game reaches combinations no unit test thought to build.
+ */
+describe("full games with the sent decks", () => {
+  const seeds = Array.from({ length: 8 }, (_, i) => i + 1);
+  const others: [string, Deck][] = [
+    ["Vex", VEX_DECK],
+    ["Rengar", RENGAR_DECK],
+    ["LeBlanc", LEBLANC_DECK],
+  ];
+
+  for (const [mine, deck] of [
+    ["Akali", AKALI_DECK],
+    ["Diana", DIANA_DECK],
+  ] as [string, Deck][]) {
+    for (const [theirs, against] of others) {
+      it.each(seeds)(`${mine} vs ${theirs}, seed %i`, (seed) => {
+        const { state, stuck } = play(seed, 4000, [deck, against]);
+
+        expect(stuck).toBe(false);
+        expect(state.winner).not.toBeNull();
+        expect(state.pending).toBeNull();
+      });
+    }
+  }
+
+  /** And against each other, which is what the two of them will actually do. */
+  it.each(seeds)("Akali vs Diana, seed %i", (seed) => {
+    const { state, stuck } = play(seed, 4000, [AKALI_DECK, DIANA_DECK]);
+
+    expect(stuck).toBe(false);
+    expect(state.winner).not.toBeNull();
   });
 });

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { validateDeck } from "../src/deck.js";
-import { ALL_CARDS, LEBLANC_DECK } from "../src/decks/index.js";
+import {
+  AKALI_DECK,
+  ALL_CARDS,
+  DIANA_DECK,
+  LEBLANC_DECK,
+} from "../src/decks/index.js";
 import { blackFlameAltar } from "../src/decks/leblanc.js";
 import { keywordsOf } from "../src/layers.js";
 import type {
@@ -75,5 +80,24 @@ describe("a battlefield's passive", () => {
    */
   it("applies while nobody controls it", () => {
     expect(keywordsOf(board(null), "sprite")).toContain("shield");
+  });
+});
+
+/** R103 on the two lists a player sent, checked the same way. */
+describe("the sent decks are legal", () => {
+  it.each([
+    ["Akali", AKALI_DECK],
+    ["Diana", DIANA_DECK],
+  ])("%s passes every R103 check", (_name, deck) => {
+    expect(validateDeck(deck, registry)).toEqual([]);
+  });
+
+  it.each([
+    ["Akali", AKALI_DECK],
+    ["Diana", DIANA_DECK],
+  ])("%s is 40 cards, 12 runes and 3 battlefields", (_name, deck) => {
+    expect(deck.mainDeck).toHaveLength(40);
+    expect(deck.runeDeck).toHaveLength(12);
+    expect(deck.battlefields).toHaveLength(3);
   });
 });

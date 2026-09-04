@@ -246,6 +246,11 @@ export function returnToHand(targetIndex = 0): Effect {
   return { op: "returnToHand", targetIndex };
 }
 
+/** Brittle Steel — "Kill a gear." R412's kill, aimed at something chosen. */
+export function kill(targetIndex = 0): Effect {
+  return { op: "kill", targetIndex };
+}
+
 /** R427 — Thrill of the Hunt's "Banish a friendly unit". */
 export function banish(targetIndex = 0): Effect {
   return { op: "banish", targetIndex };
