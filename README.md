@@ -33,6 +33,43 @@ See `/reference` for provenance notes.
 
 `npm run demo` opens a REPL over the engine. Type `help` for commands.
 
+## Playing someone else
+
+`npm run server` builds the front-end and serves it alongside a WebSocket on
+one port. Open the link, pick your deck, and share the room code — the second
+person to open `?room=<code>` takes the other seat.
+
+The server owns the game. Each seat is sent only `viewOf(state, seat)` and
+`eventsFor(events, seat)`, so the unfiltered state never leaves the process:
+a client cannot show what it was not sent. A seat may only submit actions as
+itself, and legality is still decided by `applyAction` — the server does not
+get a second opinion about the rules.
+
+### Deploying it
+
+The `Dockerfile` builds the front-end and runs the server; any host that takes
+a container will do. `fly.toml` is set up for Fly.io:
+
+```
+fly launch --no-deploy   # names the app and picks a region
+fly deploy
+```
+
+Two settings in there are deliberate, and matter on any host:
+
+- **One instance.** Rooms live in memory, so a second instance is a second set
+  of rooms — two players sharing a code could land on different ones and never
+  see each other.
+- **No idle sleep.** Stopping the machine when nothing is happening throws
+  away every game in progress, including one where both players are thinking.
+
+The same two caveats apply on Render or Railway. Render's free tier sleeps
+after fifteen minutes, so a game left open over a break will be gone.
+
+Games are not persisted: restarting the server ends everything in progress.
+That is fine for playing a friend and is the first thing to change if this
+ever wants to be more.
+
 ```
 abilities         list abilities you can use right now
 use <id> <n>      activate ability n of card <id>

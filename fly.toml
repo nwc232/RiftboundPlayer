@@ -1,0 +1,27 @@
+# Fly.io. `fly launch --no-deploy` will fill in the app name and region; the
+# rest is here because the defaults are wrong for this server in two ways.
+
+app = "riftbound"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+
+  # Rooms live in memory. A second machine would be a second set of rooms, and
+  # two players sharing a code could land on different ones and never see each
+  # other — so this stays at exactly one machine until rooms live somewhere
+  # both could reach.
+  min_machines_running = 1
+  auto_start_machines = true
+
+  # Stopping the machine when idle would throw away every game in progress,
+  # including one where both players are just thinking.
+  auto_stop_machines = false
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

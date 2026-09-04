@@ -11,8 +11,10 @@
     "demo": "tsx src/demo/cli.ts",
     "ui": "vite",
     "ui:build": "vite build",
-    "server": "npm run ui:build && tsx src/server/index.ts",
-    "server:dev": "tsx src/server/index.ts"
+    "server": "npm run build && tsx src/server/index.ts",
+    "server:dev": "tsx src/server/index.ts",
+    "build": "vite build",
+    "start": "tsx src/server/index.ts"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
@@ -22,10 +24,15 @@
     "@vitejs/plugin-react": "^6.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tsx": "^4.23.12",
     "typescript": "^5.6.3",
     "vite": "^8.2.2",
-    "vitest": "^4.1.10",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "tsx": "^4.23.12",
     "ws": "^8.21.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
