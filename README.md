@@ -1,6 +1,6 @@
 # Riftbound Engine
 
-A rules-enforced 1v1 engine for the Riftbound TCG (Riot Games), with a
+A rules-enforced engine for the Riftbound TCG (Riot Games), with a
 React front-end over it.
 Solo portfolio project. TypeScript on Node, test-driven.
 
@@ -10,8 +10,13 @@ Engine first, and it stays the point: pure, immutable, rules-enforced, with
 the Core Rules cited throughout. A React front-end runs over the same
 `applyAction` without the engine knowing about it.
 
-Two real constructed decks (38 distinct cards) are authored and playable
-end to end.
+Five real constructed decks are authored and playable end to end.
+
+Four of the Core Rules' sanctioned Modes of Play are built: 1v1 Duel (R485),
+1v1 Match (R486, best of three or five with battlefields rotating between
+games), FFA3 Skirmish (R487) and FFA4 War (R488) — two, three or four
+players, online or on one screen. 2v2 Magma Chamber (R489) is deferred; it
+needs teams, and `reference/ROADMAP.md` §6e says what that costs.
 
 ## Data source
 
@@ -21,9 +26,10 @@ See `/reference` for provenance notes.
 
 ## Scripts
 
-- `npm run ui` — React front-end; click to play any two of the three decks
-- `npm run server` — play someone else over a socket; open the link it
-  prints, pick your deck, and share the room code
+- `npm run ui` — React front-end; pick a mode, then a deck per seat
+- `npm run server` — play other people over a socket; open the link it
+  prints, pick a mode and your deck, and share the room code. The room is
+  sized by whoever opens it and deals once every seat is filled
 - `npm run demo` — interactive CLI to drive the engine by hand
 - `npm test` — run the test suite once
 - `npm run test:watch` — run tests in watch mode

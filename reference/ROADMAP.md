@@ -433,9 +433,14 @@ R481 defines five sanctioned modes. The engine plays one of them.
 |---|---|---|---|---|---|
 | 1v1 (Duel) | R485 | 2 | 8 | 2 | Built — this is the engine. |
 | 1v1 (Match) | R486 | 2 | 8 | 2, rotating between games | Built — `src/match.ts`. |
-| FFA3 (Skirmish) | R487 | 3 | 8 | 3 | Next. |
-| FFA4 (War) | R488 | 4 | 8 | 3 | Falls out of FFA3. |
+| FFA3 (Skirmish) | R487 | 3 | 8 | 3 | Built — engine, server and UI. |
+| FFA4 (War) | R488 | 4 | 8 | 3 | Built — engine, server and UI. |
 | 2v2 (Magma Chamber) | R489 | 4 | 11 | 3 | Deferred by decision. |
+
+Everything below this line describes what building the two free-for-all modes
+cost, and is kept because the estimate turned out to be worth checking against
+the result. What is *left* is the last two paragraphs: teams, and the
+deviations in `mechanic-survey.md`.
 
 The earlier note here said a rules question came before a code question:
 whether teams and allies were modelled well enough to design against. They

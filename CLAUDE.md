@@ -41,10 +41,13 @@ suggest the official Riot API.
 | Path | What |
 |---|---|
 | `src/` | the engine — pure, immutable, `applyAction(state, action) → { ok, state, events }` |
-| `src/decks/` | the two authored decks, 38 cards, with printed text beside authored abilities |
+| `src/decks/` | the five authored decks, with printed text beside authored abilities |
+| `src/modes-of-play.ts` | R481–488's Modes of Play — Duel, Skirmish, War |
+| `src/match.ts` | R486's 1v1 (Match): which battlefield may be presented next |
+| `src/concede.ts` | R649–652 — conceding, and the Removal of a Player |
 | `src/ui/` | React front-end (`npm run ui`) |
 | `src/demo/` | CLI (`npm run demo`) |
-| `src/server/` | the online server (`npm run server`) — authoritative game, one room per code |
+| `src/server/` | the online server (`npm run server`) — authoritative game, one room per code, 2–4 seats |
 | `reference/ROADMAP.md` | what is built, what is next, in order |
 | `reference/mechanic-survey.md` | mechanic catalogue + the running deviations list |
 | `reference/decks.md` | the two decklists and their status |

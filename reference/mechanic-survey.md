@@ -842,3 +842,28 @@ built when a card asks for it.
   would let a card order against it (R372), but no card in the pool
   replaces a draw, so building one now would be a mechanism with nothing
   to serve.
+
+- **R431.2's Burn Out sequence runs out of order with three or more seats.**
+  R431.2 is: perform as much of the action as possible, recycle the trash,
+  *then* choose an opponent to gain the point (R431.2.c), *then* complete the
+  remainder (R431.2.d). With one opponent there is no choice to make and the
+  order is unobservable. With two or three there is, and the question is asked
+  through the queue — which means the rest of the draw finishes before it is
+  answered, because a draw is a loop inside `drawCards` and not a task that
+  can suspend. What this can change: R431.3.c has a repeated Burn Out win the
+  game *immediately*, so the point that ends a game could land a draw later
+  than the rules place it. Closing it means routing draws through a
+  chokepoint, which is the deviation directly above; the two want the same
+  fix.
+- **A player removed under R652 is removed, not replaced.** R652.5's handoffs
+  are built — turn, Focus and Priority all pass to the next player in order —
+  but `Room` will not seat a newcomer in the vacated chair, and a player who
+  drops cannot rejoin. The rules describe no way back into a game in progress,
+  so this is a deviation only in the sense that a real table would let someone
+  who lost their connection sit back down.
+- **Teams are not built at all (R489).** 2v2 Magma Chamber is fully specified
+  by R489.8.a–i and none of it exists: shared points, the invite that lets a
+  teammate act on your turn (R489.8.a/R316.5.b.1), "friendly" widening to a
+  teammate's objects (R489.8.e), the scoring disqualification (R489.8.b), the
+  adjusted Final Point (R489.8.g.1). Deferred by decision rather than by
+  difficulty. ROADMAP §6e has the list.
