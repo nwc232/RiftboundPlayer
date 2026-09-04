@@ -15,7 +15,7 @@ import type { ClientMessage, ServerMessage } from "../server/protocol.js";
  */
 
 export interface Online {
-  /** Null until the server has dealt — both seats have to arrive first. */
+  /** Null until the server has dealt — every seat has to arrive first. */
   state: GameState | null;
   events: GameEvent[];
   seat: PlayerId | null;
@@ -25,6 +25,8 @@ export interface Online {
   rejected: string | null;
   send: (action: Action) => void;
   restart: () => void;
+  /** How many have arrived, of how many the room is for, while waiting. */
+  seated: { seated: number; of: number } | null;
 }
 
 /** Where the socket lives. Same host as the page, so a link is a link. */
@@ -33,13 +35,26 @@ function socketUrl(): string {
   return `${scheme}//${window.location.host}`;
 }
 
-export function useOnline(room: string | null, deck: number): Online {
+/**
+ * `players` is R483.1's seat count, and the server honours it only from
+ * whoever opens the room — a joiner's is ignored, which is why a stale value
+ * here cannot resize a game somebody is already in.
+ */
+export function useOnline(
+  room: string | null,
+  deck: number,
+  players = 2,
+): Online {
   const socket = useRef<WebSocket | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [events, setEvents] = useState<GameEvent[]>([]);
   const [seat, setSeat] = useState<PlayerId | null>(null);
   const [status, setStatus] = useState<Online["status"]>("connecting");
   const [rejected, setRejected] = useState<string | null>(null);
+  /** How full the room is, for the lobby to say so. */
+  const [seated, setSeated] = useState<{ seated: number; of: number } | null>(
+    null,
+  );
 
   useEffect(() => {
     if (room === null) return;
@@ -49,7 +64,7 @@ export function useOnline(room: string | null, deck: number): Online {
     setStatus("connecting");
 
     live.onopen = () => {
-      const join: ClientMessage = { kind: "join", room, deck };
+      const join: ClientMessage = { kind: "join", room, deck, players };
       live.send(JSON.stringify(join));
     };
 
@@ -61,6 +76,7 @@ export function useOnline(room: string | null, deck: number): Online {
           return;
         case "waiting":
           setSeat(message.seat);
+          setSeated({ seated: message.seated, of: message.players });
           setStatus("waiting");
           return;
         case "state":
@@ -90,7 +106,7 @@ export function useOnline(room: string | null, deck: number): Online {
     // The deck is part of the join, so changing it reconnects and rejoins.
     // The picker is disabled once a game exists, so that only ever happens
     // while waiting for the other seat.
-  }, [room, deck]);
+  }, [room, deck, players]);
 
   const send = useCallback((action: Action) => {
     const live = socket.current;
@@ -106,5 +122,5 @@ export function useOnline(room: string | null, deck: number): Online {
     live.send(JSON.stringify(message));
   }, []);
 
-  return { state, events, seat, room, status, rejected, send, restart };
+  return { state, events, seat, room, status, rejected, send, restart, seated };
 }

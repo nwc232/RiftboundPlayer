@@ -463,6 +463,15 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 /* Keep the whole mat on one screen: a card game you have to scroll is a list. */
 .board { display: flex; flex-direction: column; gap: 8px; }
+
+/*
+ * R487/R488 — the far side of the table. One opponent is the Duel's single
+ * panel and looks exactly as it always did; two or three share the width, so
+ * a Skirmish still fits on one screen rather than pushing the battlefields
+ * off the bottom.
+ */
+.opponents { display: flex; gap: 8px; align-items: stretch; }
+.opponents > .panel { flex: 1 1 0; min-width: 0; }
 .battlefields { margin-bottom: 0; }
 .panel { flex: 0 0 auto; }
 

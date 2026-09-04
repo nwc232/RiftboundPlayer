@@ -25,6 +25,8 @@ import {
   whyNotPlayable,
 } from "./game.js";
 import type { Move } from "./game.js";
+import { MODES } from "../modes-of-play.js";
+import { SEATS, opponentsOf } from "../state.js";
 
 interface Snapshot {
   state: GameState;
@@ -56,8 +58,16 @@ export function App() {
   // Which list each seat brings. R485.5's choice of battlefield is left to
   // `matchup`'s default; changing either only takes effect on a new game,
   // which is why the pickers do not touch the running one.
-  const [p1Deck, setP1Deck] = useState(0);
-  const [p2Deck, setP2Deck] = useState(1);
+  const [decks, setDecks] = useState<number[]>([0, 1]);
+  /**
+   * R483.1 — how many seats. Changing it resizes the deck list, because a
+   * Skirmish needs a third choice and a Duel has nowhere to put one.
+   */
+  const setPlayers = (count: number): void => {
+    setDecks((current) =>
+      Array.from({ length: count }, (_, at) => current[at] ?? at % DECKS.length),
+    );
+  };
   /**
    * Online there is only one deck to choose: your own. The two pickers above
    * are a hotseat idea — one screen setting up both sides — and sending one of
@@ -84,7 +94,7 @@ export function App() {
 
   // Always called, connecting only when there is a room: a hook cannot be
   // conditional, and `useOnline` treats a null room as "stay offline".
-  const online = useOnline(room, myDeck);
+  const online = useOnline(room, myDeck, decks.length);
   const isOnline = room !== null;
 
   const here = history[history.length - 1]!;
@@ -125,6 +135,12 @@ export function App() {
    * card".
    */
   const acting = (isOnline ? online.seat : seat) ?? actingPlayer(state);
+  /**
+   * Which seat sits at the bottom of the board. Online and in single-seat
+   * mode that is you; in hotseat it follows whoever is acting, so the panel
+   * you are playing out of is always the near one.
+   */
+  const near = acting;
   // Pointing at a card wins over the selection, so you can read anything on
   // the board without losing what you were about to play.
   const showing = hovered ?? selected;
@@ -250,7 +266,7 @@ export function App() {
     if (isOnline) {
       online.restart();
     } else {
-      setHistory([{ state: newGame(seed, [p1Deck, p2Deck]), events: [] }]);
+      setHistory([{ state: newGame(seed, decks), events: [] }]);
     }
     setSelected(null);
     setRejected(null);
@@ -284,7 +300,9 @@ export function App() {
         <p className="lobby-status">
           {online.status === "connecting" && "connecting…"}
           {online.status === "waiting" &&
-            "waiting for the other player to join"}
+            (online.seated === null
+              ? "waiting for the other players to join"
+              : `waiting — ${online.seated.seated} of ${online.seated.of} seated`)}
           {online.status === "closed" &&
             `disconnected${online.rejected === null ? "" : ` — ${online.rejected}`}`}
         </p>
@@ -350,21 +368,9 @@ export function App() {
             }
           >
             <option value="both">hotseat</option>
-            <option value="p1">p1 only</option>
-            <option value="p2">p2 only</option>
-          </select>
-        </label>
-        )}
-        {isOnline ? null : (
-        <label className="decks">
-          p1
-          <select
-            value={p1Deck}
-            onChange={(event) => setP1Deck(Number(event.target.value))}
-          >
-            {DECKS.map((entry, index) => (
-              <option key={entry.name} value={index}>
-                {entry.name}
+            {state.turnOrder.map((id) => (
+              <option key={id} value={id}>
+                {id} only
               </option>
             ))}
           </select>
@@ -372,19 +378,42 @@ export function App() {
         )}
         {isOnline ? null : (
         <label className="decks">
-          p2
+          players
           <select
-            value={p2Deck}
-            onChange={(event) => setP2Deck(Number(event.target.value))}
+            value={decks.length}
+            onChange={(event) => setPlayers(Number(event.target.value))}
           >
-            {DECKS.map((entry, index) => (
-              <option key={entry.name} value={index}>
-                {entry.name}
+            {MODES.map((mode) => (
+              <option key={mode.id} value={mode.players}>
+                {mode.name}
               </option>
             ))}
           </select>
         </label>
         )}
+        {isOnline
+          ? null
+          : decks.map((chosen, at) => (
+              <label className="decks" key={SEATS[at]}>
+                {SEATS[at]}
+                <select
+                  value={chosen}
+                  onChange={(event) =>
+                    setDecks((current) =>
+                      current.map((each, index) =>
+                        index === at ? Number(event.target.value) : each,
+                      ),
+                    )
+                  }
+                >
+                  {DECKS.map((entry, index) => (
+                    <option key={entry.name} value={index}>
+                      {entry.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
         <label className="decks">
           room
           <input
@@ -468,18 +497,26 @@ export function App() {
       </div>
 
       <main className="board">
-        <PlayerPanel
-          state={state}
-          playerId="p2"
-          pick={pick}
-          acting={acting === "p2"}
-        />
+        {/* Everyone else above, the viewer below. With two seats that is the
+            layout it always was; with three or four the top row grows, which
+            is the only thing about the board a Skirmish changes. */}
+        <div className="opponents">
+          {opponentsOf(state, near).map((id) => (
+            <PlayerPanel
+              key={id}
+              state={state}
+              playerId={id}
+              pick={pick}
+              acting={acting === id}
+            />
+          ))}
+        </div>
         <Battlefields state={state} pick={pick} />
         <PlayerPanel
           state={state}
-          playerId="p1"
+          playerId={near}
           pick={pick}
-          acting={acting === "p1"}
+          acting={acting === near}
         />
       </main>
 
