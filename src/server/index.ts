@@ -29,9 +29,22 @@ import type { PlayerId } from "../state.js";
 const PORT = Number(process.env.PORT ?? 8787);
 const ROOT = resolve("dist");
 
+/**
+ * How often to ping an idle socket, and how long a socket may go without
+ * answering before it is presumed gone.
+ *
+ * Not a nicety. Proxies in front of a deployed app close connections that go
+ * quiet — commonly after about a minute — and a card game is quiet for a
+ * minute all the time, because that is what thinking looks like. Without this
+ * a game dies mid-turn and neither player is told why.
+ */
+const PING_EVERY = 30_000;
+
 const rooms = new Map<RoomId, Room>();
 /** Which room and seat a socket is sitting in. */
 const sitting = new Map<WebSocket, { room: RoomId; seat: PlayerId }>();
+/** Sockets that have answered a ping since the last sweep. */
+const alive = new WeakSet<WebSocket>();
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -85,6 +98,11 @@ function broadcast(room: Room): void {
 }
 
 sockets.on("connection", (socket) => {
+  alive.add(socket);
+  // Browsers answer a ping frame at the protocol level, so this needs nothing
+  // from the client.
+  socket.on("pong", () => alive.add(socket));
+
   socket.on("message", (raw) => {
     const message = parseClientMessage(String(raw));
     if (message === undefined) {
@@ -168,6 +186,27 @@ sockets.on("connection", (socket) => {
     }
   });
 });
+
+/**
+ * Keeps live sockets from being closed for being quiet, and notices the ones
+ * that have gone without saying so — a laptop lid closing sends nothing, and
+ * the seat would otherwise stay filled against a player who is never coming
+ * back.
+ */
+const heartbeat = setInterval(() => {
+  for (const socket of sockets.clients) {
+    if (!alive.has(socket)) {
+      // `terminate` rather than `close`: it has already stopped answering, so
+      // waiting for a closing handshake would just delay freeing the seat.
+      socket.terminate();
+      continue;
+    }
+    alive.delete(socket);
+    socket.ping();
+  }
+}, PING_EVERY);
+
+sockets.on("close", () => clearInterval(heartbeat));
 
 http.listen(PORT, () => {
   process.stdout.write(
