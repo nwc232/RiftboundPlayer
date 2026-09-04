@@ -17,6 +17,7 @@ import {
 import { FREE } from "../src/cost.js";
 import { repeatCostsOf, totalCostOf } from "../src/costing.js";
 import { legalActions } from "../src/legal.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -129,7 +130,7 @@ describe("[Repeat] (R820)", () => {
       payRepeats: [0],
     });
 
-    expect(after.players.p1.trash).toEqual(["bolt"]);
+    expect(seatOf(after, "p1").trash).toEqual(["bolt"]);
     expect(after.playedThisTurn.p1).toEqual(["bolt"]);
   });
 
@@ -286,7 +287,7 @@ describe("[Repeat] (R820)", () => {
       legal: ["a", "b", "c"],
       keep: 1,
     });
-    expect(current.players.p1.hand).toEqual([]);
+    expect(seatOf(current, "p1").hand).toEqual([]);
 
     const answered = applyAction(current, {
       type: "decide",
@@ -296,7 +297,7 @@ describe("[Repeat] (R820)", () => {
     if (!answered.ok) throw new Error("rejected");
 
     // Only now does the second execution look, and at what is left.
-    expect(answered.state.players.p1.hand).toEqual(["b"]);
+    expect(seatOf(answered.state, "p1").hand).toEqual(["b"]);
     expect(answered.state.pending?.prompt).toEqual({
       kind: "chooseFromRevealed",
       legal: ["d", "e", "a"],
@@ -362,7 +363,7 @@ describe("a non-resource Repeat cost (R820.1.c.2)", () => {
       costChoices: [["x"]],
     });
 
-    expect(after.players.p1.trash).toContain("x");
+    expect(seatOf(after, "p1").trash).toContain("x");
     expect(after.permanents.ogre?.damage).toBe(4);
   });
 
@@ -443,7 +444,7 @@ describe("an effect that asks twice", () => {
       targets: ["e"],
     });
     if (!done.ok) throw new Error("rejected");
-    expect(done.state.players.p1.hand).toEqual(["b", "e"]);
+    expect(seatOf(done.state, "p1").hand).toEqual(["b", "e"]);
   });
 });
 

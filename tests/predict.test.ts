@@ -5,6 +5,7 @@ import { predict, seq, draw } from "../src/builders.js";
 import { abilitiesOf } from "../src/layers.js";
 import { legalActions } from "../src/legal.js";
 import { applyAction } from "../src/actions.js";
+import { seatOf } from "../src/state.js";
 import type { GameState } from "../src/state.js";
 import type { Action } from "../src/actions.js";
 import { makeState, pool, unit } from "./fixtures.js";
@@ -32,7 +33,7 @@ describe("predicting (R436)", () => {
       prompt: { kind: "predict", legal: ["a"] },
     });
     // Nothing has moved while the question is outstanding.
-    expect(after.state.players.p1.mainDeck).toEqual(["a", "b", "c", "d"]);
+    expect(seatOf(after.state, "p1").mainDeck).toEqual(["a", "b", "c", "d"]);
   });
 
   it("recycles what was chosen to the bottom (R416.1)", () => {
@@ -42,7 +43,7 @@ describe("predicting (R436)", () => {
       answer: ["a"],
     });
 
-    expect(done.state.players.p1.mainDeck).toEqual(["b", "c", "d", "a"]);
+    expect(seatOf(done.state, "p1").mainDeck).toEqual(["b", "c", "d", "a"]);
     expect(done.events).toEqual([
       { type: "cardRecycled", playerId: "p1", cardId: "a" },
     ]);
@@ -56,7 +57,7 @@ describe("predicting (R436)", () => {
       answer: [],
     });
 
-    expect(done.state.players.p1.mainDeck).toEqual(["a", "b", "c", "d"]);
+    expect(seatOf(done.state, "p1").mainDeck).toEqual(["a", "b", "c", "d"]);
     expect(done.events).toEqual([]);
   });
 
@@ -82,13 +83,13 @@ describe("predicting (R436)", () => {
     });
     // "b" is already on the bottom; the kept two sit on top in revealed order
     // until the answer moves them.
-    expect(recycled.state.players.p1.mainDeck).toEqual(["a", "c", "d", "b"]);
+    expect(seatOf(recycled.state, "p1").mainDeck).toEqual(["a", "c", "d", "b"]);
 
     const ordered = execute(recycled.state, recycled.pause!.resume, {
       ...recycled.pause!.context,
       answer: ["c", "a"],
     });
-    expect(ordered.state.players.p1.mainDeck).toEqual(["c", "a", "d", "b"]);
+    expect(seatOf(ordered.state, "p1").mainDeck).toEqual(["c", "a", "d", "b"]);
   });
 
   it("does not ask about order when one card or none is kept", () => {
@@ -99,7 +100,7 @@ describe("predicting (R436)", () => {
     });
 
     expect(done.pause).toBeUndefined();
-    expect(done.state.players.p1.mainDeck).toEqual(["b", "c", "d", "a"]);
+    expect(seatOf(done.state, "p1").mainDeck).toEqual(["b", "c", "d", "a"]);
   });
 
   /**
@@ -113,8 +114,8 @@ describe("predicting (R436)", () => {
       kind: "predict",
       legal: ["a"],
     });
-    expect(after.state.players.p1.points).toBe(0);
-    expect(after.state.players.p2.points).toBe(0);
+    expect(seatOf(after.state, "p1").points).toBe(0);
+    expect(seatOf(after.state, "p2").points).toBe(0);
   });
 
   it("does nothing on an empty deck", () => {
@@ -128,7 +129,7 @@ describe("predicting (R436)", () => {
   it("carries the rest of a sequence past the question", () => {
     const after = execute(deckBoard(), seq(predict(1), draw(1)), context());
 
-    expect(after.state.players.p1.hand).toEqual([]);
+    expect(seatOf(after.state, "p1").hand).toEqual([]);
     expect(after.pause?.resume).toEqual({
       op: "seq",
       steps: [
@@ -215,7 +216,7 @@ describe("playing a [Vision] permanent", () => {
     const answered = applyAction(state, recycle!);
     expect(answered.ok).toBe(true);
     if (!answered.ok) return;
-    expect(answered.state.players.p1.mainDeck).toEqual(["b", "a"]);
+    expect(seatOf(answered.state, "p1").mainDeck).toEqual(["b", "a"]);
     expect(answered.state.pending).toBeNull();
   });
 });

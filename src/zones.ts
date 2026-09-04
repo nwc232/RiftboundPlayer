@@ -1,3 +1,4 @@
+import { seatOf } from "./state.js";
 import type { AbilityCost } from "./abilities.js";
 import type { GameEvent } from "./events.js";
 import { flowCostsOf } from "./costing.js";
@@ -77,7 +78,7 @@ export function playZonesFor(
   playerId: PlayerId,
   cardId: CardId,
 ): PlayZone[] {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
 
   if (player.hand.includes(cardId)) return [{ source: "hand" }];
 
@@ -172,7 +173,7 @@ export function leaveZone(
   cardId: CardId,
   zone: PlayZone,
 ): { state: GameState; events: GameEvent[] } {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const plain = (next: GameState) => ({ state: next, events: [] });
 
   switch (zone.source) {

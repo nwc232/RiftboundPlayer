@@ -4,6 +4,7 @@ import type { Action } from "../src/actions.js";
 import { grantKeywordFor } from "../src/builders.js";
 import { execute } from "../src/abilities.js";
 import { abilitiesOf, characteristicsOf } from "../src/layers.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -75,15 +76,15 @@ describe("[Hunt] (R823)", () => {
       current = result.state;
     }
 
-    expect(current.players.p1.xp).toBe(2);
+    expect(seatOf(current, "p1").xp).toBe(2);
     // R470 — the hold scored a point as well; Hunt is on top of it.
-    expect(current.players.p1.points).toBe(1);
+    expect(seatOf(current, "p1").points).toBe(1);
   });
 
   it("does nothing for a unit without it", () => {
     const after = played(board(unit("hunter", { might: 3 })));
 
-    expect(after.players.p1.xp).toBe(0);
+    expect(seatOf(after, "p1").xp).toBe(0);
     expect(after.chain).toEqual([]);
   });
 
@@ -122,6 +123,6 @@ describe("[Hunt] (R823)", () => {
       },
     };
 
-    expect(played(inBase).players.p1.xp).toBe(0);
+    expect(seatOf(played(inBase), "p1").xp).toBe(0);
   });
 });

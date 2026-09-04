@@ -1,5 +1,5 @@
 import { controllerOf, mightOf } from "./layers.js";
-import { permanentsAt } from "./state.js";
+import { permanentsAt, playedBy, seatOf } from "./state.js";
 import type {
   CardId,
   CardType,
@@ -183,7 +183,7 @@ export function holds(
     }
 
     case "hasXP":
-      return state.players[context.controller].xp >= condition.atLeast;
+      return seatOf(state, context.controller).xp >= condition.atLeast;
 
     // R441.1.b — asked of the ability's own source, which is what R827.1.b.1
     // means by "the source game object is not a target of the Empower ability".
@@ -205,8 +205,8 @@ export function holds(
         state.permanents[context.sourceId]?.empowered === true ||
         // R107.4.c — the Legend's status lives on the player, having no
         // permanent of its own.
-        (state.players[context.controller].legend === context.sourceId &&
-          state.players[context.controller].legendEmpowered === true)
+        (seatOf(state, context.controller).legend === context.sourceId &&
+          seatOf(state, context.controller).legendEmpowered === true)
       );
 
     case "inShowdown": {
@@ -230,7 +230,7 @@ export function holds(
     case "legion":
       // R812.2 — one other card satisfies every Legion ability at once, which
       // is exactly "is there any card here that isn't me".
-      return state.playedThisTurn[context.controller].some(
+      return playedBy(state, context.controller).some(
         (cardId) => cardId !== context.sourceId,
       );
 

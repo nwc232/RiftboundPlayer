@@ -12,6 +12,7 @@ import {
   spell,
 } from "../src/builders.js";
 import { FREE, canPay, totals } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, cost, pool, unit } from "./fixtures.js";
 
@@ -72,9 +73,9 @@ describe("resources that only buy one card type", () => {
   it("adds the energy into its own bucket", () => {
     const state = withLuxEnergy();
 
-    expect(totals(state.players.p1.runePool).energy).toBe(2);
-    expect(state.players.p1.runePool.buckets).toHaveLength(1);
-    expect(state.players.p1.runePool.buckets[0]?.restriction).toEqual({
+    expect(totals(seatOf(state, "p1").runePool).energy).toBe(2);
+    expect(seatOf(state, "p1").runePool.buckets).toHaveLength(1);
+    expect(seatOf(state, "p1").runePool.buckets[0]?.restriction).toEqual({
       kind: "onlyCardType",
       cardType: "spell",
     });
@@ -223,8 +224,8 @@ describe("resources that only spend at one time", () => {
       context,
     );
 
-    expect(after.state.players.p1.runePool.buckets).toHaveLength(2);
-    expect(totals(after.state.players.p1.runePool).energy).toBe(2);
+    expect(seatOf(after.state, "p1").runePool.buckets).toHaveLength(2);
+    expect(totals(seatOf(after.state, "p1").runePool).energy).toBe(2);
   });
 });
 

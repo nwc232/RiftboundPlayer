@@ -20,6 +20,7 @@ import { chainItemCardId } from "./chain.js";
 import { runTurnStep, openTurn } from "./turn.js";
 import type { TurnStep } from "./turn.js";
 import type { CardId, GameState, PermanentState, PlayerId } from "./state.js";
+import { seatOf } from "./state.js";
 
 /**
  * R319/R334 — the rules do not track work as a call stack, they track it as a
@@ -168,7 +169,7 @@ function runTask(state: GameState, task: Task): TaskOutcome {
     }
 
     case "mulligan": {
-      const hand = state.players[task.player].hand;
+      const hand = seatOf(state, task.player).hand;
       // R117.1 — "up to two", so a player with fewer cards is capped by them.
       const max = Math.min(MULLIGAN_MAX, hand.length);
       if (max === 0) return { state, events: [] };
@@ -413,7 +414,7 @@ export function applyMulligan(
     return { state, events: [] };
   }
 
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const withoutSetAside: GameState = {
     ...state,
     pending: null,
@@ -436,8 +437,8 @@ export function applyMulligan(
       players: {
         ...after.players,
         [playerId]: {
-          ...after.players[playerId],
-          mainDeck: [...after.players[playerId].mainDeck, ...setAside],
+          ...seatOf(after, playerId),
+          mainDeck: [...seatOf(after, playerId).mainDeck, ...setAside],
         },
       },
     },

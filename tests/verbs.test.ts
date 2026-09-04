@@ -19,6 +19,7 @@ import {
 } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import { keywordsOf, mightOf } from "../src/layers.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { stackedDeck } from "../src/decks/vex.js";
 import { makeState, pool, runeCard, unit } from "./fixtures.js";
@@ -157,7 +158,7 @@ describe("drawing per battlefield", () => {
 
     const after = execute(state, drawPerBattlefield(), context([])).state;
 
-    expect(after.players.p1.hand).toEqual(["a", "b"]);
+    expect(seatOf(after, "p1").hand).toEqual(["a", "b"]);
   });
 
   it("excludes the source's own battlefield when asked", () => {
@@ -173,7 +174,7 @@ describe("drawing per battlefield", () => {
       context([], "bf-north"),
     ).state;
 
-    expect(after.players.p1.hand).toEqual(["a"]);
+    expect(seatOf(after, "p1").hand).toEqual(["a"]);
   });
 });
 
@@ -321,7 +322,7 @@ describe("attachments (R718)", () => {
       ...broke,
       players: {
         ...broke.players,
-        p1: { ...broke.players.p1, runePool: pool() },
+        p1: { ...seatOf(broke, "p1"), runePool: pool() },
       },
     };
 
@@ -353,7 +354,7 @@ describe("looking at the top of the deck", () => {
       prompt: { kind: "chooseFromRevealed", legal: ["a", "b", "c"], keep: 1 },
     });
     // R370.1.c's spirit — nothing has moved yet.
-    expect(after.state.players.p1.mainDeck).toEqual(["a", "b", "c", "d"]);
+    expect(seatOf(after.state, "p1").mainDeck).toEqual(["a", "b", "c", "d"]);
   });
 
   it("puts the choice in hand and recycles the rest (R416.1)", () => {
@@ -363,16 +364,16 @@ describe("looking at the top of the deck", () => {
       answer: ["b"],
     });
 
-    expect(answered.state.players.p1.hand).toEqual(["b"]);
+    expect(seatOf(answered.state, "p1").hand).toEqual(["b"]);
     // "d" was under the looked-at three; "a" and "c" went to the bottom.
-    expect(answered.state.players.p1.mainDeck).toEqual(["d", "a", "c"]);
+    expect(seatOf(answered.state, "p1").mainDeck).toEqual(["d", "a", "c"]);
   });
 
   it("does not ask when every revealed card is kept", () => {
     const after = execute(deckBoard(), lookAtTop(2, 2), context([]));
 
     expect(after.pause).toBeUndefined();
-    expect(after.state.players.p1.hand).toEqual(["a", "b"]);
+    expect(seatOf(after.state, "p1").hand).toEqual(["a", "b"]);
   });
 
   /**
@@ -383,7 +384,7 @@ describe("looking at the top of the deck", () => {
   it("carries the rest of a sequence with it", () => {
     const after = execute(deckBoard(), seq(lookAtTop(3, 1), draw(1)), context([]));
 
-    expect(after.state.players.p1.hand).toEqual([]);
+    expect(seatOf(after.state, "p1").hand).toEqual([]);
     expect(after.pause?.resume).toEqual({
       op: "seq",
       steps: [
@@ -398,7 +399,7 @@ describe("looking at the top of the deck", () => {
       ...after.pause!.context,
       answer: ["b"],
     });
-    expect(done.state.players.p1.hand).toEqual(["b", "d"]);
+    expect(seatOf(done.state, "p1").hand).toEqual(["b", "d"]);
   });
 });
 
@@ -433,11 +434,11 @@ describe("recycling from an opponent's hand", () => {
       answer: ["theirSpell"],
     });
 
-    expect(after.state.players.p2.hand).toEqual([
+    expect(seatOf(after.state, "p2").hand).toEqual([
       "theirUnit",
       "theirOtherSpell",
     ]);
-    expect(after.state.players.p2.mainDeck).toEqual(["theirSpell"]);
+    expect(seatOf(after.state, "p2").mainDeck).toEqual(["theirSpell"]);
   });
 
   it("does not ask when only one qualifies", () => {
@@ -446,15 +447,15 @@ describe("recycling from an opponent's hand", () => {
       ...base,
       players: {
         ...base.players,
-        p2: { ...base.players.p2, hand: ["theirUnit", "theirSpell"] },
+        p2: { ...seatOf(base, "p2"), hand: ["theirUnit", "theirSpell"] },
       },
     };
 
     const after = execute(single, recycleFromOpponentHand("unit"), context([]));
 
     expect(after.pause).toBeUndefined();
-    expect(after.state.players.p2.hand).toEqual(["theirUnit"]);
-    expect(after.state.players.p2.mainDeck).toEqual(["theirSpell"]);
+    expect(seatOf(after.state, "p2").hand).toEqual(["theirUnit"]);
+    expect(seatOf(after.state, "p2").mainDeck).toEqual(["theirSpell"]);
   });
 });
 
@@ -511,8 +512,8 @@ describe("a paused effect, end to end", () => {
     ]);
 
     expect(state.pending).toBeNull();
-    expect(state.players.p1.hand).toEqual(["c"]);
-    expect(state.players.p1.mainDeck).toEqual(["d", "a", "b"]);
+    expect(seatOf(state, "p1").hand).toEqual(["c"]);
+    expect(seatOf(state, "p1").mainDeck).toEqual(["d", "a", "b"]);
     expect(state.tasks).toEqual([]);
   });
 });

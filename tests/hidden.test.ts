@@ -4,6 +4,7 @@ import type { Action } from "../src/actions.js";
 import { draw, spell } from "../src/builders.js";
 import { FREE, totals } from "../src/cost.js";
 import { legalActions } from "../src/legal.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -52,7 +53,7 @@ describe("hiding a card (R421)", () => {
   it("moves it out of hand into the battlefield's facedown zone", () => {
     const state = run(board(hiddenUnit("eve")), [HIDE]);
 
-    expect(state.players.p1.hand).toEqual([]);
+    expect(seatOf(state, "p1").hand).toEqual([]);
     expect(state.facedown["bf-north"]).toEqual({
       cardId: "eve",
       controller: "p1",
@@ -64,7 +65,7 @@ describe("hiding a card (R421)", () => {
   it("costs one Power of any domain", () => {
     const state = run(board(hiddenUnit("eve")), [HIDE]);
 
-    expect(totals(state.players.p1.runePool).power).toEqual({});
+    expect(totals(seatOf(state, "p1").runePool).power).toEqual({});
   });
 
   it("refuses without the Power to pay", () => {
@@ -72,7 +73,7 @@ describe("hiding a card (R421)", () => {
       ...board(hiddenUnit("eve")),
       players: {
         ...board(hiddenUnit("eve")).players,
-        p1: { ...board(hiddenUnit("eve")).players.p1, runePool: pool() },
+        p1: { ...seatOf(board(hiddenUnit("eve")), "p1"), runePool: pool() },
       },
     };
 
@@ -107,7 +108,7 @@ describe("hiding a card (R421)", () => {
       players: {
         ...once.players,
         p1: {
-          ...once.players.p1,
+          ...seatOf(once, "p1"),
           hand: ["eve2"],
           runePool: pool({ power: { fury: 1 } }),
         },
@@ -141,7 +142,7 @@ describe("playing from facedown (R811.1.b)", () => {
       turn: { ...base.turn, number: turn },
       players: {
         ...base.players,
-        p1: { ...base.players.p1, hand: [], runePool: pool() },
+        p1: { ...seatOf(base, "p1"), hand: [], runePool: pool() },
       },
       facedown: {
         "bf-north": { cardId: card.id, controller: "p1", hiddenOnTurn: 1 },
@@ -236,7 +237,7 @@ describe("losing the battlefield (R323.7)", () => {
     const state = run(abandoned, [{ type: "drawCard", playerId: "p1" }]);
 
     expect(state.facedown["bf-north"]).toBeUndefined();
-    expect(state.players.p1.trash).toEqual(["eve"]);
+    expect(seatOf(state, "p1").trash).toEqual(["eve"]);
   });
 
   it("leaves it alone while control holds", () => {

@@ -12,10 +12,10 @@ import {
   startMatch,
   winsNeeded,
 } from "../src/match.js";
-import type { MatchState } from "../src/match.js";
-import type { CardId, PlayerId } from "../src/state.js";
+import type { DuelSeat, MatchState } from "../src/match.js";
+import type { CardId } from "../src/state.js";
 
-const DECKS: Record<PlayerId, Deck> = {
+const DECKS: Record<DuelSeat, Deck> = {
   p1: instantiate(DECK_LISTS[0]!, "p1").deck,
   p2: instantiate(DECK_LISTS[1]!, "p2").deck,
 };
@@ -24,7 +24,7 @@ const DECKS: Record<PlayerId, Deck> = {
 function playGame(
   match: MatchState,
   choices: [number, number],
-  winner: PlayerId | null,
+  winner: DuelSeat | null,
 ): MatchState {
   const presented = {
     p1: legalBattlefields(match, "p1")[choices[0]]!,
@@ -91,7 +91,7 @@ describe("R486 — 1v1 (Match)", () => {
    */
   it("always leaves a legal battlefield while a best of three is live", () => {
     let match = startMatch(DECKS);
-    for (const winner of ["p1", "p2", "p1"] as PlayerId[]) {
+    for (const winner of ["p1", "p2", "p1"] as DuelSeat[]) {
       expect(legalBattlefields(match, "p1").length).toBeGreaterThan(0);
       expect(legalBattlefields(match, "p2").length).toBeGreaterThan(0);
       match = playGame(match, [0, 0], winner);
@@ -189,7 +189,7 @@ describe("a Match's games are real games", () => {
     const base = matchup();
     let match = startMatch(DECKS);
 
-    for (const winner of ["p1", "p2"] as PlayerId[]) {
+    for (const winner of ["p1", "p2"] as DuelSeat[]) {
       const presented = {
         p1: legalBattlefields(match, "p1")[0]!,
         p2: legalBattlefields(match, "p2")[0]!,
@@ -200,9 +200,14 @@ describe("a Match's games are real games", () => {
       const started = startGame(outcome.setup);
       expect(started.ok).toBe(true);
       if (!started.ok) return;
-      expect(started.state.battlefieldOrder).toEqual([presented.p1, presented.p2]);
+      // R115.1 — battlefields are laid out in turn order, so the player going
+      // first contributes the first one. R485.5 places them simultaneously and
+      // says nothing about sequence, so this is display order, not a rule.
+      expect(started.state.battlefieldOrder).toEqual(
+        started.state.turnOrder.map((id) => presented[id as DuelSeat]),
+      );
       // R485.7 / R486.7 — the extra rune keys off who goes second.
-      expect(started.state.startingPlayer).toBe(winner);
+      expect(started.state.turnOrder[0]).toBe(winner);
 
       match = recordGame(match, presented, winner);
     }

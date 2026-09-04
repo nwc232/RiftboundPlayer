@@ -11,6 +11,7 @@ import {
   takeControl,
 } from "../src/builders.js";
 import { controllerOf } from "../src/layers.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { beginTurn, endTurn } from "../src/tasks.js";
 import { makeState, unit } from "./fixtures.js";
@@ -167,7 +168,7 @@ describe("Temporary (R816)", () => {
     const next = resolveChain(beginTurn(state, "p1", 3).state);
 
     expect(next.permanents.sprite).toBeUndefined();
-    expect(next.players.p1.points).toBe(0);
+    expect(seatOf(next, "p1").points).toBe(0);
     // The turn carried on afterwards rather than stalling on the chain.
     expect(next.turn.phase).toBe("main");
   });
@@ -195,7 +196,7 @@ describe("Temporary (R816)", () => {
 
     expect(next.permanents[tokenId]).toBeUndefined();
     // R186.1 — and being a token, it never reaches a trash.
-    expect(next.players.p1.trash).toEqual([]);
+    expect(seatOf(next, "p1").trash).toEqual([]);
     expect(next.permanents.original).toBeDefined();
   });
 });

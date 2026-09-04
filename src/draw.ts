@@ -1,5 +1,6 @@
 import type { GameEvent, Progress } from "./events.js";
 import type { GameState, PlayerId } from "./state.js";
+import { seatOf } from "./state.js";
 
 /**
  * R431 — Burn Out. Not a loss: a player who must draw from an empty Main Deck
@@ -13,9 +14,9 @@ import type { GameState, PlayerId } from "./state.js";
 export { burnOut };
 
 function burnOut(state: GameState, playerId: PlayerId): Progress {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const opponent: PlayerId = playerId === "p1" ? "p2" : "p1";
-  const other = state.players[opponent];
+  const other = seatOf(state, opponent);
 
   return {
     state: {
@@ -50,16 +51,16 @@ export function drawCards(
   const events: GameEvent[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    if (current.players[playerId].mainDeck.length === 0) {
+    if (seatOf(current, playerId).mainDeck.length === 0) {
       const burned = burnOut(current, playerId);
       current = burned.state;
       events.push(...burned.events);
       // R431.2.d completes the draw afterwards — but only if the recycled
       // trash gave them anything to draw.
-      if (current.players[playerId].mainDeck.length === 0) break;
+      if (seatOf(current, playerId).mainDeck.length === 0) break;
     }
 
-    const player = current.players[playerId];
+    const player = seatOf(current, playerId);
     const [drawnId, ...rest] = player.mainDeck;
     if (drawnId === undefined) break;
 

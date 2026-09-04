@@ -3,6 +3,7 @@ import { applyAction } from "../src/actions.js";
 import { activated, draw, exhaustSelf } from "../src/builders.js";
 import { legalActions } from "../src/legal.js";
 import { FREE } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -62,9 +63,9 @@ describe("a Legend's activated ability", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.hand).toHaveLength(1);
+    expect(seatOf(result.state, "p1").hand).toHaveLength(1);
     // R107.4.c — the exhausted state lives on the player, not a permanent.
-    expect(result.state.players.p1.legendExhausted).toBe(true);
+    expect(seatOf(result.state, "p1").legendExhausted).toBe(true);
   });
 
   /** R414.1.b — and once exhausted it cannot pay the cost again. */
@@ -74,7 +75,7 @@ describe("a Legend's activated ability", () => {
       ...state,
       players: {
         ...state.players,
-        p1: { ...state.players.p1, legendExhausted: true },
+        p1: { ...seatOf(state, "p1"), legendExhausted: true },
       },
     };
 

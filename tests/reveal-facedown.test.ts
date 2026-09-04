@@ -9,6 +9,7 @@ import {
 import { playZonesFor } from "../src/zones.js";
 import { checkForWinner } from "../src/scoring.js";
 import { FREE } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { viewOf } from "../src/view.js";
 import { makeState, pool, unit } from "./fixtures.js";
@@ -89,7 +90,7 @@ describe("a facedown card changing zones", () => {
     const swept = sweepFacedown(lost);
 
     expect(swept.events.map((event) => event.type)).toContain("cardRevealed");
-    expect(swept.state.players.p2.trash).toContain("ambusher");
+    expect(seatOf(swept.state, "p2").trash).toContain("ambusher");
   });
 
   /** R421.4's second clause. */
@@ -99,7 +100,7 @@ describe("a facedown card changing zones", () => {
       ...state,
       players: {
         ...state.players,
-        p1: { ...state.players.p1, points: 8 },
+        p1: { ...seatOf(state, "p1"), points: 8 },
       },
     };
     const outcome = checkForWinner(won);
@@ -170,7 +171,7 @@ describe("Noxus Saboteur", () => {
     };
     const swept = sweepFacedown(lost);
 
-    expect(swept.state.players.p2.trash).toContain("ambusher");
+    expect(seatOf(swept.state, "p2").trash).toContain("ambusher");
     expect(swept.events.map((event) => event.type)).not.toContain("cardRevealed");
   });
 });
@@ -223,7 +224,7 @@ describe("retreating off a battlefield you hid a card at", () => {
     expect(retreat.state.battlefields["bf-north"]?.controller).toBeNull();
     // Then step 5, in the same cleanup.
     expect(retreat.state.facedown["bf-north"]).toBeUndefined();
-    expect(retreat.state.players.p1.trash).toContain("ambusher");
+    expect(seatOf(retreat.state, "p1").trash).toContain("ambusher");
   });
 
   /** R421.4 — it changed zones, so its owner revealed it on the way out. */

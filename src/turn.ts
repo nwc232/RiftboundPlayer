@@ -6,7 +6,7 @@ import { expireModifiers, restricted } from "./layers.js";
 import type { DelayedTiming } from "./layers.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, holdControlledBattlefields } from "./scoring.js";
-import { permanentsControlledBy } from "./state.js";
+import { permanentsControlledBy, seatOf } from "./state.js";
 import type { GameState, PlayerId } from "./state.js";
 
 /** R314–317. Awaken through Draw run as automatic tasks; Main waits for the player. */
@@ -57,7 +57,7 @@ function clearStuns(state: GameState): GameState {
 /** R315.1 — the turn player readies every game object they control. */
 function awaken(progress: Progress, player: PlayerId): Progress {
   const { state } = progress;
-  const playerState = state.players[player];
+  const playerState = seatOf(state, player);
   const events: GameEvent[] = [];
 
   const runes = { ...state.runes };
@@ -126,11 +126,16 @@ function scoringStep(progress: Progress, player: PlayerId): Progress {
 function channelTwo(progress: Progress, player: PlayerId, number: number): Progress {
   let { state } = progress;
   const events: GameEvent[] = [];
-  const count =
-    number === 2 && player !== state.startingPlayer ? 3 : 2;
+  // R485.7, R486.7, R487.7 and R488.7 all say the same thing in their own
+  // mode's words: the player going *last* channels the extra rune, on their
+  // first Channel Phase — which is turn `turnOrder.length`, the turn their
+  // first go around the queue reaches. In a Duel last is second and that turn
+  // is 2, which is what R485.7 says in as many words.
+  const last = state.turnOrder[state.turnOrder.length - 1];
+  const count = number === state.turnOrder.length && player === last ? 3 : 2;
 
   for (let i = 0; i < count; i += 1) {
-    const playerState = state.players[player];
+    const playerState = seatOf(state, player);
     const [runeId, ...rest] = playerState.runeDeck;
     if (runeId === undefined) break;
 
@@ -195,9 +200,10 @@ function emptyAllPools(progress: Progress): Progress {
   const events: GameEvent[] = [];
   const players = { ...state.players };
 
-  for (const id of ["p1", "p2"] as const) {
-    if (players[id].runePool.buckets.length > 0) {
-      players[id] = { ...players[id], runePool: { buckets: [] } };
+  for (const id of state.turnOrder) {
+    const seat = seatOf(state, id);
+    if (seat.runePool.buckets.length > 0) {
+      players[id] = { ...seat, runePool: { buckets: [] } };
       events.push({ type: "poolEmptied", playerId: id });
     }
   }
@@ -261,13 +267,17 @@ export function openTurn(
       // The phase is left alone; the Awaken step sets it, so its phaseBegan
       // event still fires.
       turn: { ...state.turn, player, number },
-      players: {
-        p1: { ...state.players.p1, scoredThisTurn: [] },
-        p2: { ...state.players.p2, scoredThisTurn: [] },
-      },
-      // R812.1.c's "on the same turn" — both players' lists, since a card can
-      // be finalized on an opponent's turn with [Reaction] timing.
-      playedThisTurn: { p1: [], p2: [] },
+      players: Object.fromEntries(
+        state.turnOrder.map((id) => [
+          id,
+          { ...seatOf(state, id), scoredThisTurn: [] },
+        ]),
+      ),
+      // R812.1.c's "on the same turn" — every player's list, since a card can
+      // be finalized on someone else's turn with [Reaction] timing.
+      playedThisTurn: Object.fromEntries(
+        state.turnOrder.map((id) => [id, []]),
+      ),
       // R383.3.e.1 — "each turn" counts reset with the turn.
       triggeredThisTurn: {},
     },

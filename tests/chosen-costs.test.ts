@@ -12,6 +12,7 @@ import { FREE } from "../src/cost.js";
 import { renderAvailableAbilities } from "../src/demo/render.js";
 import { legalActions } from "../src/legal.js";
 import { describe as describeAction } from "../src/ui/game.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -74,7 +75,7 @@ describe("a cost that kills something you choose", () => {
     expect(result.state.permanents.pawn).toBeUndefined();
     expect(result.state.permanents.squire).toBeDefined();
     // R428 — a killed permanent goes to the trash.
-    expect(result.state.players.p1.trash).toContain("pawn");
+    expect(seatOf(result.state, "p1").trash).toContain("pawn");
     expect(result.state.permanents.patron).toBeDefined();
   });
 
@@ -260,7 +261,7 @@ describe("a cost that returns something to hand", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.permanents.blade).toBeUndefined();
-    expect(result.state.players.p1.hand).toContain("blade");
+    expect(seatOf(result.state, "p1").hand).toContain("blade");
   });
 });
 
@@ -279,8 +280,8 @@ describe("a discard that chooses", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.trash).toEqual(["second"]);
-    expect(result.state.players.p1.hand).toEqual(["first"]);
+    expect(seatOf(result.state, "p1").trash).toEqual(["second"]);
+    expect(seatOf(result.state, "p1").hand).toEqual(["first"]);
   });
 
   /** R354 step 1 — the card being played has already left the hand. */
@@ -335,7 +336,7 @@ describe("a spell whose cost kills something you choose", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.permanents.pawn).toBeUndefined();
-    expect(result.state.players.p1.trash).toContain("pawn");
+    expect(seatOf(result.state, "p1").trash).toContain("pawn");
     expect(result.state.chain).toHaveLength(1);
   });
 });

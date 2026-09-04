@@ -4,6 +4,7 @@ import type { Effect, EffectContext } from "../src/abilities.js";
 import { combatSides } from "../src/combat.js";
 import { mightOf } from "../src/layers.js";
 import { endTurn } from "../src/tasks.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, unit } from "./fixtures.js";
 
@@ -57,8 +58,8 @@ describe("returning to hand", () => {
     const after = run(stolen, { op: "returnToHand", targetIndex: 0 }, ["thrall"]).state;
 
     expect(after.permanents.thrall).toBeUndefined();
-    expect(after.players.p2.hand).toEqual(["thrall"]);
-    expect(after.players.p1.hand).toEqual([]);
+    expect(seatOf(after, "p2").hand).toEqual(["thrall"]);
+    expect(seatOf(after, "p1").hand).toEqual([]);
   });
 });
 
@@ -71,8 +72,8 @@ describe("banishing", () => {
 
     const after = run(start, { op: "banish", targetIndex: 0 }, ["doomed"]).state;
 
-    expect(after.players.p1.banished).toEqual(["doomed"]);
-    expect(after.players.p1.trash).toEqual([]);
+    expect(seatOf(after, "p1").banished).toEqual(["doomed"]);
+    expect(seatOf(after, "p1").trash).toEqual([]);
   });
 });
 

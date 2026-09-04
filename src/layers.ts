@@ -5,7 +5,7 @@ import type {
   Effect,
   PassiveAbility,
 } from "./abilities.js";
-import { sameLocation } from "./state.js";
+import { sameLocation, seatOf } from "./state.js";
 import type {
   CardId,
   CardInstance,
@@ -657,7 +657,7 @@ function holds(
     // R824.1.c.1 — read against whoever controls it *now*.
     case "xpAtLeast":
       return (
-        state.players[controllerOf(state, subject.cardId)].xp >=
+        seatOf(state, controllerOf(state, subject.cardId)).xp >=
         condition.amount
       );
     // R807.1.d.1 / R814.1.d.1 — tied to the designation, not to being in combat.

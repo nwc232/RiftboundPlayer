@@ -18,6 +18,7 @@ import {
   keywordsOf,
   mightOf,
 } from "../src/layers.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { endTurn } from "../src/tasks.js";
 import { makeState, unit } from "./fixtures.js";
@@ -105,8 +106,8 @@ describe("creating tokens (R179–187)", () => {
     // "Ceases to exist" is about zones: off the board, and never in a trash
     // for anything to recur it from.
     expect(after.permanents[tokenId]).toBeUndefined();
-    expect(after.players.p1.trash).toEqual([]);
-    expect(after.players.p2.trash).toEqual([]);
+    expect(seatOf(after, "p1").trash).toEqual([]);
+    expect(seatOf(after, "p2").trash).toEqual([]);
   });
 
   it("sends a killed card to its owner's trash, not its controller's (R56)", () => {
@@ -124,8 +125,8 @@ describe("creating tokens (R179–187)", () => {
 
     const after = killUnits(owned, ["stolen"]).state;
 
-    expect(after.players.p1.trash).toEqual(["stolen"]);
-    expect(after.players.p2.trash).toEqual([]);
+    expect(seatOf(after, "p1").trash).toEqual(["stolen"]);
+    expect(seatOf(after, "p2").trash).toEqual([]);
   });
 });
 
@@ -346,8 +347,8 @@ describe("taking control (R477.1.a)", () => {
 
     const after = killUnits(stolen, ["thrall"]).state;
 
-    expect(after.players.p2.trash).toEqual(["thrall"]);
-    expect(after.players.p1.trash).toEqual([]);
+    expect(seatOf(after, "p2").trash).toEqual(["thrall"]);
+    expect(seatOf(after, "p1").trash).toEqual([]);
   });
 
   it("makes a stolen unit friendly for an anthem", () => {
@@ -474,6 +475,6 @@ describe("triggers on a copy", () => {
       made.events.some((event) => event.type === "unitPlayed"),
     ).toBe(false);
     expect(collectTriggers(made.state, made.events)).toEqual([]);
-    expect(state.players.p1.hand).toEqual([]);
+    expect(seatOf(state, "p1").hand).toEqual([]);
   });
 });

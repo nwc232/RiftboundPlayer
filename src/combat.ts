@@ -19,7 +19,7 @@ import {
 } from "./replacements.js";
 import type { ApplicableReplacement } from "./replacements.js";
 import { score } from "./scoring.js";
-import { ownerOf, permanentsAt } from "./state.js";
+import { ownerOf, permanentsAt, seatOf } from "./state.js";
 import type {
   CardId,
   Designation,
@@ -423,10 +423,8 @@ function killOutright(state: GameState, cardIds: CardId[]): Progress {
       // a copied Deathknell has to be readable to resolve at all.
       void cards;
     } else {
-      players[owner] = {
-        ...players[owner],
-        trash: [...players[owner].trash, cardId],
-      };
+      const theirs = seatOf(state, owner);
+      players[owner] = { ...theirs, trash: [...theirs.trash, cardId] };
     }
     // R323.4/R808.1.d.3 — note location and attributes before the card leaves
     // the board. Read from `state`, which this loop never mutates, so units

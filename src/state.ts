@@ -7,7 +7,20 @@ import type { DelayedEffect, Duration, Modifier } from "./layers.js";
 import type { Task } from "./tasks.js";
 import type { TurnState } from "./turn.js";
 
-export type PlayerId = "p1" | "p2";
+/**
+ * R483.1 — a Mode of Play says how many people are playing, and four is the
+ * most any sanctioned mode seats (R488 War, R489 Magma Chamber). So the ids
+ * are a closed set rather than an open string: the compiler catches a
+ * misspelled seat, and `PlayerId` stays structurally a `CardId`, which is
+ * what lets a player be targeted at all.
+ *
+ * Which of these are *in* a given game is `GameState.turnOrder`, never this
+ * type. A Duel seats two of them.
+ */
+export type PlayerId = "p1" | "p2" | "p3" | "p4";
+
+/** Every seat a game could use, in the order a mode fills them. */
+export const SEATS: readonly PlayerId[] = ["p1", "p2", "p3", "p4"];
 export type CardId = string;
 export type CardType = "unit" | "spell" | "gear" | "battlefield" | "legend" | "rune";
 
@@ -426,7 +439,20 @@ export const FACEDOWN_CAPACITY = 1;
 
 export interface GameState {
   turn: TurnState;
-  players: Record<PlayerId, PlayerState>;
+  /**
+   * R115.1 — "Turn Order is established as a repeating set of the players."
+   * This is the authority on who is in the game and in what sequence; the
+   * `PlayerId` type only says who could be. Everything that used to iterate
+   * `["p1", "p2"]` iterates this instead, so a mode with three or four seats
+   * needs no further permission.
+   */
+  turnOrder: PlayerId[];
+  /**
+   * Partial because a Duel has no p3. An unseated id is absent rather than
+   * empty: a blank `PlayerState` would be a lie that `viewOf` would then ship
+   * to the client. Read through `seatOf`, which says so out loud.
+   */
+  players: Partial<Record<PlayerId, PlayerState>>;
   cards: Record<CardId, CardInstance>;
   permanents: Record<CardId, PermanentState>;
   runes: Record<CardId, RuneState>;
@@ -446,7 +472,7 @@ export interface GameState {
    * Finalized by you on the same turn", so it is the list, not a count, that
    * answers it. Cleared as each turn opens.
    */
-  playedThisTurn: Record<PlayerId, CardId[]>;
+  playedThisTurn: Partial<Record<PlayerId, CardId[]>>;
   /**
    * R383.3.e — "Some Triggered Abilities will trigger 'once each turn'."
    * R383.3.e.1: once it has fired that many times, it does not trigger at all,
@@ -496,13 +522,64 @@ export interface GameState {
   modifiers: Modifier[];
   /** Bumped for each token created, so minted ids stay deterministic. */
   tokensCreated: number;
-  /** R485.7 — the player who did *not* start channels an extra rune on turn 2. */
-  startingPlayer: PlayerId;
   /**
    * R317.1.a — effects scheduled to fire at a later moment, as opposed to
    * modifiers, which merely stop applying at one.
    */
   delayed: DelayedEffect[];
+}
+
+/**
+ * The `PlayerState` for a seated player. Throws for one who is not in this
+ * game, which is a programming error rather than a game state: `turnOrder`
+ * is the list of who can be asked for.
+ */
+export function seatOf(state: GameState, playerId: PlayerId): PlayerState {
+  const player = state.players[playerId];
+  if (player === undefined) {
+    throw new Error(`no player ${playerId} in this game`);
+  }
+  return player;
+}
+
+/** R812.1.c — what this player has finalized this turn; nothing, by default. */
+export function playedBy(state: GameState, playerId: PlayerId): CardId[] {
+  return state.playedThisTurn[playerId] ?? [];
+}
+
+/**
+ * R115.1.c — "The Turn Order generates a looping queue of turns", so the next
+ * player wraps around the end. In a Duel this is the opponent; with three
+ * seats it is not, which is the whole reason this is not a flip.
+ */
+export function nextInTurnOrder(
+  state: GameState,
+  playerId: PlayerId,
+): PlayerId {
+  const at = state.turnOrder.indexOf(playerId);
+  if (at === -1) throw new Error(`no player ${playerId} in this game`);
+  return state.turnOrder[(at + 1) % state.turnOrder.length]!;
+}
+
+/**
+ * R483.2.b — a mode defines "the number of opponents", and only a Duel makes
+ * that one. Everyone seated who is not this player, in turn order.
+ */
+export function opponentsOf(state: GameState, playerId: PlayerId): PlayerId[] {
+  return state.turnOrder.filter((id) => id !== playerId);
+}
+
+/**
+ * Turn order rotated to start at `playerId` — R303.2.a sequences everything
+ * simultaneous this way, "starting with the current Turn Player".
+ */
+export function turnOrderFrom(
+  state: GameState,
+  playerId: PlayerId,
+): PlayerId[] {
+  const at = state.turnOrder.indexOf(playerId);
+  if (at === -1) return [...state.turnOrder];
+  return [...state.turnOrder.slice(at), ...state.turnOrder.slice(0, at)];
 }
 
 /** R56 / R183 — where a card goes when it leaves the board. */

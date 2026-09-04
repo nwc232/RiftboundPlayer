@@ -14,6 +14,7 @@ import { legalTargets } from "../src/decisions.js";
 import { FREE } from "../src/cost.js";
 import { movementRestricted } from "../src/layers.js";
 import { beginTurn } from "../src/tasks.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -219,7 +220,7 @@ describe("uncounterable spells", () => {
     });
 
     expect(after.state.chain).toEqual([]);
-    expect(after.state.players.p1.trash).toEqual(["bolt"]);
+    expect(seatOf(after.state, "p1").trash).toEqual(["bolt"]);
   });
 
   it("leaves an uncounterable one on the chain", () => {
@@ -229,7 +230,7 @@ describe("uncounterable spells", () => {
     });
 
     expect(after.state.chain).toHaveLength(1);
-    expect(after.state.players.p1.trash).toEqual([]);
+    expect(seatOf(after.state, "p1").trash).toEqual([]);
     expect(after.events).toEqual([]);
   });
 });

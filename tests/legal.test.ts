@@ -6,6 +6,7 @@ import { FREE } from "../src/cost.js";
 import { legalActions } from "../src/legal.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
+import { seatOf } from "../src/state.js";
 
 const drake: CardInstance = {
   ...unit("drake", { might: 5, cost: { ...FREE, energy: 2 } }),
@@ -71,7 +72,7 @@ describe("legalActions", () => {
       ...board(),
       players: {
         ...board().players,
-        p1: { ...board().players.p1, runePool: { buckets: [] } },
+        p1: { ...seatOf(board(), "p1"), runePool: { buckets: [] } },
       },
     };
 

@@ -4,7 +4,6 @@ import { artFor } from "./card-art.js";
 import { characteristicsOf } from "../layers.js";
 import type { GameState, CardId, Location, PlayerId } from "../state.js";
 import {
-  OPPONENT,
   controlOf,
   costLabel,
   describeCost,
@@ -12,6 +11,7 @@ import {
   unitsAt,
 } from "./game.js";
 import type { Move, MoveGroup } from "./game.js";
+import { opponentsOf, seatOf } from "../state.js";
 
 interface Selectable {
   selected: CardId | null;
@@ -176,7 +176,7 @@ export function PlayerPanel({
   pick: Selectable;
   acting: boolean;
 }) {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const pool = totals(player.runePool);
   const base: Location = { kind: "base", player: playerId };
   const inBase = unitsAt(state, base).map((permanent) => permanent.cardId);
@@ -592,8 +592,14 @@ export function Winner({ state }: { state: GameState }) {
   if (state.winner === null) return null;
   return (
     <div className="winner">
-      {state.winner.toUpperCase()} wins · {state.players[state.winner].points} points
-      <span className="muted"> ({OPPONENT[state.winner]} had {state.players[OPPONENT[state.winner]].points})</span>
+      {state.winner.toUpperCase()} wins · {seatOf(state, state.winner).points} points
+      <span className="muted">
+        {" ("}
+        {opponentsOf(state, state.winner)
+          .map((id) => `${id.toUpperCase()} had ${seatOf(state, id).points}`)
+          .join(", ")}
+        {")"}
+      </span>
     </div>
   );
 }

@@ -3,7 +3,14 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import { startGame } from "../src/deck.js";
 import { legalActions } from "../src/legal.js";
-import type { CardId, CardInstance, GameState, Location } from "../src/state.js";
+import { seatOf } from "../src/state.js";
+import type {
+  CardId,
+  CardInstance,
+  GameState,
+  Location,
+  PlayerId,
+} from "../src/state.js";
 import { DECK_LISTS, instantiate, matchup } from "../src/decks/index.js";
 import type { Deck } from "../src/deck.js";
 import { makeState, pool, unit } from "./fixtures.js";
@@ -19,7 +26,7 @@ function lcg(seed: number) {
   };
 }
 
-function whoActs(state: GameState): "p1" | "p2" {
+function whoActs(state: GameState): PlayerId {
   if (state.pending !== null) return state.pending.player;
   if (state.chain.length > 0 && state.priority !== null) return state.priority;
   if (state.showdown !== null) return state.showdown.focus;
@@ -90,7 +97,7 @@ describe("full games with the two real decks", () => {
     expect(stuck).toBe(false);
     expect(state.winner).not.toBeNull();
     // R472 — you win by reaching the Victory Score, so the winner must have it.
-    expect(state.players[state.winner!].points).toBeGreaterThanOrEqual(8);
+    expect(seatOf(state, state.winner!).points).toBeGreaterThanOrEqual(8);
   });
 
   it("never leaves a decision nobody can answer", () => {

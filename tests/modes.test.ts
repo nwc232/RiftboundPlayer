@@ -12,6 +12,7 @@ import {
 } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import { legalActions } from "../src/legal.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -209,7 +210,7 @@ describe('modal effects — "Choose one —"', () => {
       expect(after.permanents.ogre?.damage).toBe(4);
       // Arm 0 drew, which it could not have done if the play had been rejected
       // for the "wrong" number of targets.
-      expect(after.players.p1.hand).toEqual(["a"]);
+      expect(seatOf(after, "p1").hand).toEqual(["a"]);
     });
 
     /** Curtain Call — "Choose one **you haven't already chosen**." */
@@ -367,7 +368,7 @@ describe("a modal trigger", () => {
     }
 
     expect(current.permanents.ogre).toBeUndefined();
-    expect(current.players.p2.hand).toContain("ogre");
+    expect(seatOf(current, "p2").hand).toContain("ogre");
   });
 
   it("offers the arms through legalActions", () => {

@@ -6,6 +6,7 @@ import type { EffectContext } from "../src/abilities.js";
 import { activated, draw, ifThen, reveal, seq } from "../src/builders.js";
 import { holds } from "../src/conditions.js";
 import { FREE } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -40,7 +41,7 @@ describe("revealing (R424)", () => {
   it("does not move the cards", () => {
     const after = execute(board(), reveal("mainDeck", 1), context());
 
-    expect(after.state.players.p1.mainDeck).toEqual(["top", "next", "third"]);
+    expect(seatOf(after.state, "p1").mainDeck).toEqual(["top", "next", "third"]);
     expect(after.state.revealed).toEqual(["top"]);
     expect(after.events).toEqual([
       { type: "cardRevealed", playerId: "p1", cardId: "top" },
@@ -171,7 +172,7 @@ describe("how long a reveal lasts", () => {
   it("lets the spell act on what it revealed", () => {
     const after = cast("aUnit", unit("aUnit", { might: 2 }));
 
-    expect(after.players.p1.hand).toEqual(["aUnit"]);
+    expect(seatOf(after, "p1").hand).toEqual(["aUnit"]);
   });
 
   it("does not fire when what it revealed does not match", () => {
@@ -180,7 +181,7 @@ describe("how long a reveal lasts", () => {
       type: "spell" as const,
     });
 
-    expect(after.players.p1.hand).toEqual([]);
+    expect(seatOf(after, "p1").hand).toEqual([]);
   });
 
   it("clears the state when the spell finishes resolving", () => {

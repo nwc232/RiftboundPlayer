@@ -8,6 +8,7 @@ import {
   runCleanup,
   stagedBattlefields,
 } from "../src/showdown.js";
+import { seatOf } from "../src/state.js";
 import type { GameState, Location } from "../src/state.js";
 import { beginTurn } from "../src/tasks.js";
 import { makeState, unit } from "./fixtures.js";
@@ -138,7 +139,7 @@ describe("closing a showdown", () => {
     expect(state.showdown).toBeNull();
     expect(state.battlefields["bf-north"]?.controller).toBe("p1");
     expect(state.battlefields["bf-north"]?.contestedBy).toBeNull();
-    expect(state.players.p1.points).toBe(1);
+    expect(seatOf(state, "p1").points).toBe(1);
     expect(log.map((e) => e.type)).toContain("battlefieldControlled");
     expect(log.map((e) => e.type)).toContain("battlefieldScored");
   });
@@ -146,8 +147,8 @@ describe("closing a showdown", () => {
   it("only scores a battlefield once per turn (R470)", () => {
     const { state } = run(board(), [MOVE_NORTH, P1_PASS, P2_PASS]);
 
-    expect(state.players.p1.scoredThisTurn).toEqual(["bf-north"]);
-    expect(state.players.p1.points).toBe(1);
+    expect(seatOf(state, "p1").scoredThisTurn).toEqual(["bf-north"]);
+    expect(seatOf(state, "p1").points).toBe(1);
   });
 });
 
@@ -159,8 +160,8 @@ describe("holding", () => {
     const p2Turn = beginTurn(conquered, "p2", 2).state;
     const { state } = beginTurn(p2Turn, "p1", 3);
 
-    expect(state.players.p1.points).toBe(2);
-    expect(state.players.p1.scoredThisTurn).toEqual(["bf-north"]);
+    expect(seatOf(state, "p1").points).toBe(2);
+    expect(seatOf(state, "p1").scoredThisTurn).toEqual(["bf-north"]);
   });
 
   it("loses control in a cleanup once no units remain there (R190.4.c)", () => {
@@ -186,7 +187,7 @@ describe("winning", () => {
       players: {
         ...board().players,
         p1: {
-          ...board().players.p1,
+          ...seatOf(board(), "p1"),
           points: VICTORY_SCORE - 1,
           scoredThisTurn: ["bf-south"],
         },
@@ -195,7 +196,7 @@ describe("winning", () => {
 
     const { state, log } = run(nearlyWon, [MOVE_NORTH, P1_PASS, P2_PASS]);
 
-    expect(state.players.p1.points).toBe(VICTORY_SCORE);
+    expect(seatOf(state, "p1").points).toBe(VICTORY_SCORE);
     expect(state.winner).toBe("p1");
     expect(log.map((e) => e.type)).toContain("gameWon");
   });
@@ -205,7 +206,7 @@ describe("winning", () => {
       players: {
         ...board().players,
         p1: {
-          ...board().players.p1,
+          ...seatOf(board(), "p1"),
           points: VICTORY_SCORE - 1,
           mainDeck: ["e1"],
         },
@@ -214,8 +215,8 @@ describe("winning", () => {
 
     const { state } = run(nearlyWon, [MOVE_NORTH, P1_PASS, P2_PASS]);
 
-    expect(state.players.p1.points).toBe(VICTORY_SCORE - 1);
-    expect(state.players.p1.hand).toEqual(["e1"]);
+    expect(seatOf(state, "p1").points).toBe(VICTORY_SCORE - 1);
+    expect(seatOf(state, "p1").hand).toEqual(["e1"]);
     expect(state.winner).toBeNull();
   });
 
@@ -224,7 +225,7 @@ describe("winning", () => {
       players: {
         ...board().players,
         p1: {
-          ...board().players.p1,
+          ...seatOf(board(), "p1"),
           points: VICTORY_SCORE - 1,
           scoredThisTurn: ["bf-south"],
         },

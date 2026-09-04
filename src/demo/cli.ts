@@ -2,7 +2,7 @@ import * as readline from "node:readline/promises";
 import { applyAction } from "../actions.js";
 import type { Action } from "../actions.js";
 import type { GameEvent } from "../events.js";
-import type { GameState } from "../state.js";
+import type { GameState, PlayerId } from "../state.js";
 import { startGame } from "../deck.js";
 import { matchup } from "../decks/index.js";
 import { makeDemoState } from "./deck.js";
@@ -85,7 +85,7 @@ function costChoicesFrom(args: string[]): string[][] {
     );
 }
 
-function actingPlayer(): "p1" | "p2" {
+function actingPlayer(): PlayerId {
   if (state.pending !== null) return state.pending.player;
   if (state.chain.length > 0 && state.priority !== null) return state.priority;
   if (state.showdown !== null) return state.showdown.focus;

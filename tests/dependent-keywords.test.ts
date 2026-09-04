@@ -14,6 +14,7 @@ import {
 } from "../src/builders.js";
 import { legalActions } from "../src/legal.js";
 import { abilitiesOf, keywordsOf, mightOf } from "../src/layers.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, PlayerState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -38,7 +39,7 @@ describe("dependent keywords (R824, R828)", () => {
       ],
       permanents: [{ cardId: "hero", controller: "p1" }],
     });
-    const p1: PlayerState = { ...state.players.p1, xp: options.xp ?? 0 };
+    const p1: PlayerState = { ...seatOf(state, "p1"), xp: options.xp ?? 0 };
     return {
       ...state,
       players: { ...state.players, p1 },
@@ -137,7 +138,7 @@ describe("dependent keywords (R824, R828)", () => {
       const on = board(gate, { xp: 6 });
       const spent: GameState = {
         ...on,
-        players: { ...on.players, p1: { ...on.players.p1, xp: 2 } },
+        players: { ...on.players, p1: { ...seatOf(on, "p1"), xp: 2 } },
       };
 
       expect(mightOf(spent, "hero")).toBe(3);
@@ -210,7 +211,7 @@ describe("[Empower] (R827)", () => {
     if (!result.ok) return;
 
     expect(result.state.permanents.hero?.empowered).toBe(true);
-    expect(result.state.players.p1.runePool.buckets[0]!.energy).toBe(7);
+    expect(seatOf(result.state, "p1").runePool.buckets[0]!.energy).toBe(7);
     // R827.2.a — becoming Empowered is a referenceable event.
     expect(result.events).toContainEqual({
       type: "empowered",

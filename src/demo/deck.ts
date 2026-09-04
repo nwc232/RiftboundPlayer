@@ -165,6 +165,7 @@ function emptyBoard(): GameState {
 
   return {
     turn: { player: "p1", phase: "main", number: 1 },
+    turnOrder: ["p1", "p2"],
     players: {
       p1: {
         id: "p1",
@@ -261,7 +262,6 @@ function emptyBoard(): GameState {
     priorityPasses: 0,
     pending: null,
     tasks: [],
-    startingPlayer: "p1",
     modifiers: [],
     tokensCreated: 0,
     delayed: [],

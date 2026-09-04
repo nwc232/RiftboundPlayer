@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { drawCard } from "../src/actions.js";
 import { makeState, unit } from "./fixtures.js";
+import { seatOf } from "../src/state.js";
 
 function state() {
   return makeState({
@@ -15,8 +16,8 @@ describe("drawCard", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.hand).toEqual(["c1"]);
-    expect(result.state.players.p1.mainDeck).toEqual(["c2"]);
+    expect(seatOf(result.state, "p1").hand).toEqual(["c1"]);
+    expect(seatOf(result.state, "p1").mainDeck).toEqual(["c2"]);
   });
 
   it("reports what happened as a cardDrawn event", () => {
@@ -34,8 +35,8 @@ describe("drawCard", () => {
 
     drawCard(before, "p1");
 
-    expect(before.players.p1.hand).toEqual([]);
-    expect(before.players.p1.mainDeck).toEqual(["c1", "c2"]);
+    expect(seatOf(before, "p1").hand).toEqual([]);
+    expect(seatOf(before, "p1").mainDeck).toEqual(["c1", "c2"]);
   });
 
   it("rejects the draw when the deck is empty", () => {

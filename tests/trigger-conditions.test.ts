@@ -5,6 +5,7 @@ import { chainItemCardId } from "../src/chain.js";
 import { draw, spell } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import type { GameEvent } from "../src/events.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 import type { TriggerCondition } from "../src/triggers.js";
@@ -442,7 +443,7 @@ describe("score triggers on units and legends (R471.2)", () => {
       [P2_END],
     );
 
-    expect(state.players.p1.points).toBe(1);
+    expect(seatOf(state, "p1").points).toBe(1);
     expect(state.chain.map(chainItemCardId)).toContain("holder");
   });
 

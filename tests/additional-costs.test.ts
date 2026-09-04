@@ -16,6 +16,7 @@ import {
 import { FREE, totals } from "../src/cost.js";
 import { additionalCostsOf, totalCostOf } from "../src/costing.js";
 import { legalActions } from "../src/legal.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -87,8 +88,8 @@ describe("optional additional costs (R356.2.b)", () => {
     const paid = run(board(pyke), [PLAY("pyke", true)]);
     const free = run(board(pyke), [PLAY("pyke", false)]);
 
-    expect(totals(paid.players.p1.runePool).power).toEqual({});
-    expect(totals(free.players.p1.runePool).power).toEqual({ fury: 1 });
+    expect(totals(seatOf(paid, "p1").runePool).power).toEqual({});
+    expect(totals(seatOf(free, "p1").runePool).power).toEqual({ fury: 1 });
   });
 
   it("refuses the play when the extra cost cannot be met", () => {
@@ -205,7 +206,7 @@ describe("non-resource additional costs (R356.2)", () => {
     });
     return {
       ...base,
-      players: { ...base.players, p1: { ...base.players.p1, xp } },
+      players: { ...base.players, p1: { ...seatOf(base, "p1"), xp } },
     };
   }
 
@@ -223,12 +224,12 @@ describe("non-resource additional costs (R356.2)", () => {
     const paid = applyAction(state, play(true, [["spare"]]));
     expect(paid.ok).toBe(true);
     if (!paid.ok) return;
-    expect(paid.state.players.p1.trash).toEqual(["spare"]);
+    expect(seatOf(paid.state, "p1").trash).toEqual(["spare"]);
 
     const declined = applyAction(state, play(false));
     expect(declined.ok).toBe(true);
     if (!declined.ok) return;
-    expect(declined.state.players.p1.trash).toEqual([]);
+    expect(seatOf(declined.state, "p1").trash).toEqual([]);
   });
 
   /** R354 step 1 — the card is on the chain before its costs are paid. */
@@ -238,7 +239,7 @@ describe("non-resource additional costs (R356.2)", () => {
 
     expect(paid.ok).toBe(true);
     if (!paid.ok) return;
-    expect(paid.state.players.p1.trash).not.toContain("ritual");
+    expect(seatOf(paid.state, "p1").trash).not.toContain("ritual");
 
     // R422.1.a leaves the choice to the discarding player, and R354 step 1 has
     // already moved the card being played out of the hand — so naming it is
@@ -266,7 +267,7 @@ describe("non-resource additional costs (R356.2)", () => {
 
     expect(paid.ok).toBe(true);
     if (!paid.ok) return;
-    expect(paid.state.players.p1.xp).toBe(2);
+    expect(seatOf(paid.state, "p1").xp).toBe(2);
   });
 
   /** R107.4.c — the Legend's exhausted state lives on the player. */
@@ -276,7 +277,7 @@ describe("non-resource additional costs (R356.2)", () => {
 
     expect(paid.ok).toBe(true);
     if (!paid.ok) return;
-    expect(paid.state.players.p1.legendExhausted).toBe(true);
+    expect(seatOf(paid.state, "p1").legendExhausted).toBe(true);
 
     // R414.1.b — an already-exhausted object cannot be exhausted again.
     expect(applyAction(paid.state, play(true)).ok).toBe(false);
@@ -344,8 +345,8 @@ describe("a spell's additional cost", () => {
   ];
 
   it("carries the payment through to resolution", () => {
-    expect(run(spellBoard(1), CAST(true)).players.p1.hand).toEqual(["a", "b"]);
-    expect(run(spellBoard(1), CAST(false)).players.p1.hand).toEqual(["a"]);
+    expect(seatOf(run(spellBoard(1), CAST(true)), "p1").hand).toEqual(["a", "b"]);
+    expect(seatOf(run(spellBoard(1), CAST(false)), "p1").hand).toEqual(["a"]);
   });
 });
 
@@ -360,8 +361,8 @@ describe("XP (R730)", () => {
       targets: [],
     });
 
-    expect(after.state.players.p1.xp).toBe(2);
-    expect(after.state.players.p2.xp).toBe(0);
+    expect(seatOf(after.state, "p1").xp).toBe(2);
+    expect(seatOf(after.state, "p2").xp).toBe(0);
     expect(after.events).toEqual([
       { type: "xpGained", playerId: "p1", amount: 2 },
     ]);
@@ -378,6 +379,6 @@ describe("XP (R730)", () => {
       }).state;
     }
 
-    expect(state.players.p1.xp).toBe(15);
+    expect(seatOf(state, "p1").xp).toBe(15);
   });
 });

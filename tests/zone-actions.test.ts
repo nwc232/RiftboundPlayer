@@ -12,6 +12,7 @@ import {
   draw,
 } from "../src/builders.js";
 import { VICTORY_SCORE } from "../src/scoring.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -66,8 +67,8 @@ describe("discarding (R422)", () => {
       answer: ["b"],
     });
 
-    expect(done.state.players.p1.hand).toEqual(["a"]);
-    expect(done.state.players.p1.trash).toEqual(["b"]);
+    expect(seatOf(done.state, "p1").hand).toEqual(["a"]);
+    expect(seatOf(done.state, "p1").trash).toEqual(["b"]);
     expect(done.events).toEqual([
       { type: "cardDiscarded", playerId: "p1", cardId: "b" },
     ]);
@@ -101,8 +102,8 @@ describe("discarding (R422)", () => {
     const after = execute(board({ p1Hand: ["a"] }), discard(3), context());
 
     expect(after.pause).toBeUndefined();
-    expect(after.state.players.p1.hand).toEqual([]);
-    expect(after.state.players.p1.trash).toEqual(["a"]);
+    expect(seatOf(after.state, "p1").hand).toEqual([]);
+    expect(seatOf(after.state, "p1").trash).toEqual(["a"]);
   });
 
   it("does nothing at all on an empty hand", () => {
@@ -122,8 +123,8 @@ describe("burning (R440)", () => {
       context(),
     );
 
-    expect(after.state.players.p1.mainDeck).toEqual(["c"]);
-    expect(after.state.players.p1.trash).toEqual(["a", "b"]);
+    expect(seatOf(after.state, "p1").mainDeck).toEqual(["c"]);
+    expect(seatOf(after.state, "p1").trash).toEqual(["a", "b"]);
     expect(after.events).toEqual([
       { type: "cardBurned", playerId: "p1", cardId: "a" },
       { type: "cardBurned", playerId: "p1", cardId: "b" },
@@ -139,8 +140,8 @@ describe("burning (R440)", () => {
 
     const after = execute(state, burn(1, 0), context(["p2"]));
 
-    expect(after.state.players.p2.mainDeck).toEqual(["y"]);
-    expect(after.state.players.p2.trash).toEqual(["x"]);
+    expect(seatOf(after.state, "p2").mainDeck).toEqual(["y"]);
+    expect(seatOf(after.state, "p2").trash).toEqual(["x"]);
   });
 
   /**
@@ -159,16 +160,16 @@ describe("burning (R440)", () => {
     expect(types).toContain("cardBurned");
     expect(types).toContain("burnedOut");
     // R431 — the burn-out handed the opponent a point on the way past.
-    expect(after.state.players.p2.points).toBe(1);
+    expect(seatOf(after.state, "p2").points).toBe(1);
     // "old" was recycled into the deck by the burn out, then burned itself.
-    expect(after.state.players.p1.trash).toEqual(["old"]);
+    expect(seatOf(after.state, "p1").trash).toEqual(["old"]);
   });
 
   it("stops rather than looping when there is nothing left anywhere", () => {
     const after = execute(board({ p1Deck: [], p1Trash: [] }), burn(3), context());
 
-    expect(after.state.players.p1.mainDeck).toEqual([]);
-    expect(after.state.players.p2.points).toBeLessThanOrEqual(VICTORY_SCORE);
+    expect(seatOf(after.state, "p1").mainDeck).toEqual([]);
+    expect(seatOf(after.state, "p2").points).toBeLessThanOrEqual(VICTORY_SCORE);
   });
 });
 
@@ -203,8 +204,8 @@ describe("discarding as a cost (R422.3)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(result.state.players.p1.trash).toEqual(["a", "b"]);
-    expect(result.state.players.p1.hand).toEqual(["d1"]);
+    expect(seatOf(result.state, "p1").trash).toEqual(["a", "b"]);
+    expect(seatOf(result.state, "p1").hand).toEqual(["d1"]);
   });
 
   /** Unlike R422.4's effect, a cost of Discard 2 with one card cannot be paid. */

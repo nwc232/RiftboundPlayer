@@ -12,6 +12,7 @@ import {
   recycleFromHand,
 } from "../src/builders.js";
 import { legalActions } from "../src/legal.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -39,7 +40,7 @@ describe("recycling from hand (R416)", () => {
       keep: 1,
     });
     // R370.1.c's spirit — nothing has moved while the question stands.
-    expect(after.state.players.p1.hand).toEqual(["a", "b", "c"]);
+    expect(seatOf(after.state, "p1").hand).toEqual(["a", "b", "c"]);
   });
 
   it("puts the chosen cards on the bottom", () => {
@@ -49,8 +50,8 @@ describe("recycling from hand (R416)", () => {
       answer: ["b"],
     });
 
-    expect(done.state.players.p1.hand).toEqual(["a", "c"]);
-    expect(done.state.players.p1.mainDeck).toEqual(["d1", "d2", "b"]);
+    expect(seatOf(done.state, "p1").hand).toEqual(["a", "c"]);
+    expect(seatOf(done.state, "p1").mainDeck).toEqual(["d1", "d2", "b"]);
     expect(done.events).toEqual([
       { type: "cardRecycled", playerId: "p1", cardId: "b" },
     ]);
@@ -60,13 +61,13 @@ describe("recycling from hand (R416)", () => {
     const after = execute(board(["a", "b"]), recycleFromHand(2), context());
 
     expect(after.pause).toBeUndefined();
-    expect(after.state.players.p1.hand).toEqual([]);
-    expect(after.state.players.p1.mainDeck).toEqual(["d1", "d2", "a", "b"]);
+    expect(seatOf(after.state, "p1").hand).toEqual([]);
+    expect(seatOf(after.state, "p1").mainDeck).toEqual(["d1", "d2", "a", "b"]);
   });
 
   it("recycles as many as there are, and nothing on an empty hand", () => {
     const short = execute(board(["a"]), recycleFromHand(3), context());
-    expect(short.state.players.p1.hand).toEqual([]);
+    expect(seatOf(short.state, "p1").hand).toEqual([]);
 
     const none = execute(board([]), recycleFromHand(2), context());
     expect(none.pause).toBeUndefined();
@@ -90,7 +91,7 @@ describe("spending XP as a cost", () => {
       cards: [sage, unit("a"), unit("b"), unit("c")],
       permanents: [{ cardId: "sage", controller: "p1" }],
     });
-    return { ...base, players: { ...base.players, p1: { ...base.players.p1, xp } } };
+    return { ...base, players: { ...base.players, p1: { ...seatOf(base, "p1"), xp } } };
   }
 
   const USE: Action = {
@@ -105,8 +106,8 @@ describe("spending XP as a cost", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(result.state.players.p1.xp).toBe(2);
-    expect(result.state.players.p1.hand).toEqual(["a"]);
+    expect(seatOf(result.state, "p1").xp).toBe(2);
+    expect(seatOf(result.state, "p1").hand).toEqual(["a"]);
   });
 
   it("cannot be paid without the XP", () => {
@@ -209,7 +210,7 @@ describe("an activation limited per turn", () => {
     const result = applyAction(board(), USE);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.hand).toEqual(["a"]);
+    expect(seatOf(result.state, "p1").hand).toEqual(["a"]);
   });
 
   it("refuses the second use in the same turn", () => {

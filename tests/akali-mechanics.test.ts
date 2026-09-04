@@ -5,6 +5,7 @@ import { seeFacedown } from "../src/builders.js";
 import { holds } from "../src/conditions.js";
 import { expireModifiers } from "../src/layers.js";
 import { viewOf } from "../src/view.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -146,7 +147,7 @@ describe("a Legend's Empowered status", () => {
   it("empowers onto the player, having no permanent to hold it", () => {
     const after = execute(withLegend(), { op: "empowerSelf" }, context);
 
-    expect(after.state.players.p1.legendEmpowered).toBe(true);
+    expect(seatOf(after.state, "p1").legendEmpowered).toBe(true);
     expect(after.events).toEqual([
       { type: "empowered", playerId: "p1", cardId: "assassin" },
     ]);

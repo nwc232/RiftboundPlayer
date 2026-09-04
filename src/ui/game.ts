@@ -9,7 +9,7 @@ import { canPay, totals } from "../cost.js";
 import { totalCostOf } from "../costing.js";
 import { characteristicsOf, controllerOf } from "../layers.js";
 import { DECK_LISTS, matchup } from "../decks/index.js";
-import { permanentsAt } from "../state.js";
+import { permanentsAt, seatOf } from "../state.js";
 import type {
   CardId,
   Cost,
@@ -18,8 +18,6 @@ import type {
   PermanentState,
   PlayerId,
 } from "../state.js";
-
-export const OPPONENT: Record<PlayerId, PlayerId> = { p1: "p2", p2: "p1" };
 
 /**
  * Who the rules currently expect to act. One person drives both seats for now,
@@ -357,7 +355,7 @@ export function whyNotPlayable(
   playerId: PlayerId,
   cardId: CardId,
 ): string | null {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   if (!player.hand.includes(cardId) && player.champion !== cardId) return null;
 
   const card = state.cards[cardId];

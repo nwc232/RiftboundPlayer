@@ -3,6 +3,7 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import type { GameEvent } from "../src/events.js";
 import { totals } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { GameState } from "../src/state.js";
 import { cost, makeState, runeCard, unit } from "./fixtures.js";
 
@@ -17,7 +18,7 @@ describe("applyAction", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.hand).toEqual(["u1"]);
+    expect(seatOf(result.state, "p1").hand).toEqual(["u1"]);
   });
 
   it("taps runes for resources, draws, and pays for a unit", () => {
@@ -55,7 +56,7 @@ describe("applyAction", () => {
     }
 
     expect(state.permanents.u1?.location).toEqual({ kind: "base", player: "p1" });
-    expect(totals(state.players.p1.runePool)).toEqual({
+    expect(totals(seatOf(state, "p1").runePool)).toEqual({
       energy: 0,
       power: {},
       universalPower: 0,

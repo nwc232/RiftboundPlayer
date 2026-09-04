@@ -4,6 +4,7 @@ import type { Action } from "../src/actions.js";
 import { draw, ifThen, playedFrom, returnToHand, seq, spell } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import { legalTargets } from "../src/decisions.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -85,8 +86,8 @@ describe("two targets with different filters", () => {
 
     expect(state.permanents.mine).toBeUndefined();
     expect(state.permanents.theirs).toBeUndefined();
-    expect(state.players.p1.hand).toEqual(["mine"]);
-    expect(state.players.p2.hand).toEqual(["theirs"]);
+    expect(seatOf(state, "p1").hand).toEqual(["mine"]);
+    expect(seatOf(state, "p2").hand).toEqual(["theirs"]);
   });
 
   it("refuses two friendly units — the filters are positional", () => {
@@ -174,7 +175,7 @@ describe("which zone the card came from", () => {
   ];
 
   it("draws when played from hand", () => {
-    expect(run(backOffBoard(), CAST_BACK).players.p1.hand).toEqual(["a"]);
+    expect(seatOf(run(backOffBoard(), CAST_BACK), "p1").hand).toEqual(["a"]);
   });
 
   it("does not when played from facedown", () => {
@@ -182,12 +183,12 @@ describe("which zone the card came from", () => {
     const hidden: GameState = {
       ...base,
       turn: { ...base.turn, number: 2 },
-      players: { ...base.players, p1: { ...base.players.p1, hand: [] } },
+      players: { ...base.players, p1: { ...seatOf(base, "p1"), hand: [] } },
       facedown: {
         "bf-north": { cardId: "back", controller: "p1", hiddenOnTurn: 1 },
       },
     };
 
-    expect(run(hidden, CAST_BACK).players.p1.hand).toEqual([]);
+    expect(seatOf(run(hidden, CAST_BACK), "p1").hand).toEqual([]);
   });
 });

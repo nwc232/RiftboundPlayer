@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activateAbility } from "../src/actions.js";
 import { totals } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { GameState } from "../src/state.js";
 import { makeState, runeCard } from "./fixtures.js";
 
@@ -26,7 +27,7 @@ describe("the rune's energy ability", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.runes.r1?.exhausted).toBe(true);
-    expect(totals(result.state.players.p1.runePool).energy).toBe(1);
+    expect(totals(seatOf(result.state, "p1").runePool).energy).toBe(1);
     expect(result.events).toEqual([
       { type: "energyAdded", playerId: "p1", amount: 1 },
     ]);
@@ -56,10 +57,10 @@ describe("the rune's power ability", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.runes).toEqual([]);
-    expect(result.state.players.p1.runeDeck).toEqual(["r1"]);
+    expect(seatOf(result.state, "p1").runes).toEqual([]);
+    expect(seatOf(result.state, "p1").runeDeck).toEqual(["r1"]);
     expect(result.state.runes.r1).toBeUndefined();
-    expect(totals(result.state.players.p1.runePool).power).toEqual({ order: 1 });
+    expect(totals(seatOf(result.state, "p1").runePool).power).toEqual({ order: 1 });
   });
 });
 
@@ -74,7 +75,7 @@ describe("one rune, both abilities", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const left = totals(result.state.players.p1.runePool);
+    const left = totals(seatOf(result.state, "p1").runePool);
     expect(left.energy).toBe(1);
     expect(left.power).toEqual({ fury: 1 });
   });

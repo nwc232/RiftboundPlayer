@@ -5,6 +5,7 @@ import { ambushEnemyBattlefields, draw, spell } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import { legalActions } from "../src/legal.js";
 import { validPlayLocations } from "../src/play.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -196,7 +197,7 @@ describe("[Ambush] as a timing grant (R822.1.b)", () => {
       cards: { ...base.cards, bolt },
       players: {
         ...base.players,
-        p2: { ...base.players.p2, hand: ["bolt"] },
+        p2: { ...seatOf(base, "p2"), hand: ["bolt"] },
       },
     };
 

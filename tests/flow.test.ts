@@ -6,6 +6,7 @@ import { FREE } from "../src/cost.js";
 import { flowCostsOf, totalCostOf } from "../src/costing.js";
 import { legalActions } from "../src/legal.js";
 import { playZonesFor } from "../src/zones.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, Cost, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -106,22 +107,22 @@ describe("[Flow] (R829)", () => {
     const after = resolve(board(), CAST_FROM_TRASH);
 
     expect(after.permanents.ogre?.damage).toBe(2);
-    expect(after.players.p1.runePool.buckets[0]!.energy).toBe(6);
+    expect(seatOf(after, "p1").runePool.buckets[0]!.energy).toBe(6);
   });
 
   /** R829.1.b — "Then banish it", rather than back to the trash. */
   it("banishes it instead of trashing it on resolution", () => {
     const after = resolve(board(), CAST_FROM_TRASH);
 
-    expect(after.players.p1.banished).toEqual(["torch"]);
-    expect(after.players.p1.trash).toEqual([]);
+    expect(seatOf(after, "p1").banished).toEqual(["torch"]);
+    expect(seatOf(after, "p1").trash).toEqual([]);
   });
 
   it("still goes to the trash when it was played from hand", () => {
     const after = resolve(board(torch(), "hand"), CAST_FROM_TRASH);
 
-    expect(after.players.p1.trash).toEqual(["torch"]);
-    expect(after.players.p1.banished).toEqual([]);
+    expect(seatOf(after, "p1").trash).toEqual(["torch"]);
+    expect(seatOf(after, "p1").banished).toEqual([]);
   });
 
   /**
@@ -165,8 +166,8 @@ describe("[Flow] (R829)", () => {
       current = result.state;
     }
 
-    expect(current.players.p1.banished).toEqual(["torch"]);
-    expect(current.players.p1.trash).toEqual([]);
+    expect(seatOf(current, "p1").banished).toEqual(["torch"]);
+    expect(seatOf(current, "p1").trash).toEqual([]);
     // R370.1.a.1's shape — the trip to the trash never happened, and there is
     // no event for a thing that did not occur, so the replacement logs itself.
     expect(current.permanents.ogre?.damage ?? 0).toBe(0);
@@ -222,7 +223,7 @@ describe("[Flow] (R829)", () => {
         ...CAST_FROM_TRASH,
         playFrom: 0,
       });
-      expect(cheap.players.p1.runePool.buckets[0]!.energy).toBe(6);
+      expect(seatOf(cheap, "p1").runePool.buckets[0]!.energy).toBe(6);
 
       // The second costs [1][A][A], and the pool holds no Power at all.
       expect(

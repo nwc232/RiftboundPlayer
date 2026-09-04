@@ -86,6 +86,9 @@ interface PermanentSpec {
 export function makeState(options: {
   p1?: Partial<PlayerState>;
   p2?: Partial<PlayerState>;
+  /** R487/R488 — a third and fourth seat, for the modes that have them. */
+  p3?: Partial<PlayerState>;
+  p4?: Partial<PlayerState>;
   cards?: CardInstance[];
   permanents?: PermanentSpec[];
   /** Ids only, or `[id, controller]` to hand one to a player already. */
@@ -121,19 +124,31 @@ export function makeState(options: {
     battlefields[id] = { cardId: id, controller, contestedBy: null };
   }
 
+  // Two seats unless a test asks for more: `turnOrder` is what the engine
+  // reads, so a fixture that never mentions p3 is a Duel in every respect.
+  const turnOrder: PlayerId[] = ["p1", "p2"];
+  const players: GameState["players"] = {
+    p1: player("p1", options.p1 ?? {}),
+    p2: player("p2", options.p2 ?? {}),
+  };
+  for (const id of ["p3", "p4"] as const) {
+    const seat = options[id];
+    if (seat === undefined) continue;
+    turnOrder.push(id);
+    players[id] = player(id, seat);
+  }
+
   return {
     turn: { player: "p1", phase: "main", number: 1 },
-    players: {
-      p1: player("p1", options.p1 ?? {}),
-      p2: player("p2", options.p2 ?? {}),
-    },
+    turnOrder,
+    players,
     cards,
     permanents,
     runes: {},
     battlefields,
     battlefieldOrder,
     facedown: {},
-    playedThisTurn: { p1: [], p2: [] },
+    playedThisTurn: Object.fromEntries(turnOrder.map((id) => [id, []])),
     triggeredThisTurn: {},
     pendingDiscounts: [],
     revealed: [],
@@ -145,7 +160,6 @@ export function makeState(options: {
     priorityPasses: 0,
     pending: null,
     tasks: [],
-    startingPlayer: "p1",
     modifiers: [],
     tokensCreated: 0,
     delayed: [],

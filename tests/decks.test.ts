@@ -60,8 +60,10 @@ describe("the two real decks", () => {
     const ids = mirror.cards.map((card) => card.id);
 
     expect(new Set(ids).size).toBe(ids.length);
-    const mine = new Set(mirror.p1.mainDeck);
-    expect(mirror.p2.mainDeck.filter((id) => mine.has(id))).toEqual([]);
+    const mine = new Set(mirror.seats.p1!.deck.mainDeck);
+    expect(
+      mirror.seats.p2!.deck.mainDeck.filter((id) => mine.has(id)),
+    ).toEqual([]);
   });
 
   it("start a game", () => {

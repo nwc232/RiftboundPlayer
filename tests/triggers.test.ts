@@ -8,6 +8,7 @@ import {
 } from "../src/chain.js";
 import { anthemMight, draw } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -89,7 +90,7 @@ describe("play triggers (R383.4.a)", () => {
 
     expect(state.chain).toHaveLength(1);
     expect(chainItemCardId(state.chain[0]!)).toBe("drake");
-    expect(state.players.p1.hand).toEqual([]);
+    expect(seatOf(state, "p1").hand).toEqual([]);
   });
 
   it("draws once the trigger resolves", () => {
@@ -100,7 +101,7 @@ describe("play triggers (R383.4.a)", () => {
     ]);
 
     expect(state.chain).toHaveLength(0);
-    expect(state.players.p1.hand).toEqual(["a"]);
+    expect(seatOf(state, "p1").hand).toEqual(["a"]);
   });
 
   it("leaves the source on the board — a trigger is not a card that moves", () => {
@@ -111,7 +112,7 @@ describe("play triggers (R383.4.a)", () => {
     ]);
 
     expect(state.permanents.drake).toBeDefined();
-    expect(state.players.p1.trash).toEqual([]);
+    expect(seatOf(state, "p1").trash).toEqual([]);
   });
 
   it("is answerable — the opponent gets priority while it is pending", () => {
@@ -199,7 +200,7 @@ describe("death-trigger location snapshot (R323.4)", () => {
     const item = state.chain[0]!;
 
     expect(state.permanents.scrapheap).toBeUndefined();
-    expect(state.players.p1.trash).toEqual(["scrapheap"]);
+    expect(seatOf(state, "p1").trash).toEqual(["scrapheap"]);
     expect(sourceLocationOf(state, item)).toEqual(AT_BF);
   });
 
@@ -350,7 +351,7 @@ describe("battlefield triggers", () => {
     // p2 ends their turn; p1's Beginning Phase holds grove, firing its trigger.
     const state = run(controlled, [{ type: "endTurn", playerId: "p2" }]);
 
-    expect(state.players.p1.points).toBe(1);
+    expect(seatOf(state, "p1").points).toBe(1);
     expect(state.chain).toHaveLength(1);
     expect(chainItemCardId(state.chain[0]!)).toBe("grove");
   });

@@ -1,5 +1,5 @@
 import type { Deck, GameSetup } from "./deck.js";
-import type { CardId, PlayerId } from "./state.js";
+import type { CardId } from "./state.js";
 
 /**
  * R486 — 1v1 (Match), the second sanctioned Mode of Play.
@@ -19,21 +19,28 @@ import type { CardId, PlayerId } from "./state.js";
 /** R486.6 / R486.6.a — a Match is best of three, or best of five. */
 export type BestOf = 3 | 5;
 
+/**
+ * R486.1 — "2 Players". A Match is a 1v1 mode by definition, so its records
+ * are keyed by the two seats a Duel uses rather than by every seat the engine
+ * can hold. A three-player Match is not a thing the rules describe.
+ */
+export type DuelSeat = "p1" | "p2";
+
 export interface GameRecord {
   /** The battlefield each player presented for that game (R486.5). */
-  presented: Record<PlayerId, CardId>;
+  presented: Record<DuelSeat, CardId>;
   /**
    * R486.5.a — `null` is a real outcome, not a missing one: "If no player won
    * a game, the battlefields presented for that game may be reused." Our
    * engine always produces a winner, but the Match rules do not assume it.
    */
-  winner: PlayerId | null;
+  winner: DuelSeat | null;
 }
 
 export interface MatchState {
   bestOf: BestOf;
   /** R486.4.a — the three each player brought, in deck order. */
-  pools: Record<PlayerId, CardId[]>;
+  pools: Record<DuelSeat, CardId[]>;
   /** Completed games, oldest first. */
   games: GameRecord[];
 }
@@ -45,10 +52,10 @@ export type PresentError =
   | "notYetPresentedAll"
   | "presentedTwice";
 
-const PLAYERS: readonly PlayerId[] = ["p1", "p2"];
+const PLAYERS: readonly DuelSeat[] = ["p1", "p2"];
 
 export function startMatch(
-  decks: Record<PlayerId, Deck>,
+  decks: Record<DuelSeat, Deck>,
   bestOf: BestOf = 3,
 ): MatchState {
   return {
@@ -63,12 +70,12 @@ export function winsNeeded(match: MatchState): number {
   return match.bestOf === 3 ? 2 : 3;
 }
 
-export function gameWins(match: MatchState, player: PlayerId): number {
+export function gameWins(match: MatchState, player: DuelSeat): number {
   return match.games.filter((game) => game.winner === player).length;
 }
 
 /** The player who has taken the Match, or `null` while it is still on. */
-export function matchWinner(match: MatchState): PlayerId | null {
+export function matchWinner(match: MatchState): DuelSeat | null {
   const needed = winsNeeded(match);
   return PLAYERS.find((player) => gameWins(match, player) >= needed) ?? null;
 }
@@ -79,7 +86,7 @@ export function matchWinner(match: MatchState): PlayerId | null {
  * winner's: the rule is about the pair that were in play. R486.5.a exempts a
  * game nobody won.
  */
-export function removedFrom(match: MatchState, player: PlayerId): CardId[] {
+export function removedFrom(match: MatchState, player: DuelSeat): CardId[] {
   return match.games
     .filter((game) => game.winner !== null)
     .map((game) => game.presented[player]);
@@ -87,7 +94,7 @@ export function removedFrom(match: MatchState, player: PlayerId): CardId[] {
 
 function timesPresented(
   match: MatchState,
-  player: PlayerId,
+  player: DuelSeat,
   battlefield: CardId,
 ): number {
   return match.games.filter((game) => game.presented[player] === battlefield)
@@ -99,7 +106,7 @@ function timesPresented(
  * re-use a battlefield in this way if they have already presented each of
  * their battlefields at least once during the match."
  */
-function hasPresentedAll(match: MatchState, player: PlayerId): boolean {
+function hasPresentedAll(match: MatchState, player: DuelSeat): boolean {
   return match.pools[player].every(
     (battlefield) => timesPresented(match, player, battlefield) > 0,
   );
@@ -110,7 +117,7 @@ function hasPresentedAll(match: MatchState, player: PlayerId): boolean {
  * `match.games.length` is how many are already finished, so three finished
  * games means the next one is the fourth.
  */
-function mayReuse(match: MatchState, player: PlayerId): boolean {
+function mayReuse(match: MatchState, player: DuelSeat): boolean {
   return (
     match.bestOf === 5 && match.games.length >= 3 && hasPresentedAll(match, player)
   );
@@ -123,7 +130,7 @@ function mayReuse(match: MatchState, player: PlayerId): boolean {
  */
 export function legalBattlefields(
   match: MatchState,
-  player: PlayerId,
+  player: DuelSeat,
 ): CardId[] {
   if (matchWinner(match) !== null) return [];
 
@@ -143,7 +150,7 @@ export function legalBattlefields(
 /** Why `battlefield` may not be presented, or `undefined` if it may. */
 export function checkPresent(
   match: MatchState,
-  player: PlayerId,
+  player: DuelSeat,
   battlefield: CardId,
 ): PresentError | undefined {
   if (matchWinner(match) !== null) return "matchOver";
@@ -160,12 +167,12 @@ export function checkPresent(
 
 export type SetupOutcome =
   | { ok: true; setup: GameSetup; match: MatchState }
-  | { ok: false; errors: Partial<Record<PlayerId, PresentError>> };
+  | { ok: false; errors: Partial<Record<DuelSeat, PresentError>> };
 
 /**
  * Presents both battlefields and builds the next game's `GameSetup` from a
  * base holding the decks and cards — the same object `matchup()` returns, with
- * its `choices` replaced.
+ * its seats' battlefields replaced.
  *
  * R486 gives no First Turn Process beyond R485.7's extra rune for the player
  * going second, and says nothing about who goes first in later games, so
@@ -178,10 +185,10 @@ export type SetupOutcome =
 export function setupFor(
   match: MatchState,
   base: GameSetup,
-  presented: Record<PlayerId, CardId>,
-  startingPlayer: PlayerId = "p1",
+  presented: Record<DuelSeat, CardId>,
+  startingPlayer: DuelSeat = "p1",
 ): SetupOutcome {
-  const errors: Partial<Record<PlayerId, PresentError>> = {};
+  const errors: Partial<Record<DuelSeat, PresentError>> = {};
   for (const player of PLAYERS) {
     const error = checkPresent(match, player, presented[player]);
     if (error !== undefined) errors[player] = error;
@@ -193,11 +200,14 @@ export function setupFor(
     match,
     setup: {
       ...base,
-      choices: {
-        p1: { battlefield: presented.p1 },
-        p2: { battlefield: presented.p2 },
+      // R115.1 — index 0 is the First Player, so choosing who starts is
+      // choosing the rotation. R486 adds no First Turn Process of its own
+      // beyond R485.7's extra rune, which keys off going last.
+      turnOrder: startingPlayer === "p1" ? ["p1", "p2"] : ["p2", "p1"],
+      seats: {
+        p1: { ...base.seats.p1!, battlefield: presented.p1 },
+        p2: { ...base.seats.p2!, battlefield: presented.p2 },
       },
-      startingPlayer,
     },
   };
 }
@@ -209,8 +219,8 @@ export function setupFor(
  */
 export function recordGame(
   match: MatchState,
-  presented: Record<PlayerId, CardId>,
-  winner: PlayerId | null,
+  presented: Record<DuelSeat, CardId>,
+  winner: DuelSeat | null,
 ): MatchState {
   return { ...match, games: [...match.games, { presented, winner }] };
 }

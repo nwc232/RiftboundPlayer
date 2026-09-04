@@ -13,6 +13,7 @@ import { legalTargets } from "../src/decisions.js";
 import { legalActions } from "../src/legal.js";
 import { FREE } from "../src/cost.js";
 import { VICTORY_SCORE } from "../src/scoring.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -76,8 +77,8 @@ describe("scoring a point", () => {
   it("scores for the chosen player, not the controller", () => {
     const after = execute(board(), scorePoint(1, 0), context(["p2"]));
 
-    expect(after.state.players.p2.points).toBe(1);
-    expect(after.state.players.p1.points).toBe(0);
+    expect(seatOf(after.state, "p2").points).toBe(1);
+    expect(seatOf(after.state, "p1").points).toBe(0);
     expect(after.events).toEqual([
       { type: "pointGained", playerId: "p2", points: 1 },
     ]);
@@ -86,14 +87,14 @@ describe("scoring a point", () => {
   it("scores for the controller when no player is named", () => {
     const after = execute(board(), scorePoint(1), context());
 
-    expect(after.state.players.p1.points).toBe(1);
+    expect(seatOf(after.state, "p1").points).toBe(1);
   });
 
   it("does nothing when handed a card instead of a player", () => {
     const after = execute(board(), scorePoint(1, 0), context(["a"]));
 
-    expect(after.state.players.p1.points).toBe(0);
-    expect(after.state.players.p2.points).toBe(0);
+    expect(seatOf(after.state, "p1").points).toBe(0);
+    expect(seatOf(after.state, "p2").points).toBe(0);
   });
 
   /**
@@ -106,12 +107,12 @@ describe("scoring a point", () => {
       ...base,
       players: {
         ...base.players,
-        p1: { ...base.players.p1, points: VICTORY_SCORE - 1 },
+        p1: { ...seatOf(base, "p1"), points: VICTORY_SCORE - 1 },
       },
     };
 
     const after = execute(nearly, scorePoint(1), context());
-    expect(after.state.players.p1.points).toBe(VICTORY_SCORE);
+    expect(seatOf(after.state, "p1").points).toBe(VICTORY_SCORE);
   });
 });
 
@@ -175,7 +176,7 @@ describe("a spell that chooses a player", () => {
       current = result.state;
     }
 
-    expect(current.players.p2.points).toBe(1);
+    expect(seatOf(current, "p2").points).toBe(1);
   });
 });
 
@@ -192,8 +193,8 @@ describe("running an effect for each player", () => {
   it("runs it once for each of them", () => {
     const after = execute(board(), forEachPlayer(draw(1, 0)), context());
 
-    expect(after.state.players.p1.hand).toEqual(["a1"]);
-    expect(after.state.players.p2.hand).toEqual(["b1"]);
+    expect(seatOf(after.state, "p1").hand).toEqual(["a1"]);
+    expect(seatOf(after.state, "p2").hand).toEqual(["b1"]);
   });
 
   it("can be narrowed to the opponents", () => {
@@ -203,8 +204,8 @@ describe("running an effect for each player", () => {
       context(),
     );
 
-    expect(after.state.players.p1.hand).toEqual([]);
-    expect(after.state.players.p2.hand).toEqual(["b1"]);
+    expect(seatOf(after.state, "p1").hand).toEqual([]);
+    expect(seatOf(after.state, "p2").hand).toEqual(["b1"]);
   });
 
   /** R318's turn order: the effect's controller acts first. */
@@ -221,8 +222,8 @@ describe("running an effect for each player", () => {
       controller: "p2",
     });
 
-    expect(after.state.players.p1.hand).toEqual(["a1"]);
-    expect(after.state.players.p2.hand).toEqual([]);
+    expect(seatOf(after.state, "p1").hand).toEqual(["a1"]);
+    expect(seatOf(after.state, "p2").hand).toEqual([]);
   });
 
   /** The chosen player is appended, so an outer choice keeps its own index. */
@@ -233,7 +234,7 @@ describe("running an effect for each player", () => {
       context(["ignored"]),
     );
 
-    expect(after.state.players.p2.hand).toEqual(["b1"]);
+    expect(seatOf(after.state, "p2").hand).toEqual(["b1"]);
   });
 });
 

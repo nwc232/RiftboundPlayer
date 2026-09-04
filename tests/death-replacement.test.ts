@@ -3,6 +3,7 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import { draw, exhaust, heal, recall, replacesDeath, seq } from "../src/builders.js";
 import { deathReplacementsFor } from "../src/replacements.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -79,7 +80,7 @@ describe("replacing a death (R369)", () => {
     const state = run(dying([]), [NUDGE]);
 
     expect(state.permanents.doomed).toBeUndefined();
-    expect(state.players.p1.trash).toEqual(["doomed"]);
+    expect(seatOf(state, "p1").trash).toEqual(["doomed"]);
   });
 
   it("heals, exhausts and recalls it instead", () => {

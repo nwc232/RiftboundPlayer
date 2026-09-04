@@ -12,6 +12,7 @@ import { legalTargets } from "./decisions.js";
 import { holds } from "./conditions.js";
 import type { Condition } from "./conditions.js";
 import type { CardId, Cost, GameState, PlayerId, PowerCount } from "./state.js";
+import { seatOf } from "./state.js";
 
 /**
  * R477.3 arithmetic applied to a Cost rather than to Might. Kept out of the
@@ -231,10 +232,10 @@ export function choicePoolFor(
 ): CardId[] {
   // R416.1 — the trash is a public zone, so there is nothing to filter by
   // beyond being in it.
-  if (cost.fromTrash === true) return [...state.players[controller].trash];
+  if (cost.fromTrash === true) return [...seatOf(state, controller).trash];
   // R422.1.a — a Discard chooses from the discarding player's hand, which is
   // not a board search and so has no filter to apply.
-  if (cost.from === undefined) return state.players[controller].hand;
+  if (cost.from === undefined) return seatOf(state, controller).hand;
 
   const pool = legalTargets(state, controller, cost.from, sourceId);
   switch (cost.does) {

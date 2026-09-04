@@ -17,10 +17,11 @@ import type {
   PlaySource,
   PaymentRestriction,
   PowerCount,
+  PlayerState,
 } from "./state.js";
 import { leaveChain } from "./chain.js";
 import { killUnits } from "./combat.js";
-import { ownerOf, sameLocation } from "./state.js";
+import { ownerOf, playedBy, sameLocation, seatOf } from "./state.js";
 import { burnOut, drawCards } from "./draw.js";
 import { controllerOf, mightOf, restricted } from "./layers.js";
 import { tokenCard } from "./tokens.js";
@@ -1042,9 +1043,9 @@ function resolveDomain(
 function withPool(
   state: GameState,
   playerId: PlayerId,
-  update: (pool: GameState["players"][PlayerId]["runePool"]) => GameState["players"][PlayerId]["runePool"],
+  update: (pool: PlayerState["runePool"]) => PlayerState["runePool"],
 ): GameState {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   return {
     ...state,
     players: {
@@ -1177,8 +1178,8 @@ export function execute(
                 players: {
                   ...off.players,
                   [owns]: {
-                    ...off.players[owns],
-                    hand: [...off.players[owns].hand, targetId],
+                    ...seatOf(off, owns),
+                    hand: [...seatOf(off, owns).hand, targetId],
                   },
                 },
               },
@@ -1301,7 +1302,7 @@ export function execute(
 
       // They said yes, so the cost is taken now. R356 is not involved: this is
       // not a cost of playing anything, it is what the spell asked for.
-      const player = state.players[item.controller];
+      const player = seatOf(state, item.controller);
       const remaining = spend(player.runePool, effect.cost, {
         kind: "activateAbility",
         inShowdown: state.showdown !== null,
@@ -1335,7 +1336,7 @@ export function execute(
     }
 
     case "branchOnCardType": {
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       let current = state;
       const events: GameEvent[] = [];
       let found: CardId | undefined;
@@ -1723,8 +1724,8 @@ export function execute(
           players: {
             ...state.players,
             [owner]: {
-              ...state.players[owner],
-              hand: [...state.players[owner].hand, targetId],
+              ...seatOf(state, owner),
+              hand: [...seatOf(state, owner).hand, targetId],
             },
           },
         },
@@ -1747,8 +1748,8 @@ export function execute(
           players: {
             ...state.players,
             [owner]: {
-              ...state.players[owner],
-              banished: [...state.players[owner].banished, targetId],
+              ...seatOf(state, owner),
+              banished: [...seatOf(state, owner).banished, targetId],
             },
           },
         },
@@ -1866,7 +1867,7 @@ export function execute(
     }
 
     case "gainXP": {
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       return {
         state: {
           ...state,
@@ -2040,7 +2041,7 @@ export function execute(
     }
 
     case "readyRunes": {
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       const runes = { ...state.runes };
       const events: GameEvent[] = [];
       let left = effect.count;
@@ -2259,7 +2260,7 @@ export function execute(
       };
 
     case "lookAtTop": {
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       const revealed = player.mainDeck.slice(0, effect.count);
       if (revealed.length === 0) return { state, events: [] };
 
@@ -2286,7 +2287,7 @@ export function execute(
     }
 
     case "recycleFromHand": {
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       // R416 cannot recycle more than there is; a short hand recycles all of it.
       const count = Math.min(effect.count, player.hand.length);
       if (count === 0) return { state, events: [] };
@@ -2319,7 +2320,7 @@ export function execute(
         effect.from.includes(id),
       );
       if (chosen.length === 0) return { state, events: [] };
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
 
       // R416.1 — recycling puts a card on the *bottom* of the Main Deck.
       return {
@@ -2349,7 +2350,7 @@ export function execute(
           : context.targets[effect.targetIndex];
       if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
 
-      const player = state.players[chosen];
+      const player = seatOf(state, chosen);
       const zone = effect.from === "hand" ? player.hand : player.mainDeck;
       // R424.3.a — "when the zone is instructed to be Revealed without
       // indicating a number, that refers to all cards currently in the zone."
@@ -2381,7 +2382,7 @@ export function execute(
           : context.targets[effect.targetIndex];
       if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
 
-      const hand = state.players[chosen].hand;
+      const hand = seatOf(state, chosen).hand;
       // R422.4 — "a player must Discard as many cards as possible… If
       // instructed to discard more than they have, further instructions are
       // ignored." So an empty hand is a no-op, not a failure.
@@ -2418,7 +2419,7 @@ export function execute(
         effect.from.includes(id),
       );
       if (chosen.length === 0) return { state, events: [] };
-      const player = state.players[effect.player];
+      const player = seatOf(state, effect.player);
 
       return {
         state: {
@@ -2457,7 +2458,7 @@ export function execute(
       // of cards actually burned, and the loop goes round again after it.
       let burned = 0;
       while (burned < effect.count) {
-        const player = current.players[chosen];
+        const player = seatOf(current, chosen);
         const [top, ...rest] = player.mainDeck;
 
         if (top === undefined) {
@@ -2489,7 +2490,7 @@ export function execute(
     }
 
     case "predict": {
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       // R436.4 — "If a player attempts to Predict more cards than are
       // available, they will Predict as many as possible instead", and
       // R436.4.a is explicit that this never causes a Burn Out.
@@ -2514,7 +2515,7 @@ export function execute(
 
     case "takePredicted": {
       const recycled = context.answer ?? [];
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       const kept = effect.revealed.filter((id) => !recycled.includes(id));
 
       // R416.1 — Recycling puts a card on the *bottom*. The kept cards go back
@@ -2567,7 +2568,7 @@ export function execute(
       ) {
         return { state, events: [] };
       }
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       return {
         state: {
           ...state,
@@ -2585,7 +2586,7 @@ export function execute(
 
     case "recycleFromOpponentHand": {
       const opponent = context.controller === "p1" ? "p2" : "p1";
-      const legal = state.players[opponent].hand.filter(
+      const legal = seatOf(state, opponent).hand.filter(
         (cardId) =>
           effect.exclude === undefined ||
           state.cards[cardId]?.type !== effect.exclude,
@@ -2626,7 +2627,7 @@ export function execute(
       const chosen = context.answer ?? [];
 
       if (effect.from === "mainDeck") {
-        const player = state.players[context.controller];
+        const player = seatOf(state, context.controller);
         const rest = effect.revealed.filter((id) => !chosen.includes(id));
         return {
           state: {
@@ -2652,7 +2653,7 @@ export function execute(
       }
 
       const opponent = context.controller === "p1" ? "p2" : "p1";
-      const theirs = state.players[opponent];
+      const theirs = seatOf(state, opponent);
       return {
         state: {
           ...state,
@@ -2749,7 +2750,7 @@ export function execute(
         anyPower: Math.max(0, cost.anyPower - effect.reduce.anyPower),
       };
 
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       const sourceCard = state.cards[context.sourceId];
       const remaining = spend(player.runePool, cost, {
         kind: "activateAbility",
@@ -2865,7 +2866,7 @@ export function execute(
       // and a card cannot score.
       if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
 
-      const player = state.players[chosen];
+      const player = seatOf(state, chosen);
       return {
         state: {
           ...state,
@@ -2884,7 +2885,7 @@ export function execute(
       // R107.4.c — the Champion Legend is a Game Object and can be Empowered,
       // and has no permanent to carry the status. Same shape as its exhausted
       // state, and for the same reason.
-      const player = state.players[context.controller];
+      const player = seatOf(state, context.controller);
       if (player.legend === context.sourceId) {
         if (player.legendEmpowered === true) return { state, events: [] };
         return {
@@ -2972,7 +2973,7 @@ export function execute(
           },
           playedThisTurn: {
             ...state.playedThisTurn,
-            [owner]: [...state.playedThisTurn[owner], targetId],
+            [owner]: [...playedBy(state, owner), targetId],
           },
         },
         events: [

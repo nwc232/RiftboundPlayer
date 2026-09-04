@@ -3,6 +3,7 @@ import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import { dealDamage, draw } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -182,7 +183,7 @@ describe("optional triggers (R383.3.a)", () => {
 
     expect(state.chain).toHaveLength(0);
     expect(state.pending).toBeNull();
-    expect(state.players.p1.hand).toEqual([]);
+    expect(seatOf(state, "p1").hand).toEqual([]);
   });
 
   it("accepting leaves it on the chain to resolve normally", () => {
@@ -194,6 +195,6 @@ describe("optional triggers (R383.3.a)", () => {
     ]);
 
     expect(state.chain).toHaveLength(0);
-    expect(state.players.p1.hand).toEqual(["spare"]);
+    expect(seatOf(state, "p1").hand).toEqual(["spare"]);
   });
 });

@@ -4,6 +4,7 @@ import { chainItemCardId } from "../src/chain.js";
 import type { Action } from "../src/actions.js";
 import { counterSpell, dealDamage, draw, spell } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -67,7 +68,7 @@ describe("putting a spell on the chain", () => {
     expect(state.chain).toHaveLength(0);
     expect(state.priority).toBeNull();
     expect(state.permanents.target?.damage).toBe(2);
-    expect(state.players.p1.trash).toEqual(["inc"]);
+    expect(seatOf(state, "p1").trash).toEqual(["inc"]);
   });
 
   it("kills a unit that ends up with lethal damage (R428.1.a.2)", () => {
@@ -85,7 +86,7 @@ describe("putting a spell on the chain", () => {
     );
 
     expect(state.permanents.target).toBeUndefined();
-    expect(state.players.p2.trash).toEqual(["target"]);
+    expect(seatOf(state, "p2").trash).toEqual(["target"]);
   });
 });
 
@@ -140,8 +141,8 @@ describe("countering", () => {
     // Wind Wall was newest so it resolved first, removing Incinerate.
     expect(state.chain).toHaveLength(0);
     expect(state.permanents.target?.damage).toBe(0);
-    expect(state.players.p1.trash).toEqual(["inc"]);
-    expect(state.players.p2.trash).toEqual(["ww"]);
+    expect(seatOf(state, "p1").trash).toEqual(["inc"]);
+    expect(seatOf(state, "p2").trash).toEqual(["ww"]);
   });
 
   it("leaves the target unharmed because the countered spell never executes", () => {

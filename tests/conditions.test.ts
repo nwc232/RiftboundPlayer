@@ -17,6 +17,7 @@ import {
 import { holds } from "../src/conditions.js";
 import type { Condition } from "../src/conditions.js";
 import { mightOf } from "../src/layers.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -177,7 +178,7 @@ describe("totalling your other units", () => {
   it("draws when the total is met", () => {
     const state = run(board(5), [PLAY, ...PASS]);
 
-    expect(state.players.p1.hand).toEqual(["a"]);
+    expect(seatOf(state, "p1").hand).toEqual(["a"]);
   });
 
   /**
@@ -187,7 +188,7 @@ describe("totalling your other units", () => {
   it("does not count itself", () => {
     const state = run(board(4), [PLAY, ...PASS]);
 
-    expect(state.players.p1.hand).toEqual([]);
+    expect(seatOf(state, "p1").hand).toEqual([]);
   });
 
   /** The trigger still went on the chain — it simply resolved to nothing. */

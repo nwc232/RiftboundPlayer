@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { activateAbility, endTurn, playUnitFromHand } from "../src/actions.js";
 import { totals } from "../src/cost.js";
 import type { ActivatedAbility } from "../src/abilities.js";
+import { seatOf } from "../src/state.js";
 import type { GameState } from "../src/state.js";
 import { beginTurn } from "../src/tasks.js";
 import { cost, makeState, pool, runeCard, unit } from "./fixtures.js";
@@ -34,16 +35,16 @@ describe("beginTurn", () => {
   it("channels 2 runes and draws 1 (R315.3, R315.4)", () => {
     const { state } = beginTurn(board(), "p1", 1);
 
-    expect(state.players.p1.runes).toEqual(["r1", "r2"]);
-    expect(state.players.p1.runeDeck).toEqual(["r3"]);
-    expect(state.players.p1.hand).toEqual(["u1"]);
+    expect(seatOf(state, "p1").runes).toEqual(["r1", "r2"]);
+    expect(seatOf(state, "p1").runeDeck).toEqual(["r3"]);
+    expect(seatOf(state, "p1").hand).toEqual(["u1"]);
   });
 
   it("channels as many as remain when the rune deck is short", () => {
     const { state } = beginTurn(board(), "p2", 1);
 
-    expect(state.players.p2.runes).toEqual(["r4"]);
-    expect(state.players.p2.runeDeck).toEqual([]);
+    expect(seatOf(state, "p2").runes).toEqual(["r4"]);
+    expect(seatOf(state, "p2").runeDeck).toEqual([]);
   });
 
   it("readies everything the turn player controls (R315.1)", () => {
@@ -67,15 +68,15 @@ describe("beginTurn", () => {
       ...board(),
       players: {
         ...board().players,
-        p1: { ...board().players.p1, runePool: pool({ energy: 3 }) },
-        p2: { ...board().players.p2, runePool: pool({ energy: 2 }) },
+        p1: { ...seatOf(board(), "p1"), runePool: pool({ energy: 3 }) },
+        p2: { ...seatOf(board(), "p2"), runePool: pool({ energy: 2 }) },
       },
     };
 
     const { state } = beginTurn(withPools, "p1", 1);
 
-    expect(totals(state.players.p1.runePool).energy).toBe(0);
-    expect(totals(state.players.p2.runePool).energy).toBe(0);
+    expect(totals(seatOf(state, "p1").runePool).energy).toBe(0);
+    expect(totals(seatOf(state, "p2").runePool).energy).toBe(0);
   });
 });
 

@@ -13,6 +13,7 @@ import {
 import type { Deck } from "../src/deck.js";
 import { drawCards } from "../src/draw.js";
 import { VICTORY_SCORE, checkForWinner } from "../src/scoring.js";
+import { seatOf } from "../src/state.js";
 import type { CardId, CardInstance, GameState } from "../src/state.js";
 import { makeState, unit } from "./fixtures.js";
 
@@ -199,11 +200,10 @@ describe("setup (R103/R485)", () => {
     const two = buildDeck("p2");
     return startGame({
       cards: [...one.cards, ...two.cards],
-      p1: one.deck,
-      p2: two.deck,
-      choices: {
-        p1: { battlefield: one.deck.battlefields[0]! },
-        p2: { battlefield: two.deck.battlefields[2]! },
+      turnOrder: ["p1", "p2"],
+      seats: {
+        p1: { deck: one.deck, battlefield: one.deck.battlefields[0]! },
+        p2: { deck: two.deck, battlefield: two.deck.battlefields[2]! },
       },
     });
   }
@@ -213,29 +213,33 @@ describe("setup (R103/R485)", () => {
     const two = buildDeck("p2");
     const result = startGame({
       cards: [...one.cards, ...two.cards],
-      p1: { ...one.deck, runeDeck: [] },
-      p2: two.deck,
-      choices: {
-        p1: { battlefield: one.deck.battlefields[0]! },
-        p2: { battlefield: two.deck.battlefields[0]! },
+      turnOrder: ["p1", "p2"],
+      seats: {
+        p1: {
+          deck: { ...one.deck, runeDeck: [] },
+          battlefield: one.deck.battlefields[0]!,
+        },
+        p2: { deck: two.deck, battlefield: two.deck.battlefields[0]! },
       },
     });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected rejection");
     expect(result.errors.p1).toContain("wrongRuneCount");
-    expect(result.errors.p2).toEqual([]);
+    // Only seats with something wrong appear: a legal deck is absent from the
+    // record rather than present with an empty list.
+    expect(result.errors.p2).toBeUndefined();
   });
 
   it("puts the Legend and Chosen Champion in their zones (R107.4/R108.3)", () => {
     const result = game();
     if (!result.ok) throw new Error("setup failed");
 
-    expect(result.state.players.p1.legend).toBe("p1-legend");
-    expect(result.state.players.p1.champion).toBe("p1-u0-1");
+    expect(seatOf(result.state, "p1").legend).toBe("p1-legend");
+    expect(seatOf(result.state, "p1").champion).toBe("p1-u0-1");
     // R103.2.a.1 — it counted toward the 40 but is not among the drawable cards.
-    expect(result.state.players.p1.mainDeck).not.toContain("p1-u0-1");
-    expect(result.state.players.p1.hand).not.toContain("p1-u0-1");
+    expect(seatOf(result.state, "p1").mainDeck).not.toContain("p1-u0-1");
+    expect(seatOf(result.state, "p1").hand).not.toContain("p1-u0-1");
   });
 
   /** R485.4 — two battlefields in play, one contributed by each player. */
@@ -252,7 +256,7 @@ describe("setup (R103/R485)", () => {
     if (!result.ok) throw new Error("setup failed");
 
     // p1 went first, so channelled two on turn 1.
-    expect(keepAll(result.state).players.p1.runes).toHaveLength(2);
+    expect(seatOf(keepAll(result.state), "p1").runes).toHaveLength(2);
 
     const turnTwo = applyAction(keepAll(result.state), {
       type: "endTurn",
@@ -261,9 +265,9 @@ describe("setup (R103/R485)", () => {
     if (!turnTwo.ok) throw new Error(`rejected: ${turnTwo.reason}`);
 
     expect(turnTwo.state.turn.player).toBe("p2");
-    expect(turnTwo.state.players.p2.runes).toHaveLength(3);
+    expect(seatOf(turnTwo.state, "p2").runes).toHaveLength(3);
     // And only on their first — p1 still has two.
-    expect(turnTwo.state.players.p1.runes).toHaveLength(2);
+    expect(seatOf(turnTwo.state, "p1").runes).toHaveLength(2);
   });
 });
 
@@ -274,17 +278,16 @@ describe("playing the Chosen Champion (R108.3.d)", () => {
     const two = buildDeck("p2");
     const started = startGame({
       cards: [...one.cards, ...two.cards],
-      p1: one.deck,
-      p2: two.deck,
-      choices: {
-        p1: { battlefield: one.deck.battlefields[0]! },
-        p2: { battlefield: two.deck.battlefields[0]! },
+      turnOrder: ["p1", "p2"],
+      seats: {
+        p1: { deck: one.deck, battlefield: one.deck.battlefields[0]! },
+        p2: { deck: two.deck, battlefield: two.deck.battlefields[0]! },
       },
     });
     if (!started.ok) throw new Error("setup failed");
 
     const ready = keepAll(started.state);
-    const championId = ready.players.p1.champion!;
+    const championId = seatOf(ready, "p1").champion!;
     // The test units are free, so no rune payment is needed.
     const played = applyAction(ready, {
       type: "playUnitFromHand",
@@ -295,7 +298,7 @@ describe("playing the Chosen Champion (R108.3.d)", () => {
 
     expect(played.state.permanents[championId]).toBeDefined();
     // R108.3.c — it cannot come back here, so the zone stays empty.
-    expect(played.state.players.p1.champion).toBeNull();
+    expect(seatOf(played.state, "p1").champion).toBeNull();
   });
 });
 
@@ -313,11 +316,11 @@ describe("Burn Out (R431)", () => {
 
     const after = drawCards(state, "p1", 1);
 
-    expect(after.state.players.p2.points).toBe(1);
-    expect(after.state.players.p1.trash).toEqual([]);
+    expect(seatOf(after.state, "p2").points).toBe(1);
+    expect(seatOf(after.state, "p1").trash).toEqual([]);
     // R431.2.d — the draw still happens, out of the recycled deck.
-    expect(after.state.players.p1.hand).toEqual(["t1"]);
-    expect(after.state.players.p1.mainDeck).toEqual(["t2"]);
+    expect(seatOf(after.state, "p1").hand).toEqual(["t1"]);
+    expect(seatOf(after.state, "p1").mainDeck).toEqual(["t2"]);
     expect(after.events.map((e) => e.type)).toContain("burnedOut");
   });
 
@@ -326,9 +329,9 @@ describe("Burn Out (R431)", () => {
 
     const after = drawCards(state, "p1", 2);
 
-    expect(after.state.players.p1.hand).toEqual([]);
+    expect(seatOf(after.state, "p1").hand).toEqual([]);
     // One burn out per attempted draw that found nothing.
-    expect(after.state.players.p2.points).toBe(1);
+    expect(seatOf(after.state, "p2").points).toBe(1);
   });
 
   it("can win the game for the opponent (R194.3)", () => {
@@ -337,7 +340,7 @@ describe("Burn Out (R431)", () => {
       ...base,
       players: {
         ...base.players,
-        p2: { ...base.players.p2, points: VICTORY_SCORE - 1 },
+        p2: { ...seatOf(base, "p2"), points: VICTORY_SCORE - 1 },
       },
     };
 
@@ -358,11 +361,10 @@ describe("opening hand and Mulligan (R116/R117)", () => {
     const two = buildDeck("p2");
     const result = startGame({
       cards: [...one.cards, ...two.cards],
-      p1: one.deck,
-      p2: two.deck,
-      choices: {
-        p1: { battlefield: one.deck.battlefields[0]! },
-        p2: { battlefield: two.deck.battlefields[0]! },
+      turnOrder: ["p1", "p2"],
+      seats: {
+        p1: { deck: one.deck, battlefield: one.deck.battlefields[0]! },
+        p2: { deck: two.deck, battlefield: two.deck.battlefields[0]! },
       },
     });
     if (!result.ok) throw new Error("setup failed");
@@ -372,12 +374,12 @@ describe("opening hand and Mulligan (R116/R117)", () => {
   it("deals four and stops for the first player's Mulligan", () => {
     const state = game();
 
-    expect(state.players.p1.hand).toHaveLength(OPENING_HAND);
-    expect(state.players.p2.hand).toHaveLength(OPENING_HAND);
+    expect(seatOf(state, "p1").hand).toHaveLength(OPENING_HAND);
+    expect(seatOf(state, "p2").hand).toHaveLength(OPENING_HAND);
     // R117 happens before turn 1, so nothing has been channelled yet.
     expect(state.pending?.prompt.kind).toBe("mulligan");
     expect(state.pending?.player).toBe("p1");
-    expect(state.players.p1.runes).toEqual([]);
+    expect(seatOf(state, "p1").runes).toEqual([]);
   });
 
   it("asks in turn order, then starts the turn", () => {
@@ -398,7 +400,7 @@ describe("opening hand and Mulligan (R116/R117)", () => {
 
     expect(afterSecond.state.pending).toBeNull();
     expect(afterSecond.state.turn.phase).toBe("main");
-    expect(afterSecond.state.players.p1.runes).toHaveLength(2);
+    expect(seatOf(afterSecond.state, "p1").runes).toHaveLength(2);
   });
 
   /**
@@ -407,8 +409,8 @@ describe("opening hand and Mulligan (R116/R117)", () => {
    */
   it("draws replacements before recycling what was set aside", () => {
     const state = game();
-    const [first, second] = state.players.p1.hand;
-    const topOfDeck = state.players.p1.mainDeck.slice(0, 2);
+    const [first, second] = seatOf(state, "p1").hand;
+    const topOfDeck = seatOf(state, "p1").mainDeck.slice(0, 2);
 
     const after = applyAction(state, {
       type: "decide",
@@ -417,13 +419,13 @@ describe("opening hand and Mulligan (R116/R117)", () => {
     });
     if (!after.ok) throw new Error(`rejected: ${after.reason}`);
 
-    const hand = after.state.players.p1.hand;
+    const hand = seatOf(after.state, "p1").hand;
     expect(hand).toHaveLength(OPENING_HAND);
     expect(hand).not.toContain(first);
     expect(hand).not.toContain(second);
     expect(hand).toEqual(expect.arrayContaining(topOfDeck));
     // R416.1 — the set-aside cards went to the bottom of the Main Deck.
-    expect(after.state.players.p1.mainDeck.slice(-2)).toEqual([first, second]);
+    expect(seatOf(after.state, "p1").mainDeck.slice(-2)).toEqual([first, second]);
   });
 
   it("refuses more than two (R117.1)", () => {
@@ -433,7 +435,7 @@ describe("opening hand and Mulligan (R116/R117)", () => {
       applyAction(state, {
         type: "decide",
         playerId: "p1",
-        targets: state.players.p1.hand.slice(0, 3),
+        targets: seatOf(state, "p1").hand.slice(0, 3),
       }),
     ).toEqual({ ok: false, reason: "wrongTargetCount" });
   });
@@ -445,7 +447,7 @@ describe("opening hand and Mulligan (R116/R117)", () => {
       applyAction(state, {
         type: "decide",
         playerId: "p1",
-        targets: [state.players.p1.mainDeck[0]!],
+        targets: [seatOf(state, "p1").mainDeck[0]!],
       }),
     ).toEqual({ ok: false, reason: "invalidTarget" });
   });

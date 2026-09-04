@@ -11,7 +11,7 @@ import {
 } from "./costing.js";
 import { killUnits } from "./combat.js";
 import type { GameEvent } from "./events.js";
-import { ownerOf, permanentsAt, sameLocation } from "./state.js";
+import { ownerOf, permanentsAt, playedBy, sameLocation, seatOf } from "./state.js";
 import type {
   BattlefieldState,
   CardId,
@@ -208,7 +208,7 @@ function recordFinalized(
 ): GameState["playedThisTurn"] {
   return {
     ...state.playedThisTurn,
-    [playerId]: [...state.playedThisTurn[playerId], cardId],
+    [playerId]: [...playedBy(state, playerId), cardId],
   };
 }
 
@@ -760,7 +760,7 @@ function withPlayer(
  * so tests using it as a generic "make something happen" stay honest.
  */
 export function drawCard(state: GameState, playerId: PlayerId): ActionResult {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const [drawnId, ...remainingDeck] = player.mainDeck;
 
   if (drawnId === undefined) {
@@ -793,7 +793,7 @@ export function playUnitFromHand(
   costChoices: CardId[][] = [],
   playFrom = 0,
 ): ActionResult {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const card = state.cards[cardId];
 
   if (card === undefined) {
@@ -923,7 +923,7 @@ export function playUnitFromHand(
   // legend". Paid after the card has left its zone, so a discard cannot help
   // itself to the card being played.
   let afterExtras = withPlayer(leftZone, playerId, {
-    ...leftZone.players[playerId],
+    ...seatOf(leftZone, playerId),
     runePool: remainingPool,
   });
   // R421.4's reveal, if the card was coming out of a Facedown Zone.
@@ -1155,7 +1155,7 @@ export function playSpell(
   modes: number[] = [],
   costChoices: CardId[][] = [],
 ): ActionResult {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const card = state.cards[cardId];
 
   if (card === undefined) return rejected("cardNotFound");
@@ -1269,7 +1269,7 @@ export function playSpell(
   );
   const afterZone = left.state;
   let afterExtras: GameState = withPlayer(afterZone, playerId, {
-    ...afterZone.players[playerId],
+    ...seatOf(afterZone, playerId),
     runePool: remainingPool,
   });
   // R421.4's reveal, if the card was coming out of a Facedown Zone.
@@ -1569,7 +1569,7 @@ function performChosenCost(
   does: Extract<AbilityCost, { kind: "chosen" }>["does"],
   chosen: CardId[],
 ): { state: GameState; events: GameEvent[] } {
-  const player = state.players[controller];
+  const player = seatOf(state, controller);
 
   switch (does) {
     // R422 — from hand to trash, in the order the player named them.
@@ -1668,8 +1668,8 @@ function performChosenCost(
           players: {
             ...current.players,
             [owner]: {
-              ...current.players[owner],
-              hand: [...current.players[owner].hand, cardId],
+              ...seatOf(current, owner),
+              hand: [...seatOf(current, owner).hand, cardId],
             },
           },
         };
@@ -1699,7 +1699,7 @@ function payAbilityCost(
   chosen: CardId[] = [],
 ): { state: GameState; events: GameEvent[] } | undefined {
   const { controller, sourceId } = context;
-  const player = state.players[controller];
+  const player = seatOf(state, controller);
   const rune = state.runes[sourceId];
   const permanent = state.permanents[sourceId];
 
@@ -1884,7 +1884,7 @@ function controlsSource(
   playerId: PlayerId,
   sourceId: CardId,
 ): boolean {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   return (
     player.runes.includes(sourceId) ||
     // R107.4.c — "The Champion Legend here is a Game Object", and several

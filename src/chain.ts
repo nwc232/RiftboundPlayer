@@ -1,3 +1,4 @@
+import { seatOf } from "./state.js";
 import type { GameEvent } from "./events.js";
 import { mightOf } from "./layers.js";
 import type { TriggeredAbility } from "./triggers.js";
@@ -122,7 +123,7 @@ export function leaveChain(
   if (item.kind !== "spell") return { state, events: [] };
 
   const owner = item.controller;
-  const player = state.players[owner];
+  const player = seatOf(state, owner);
 
   // R829.1.b.1 — "if the spell would leave the chain after becoming a
   // finalized chain item, and leaving the chain wasn't instructed by its own

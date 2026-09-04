@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { playUnitFromHand } from "../src/actions.js";
 import { totals } from "../src/cost.js";
 import { cost, makeState, pool, unit } from "./fixtures.js";
+import { seatOf } from "../src/state.js";
 
 function freeUnitState() {
   return makeState({
@@ -16,7 +17,7 @@ describe("playUnitFromHand", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.state.players.p1.hand).toEqual(["s1"]);
+    expect(seatOf(result.state, "p1").hand).toEqual(["s1"]);
     expect(result.state.permanents.u1?.location).toEqual({ kind: "base", player: "p1" });
     expect(result.state.permanents.u1?.exhausted).toBe(true);
     expect(result.state.permanents.u1?.controller).toBe("p1");
@@ -38,7 +39,7 @@ describe("playUnitFromHand", () => {
 
     playUnitFromHand(before, "p1", "u1");
 
-    expect(before.players.p1.hand).toEqual(["u1", "s1"]);
+    expect(seatOf(before, "p1").hand).toEqual(["u1", "s1"]);
     expect(before.permanents.u1).toBeUndefined();
   });
 
@@ -86,7 +87,7 @@ describe("playUnitFromHand", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const left = totals(result.state.players.p1.runePool);
+    const left = totals(seatOf(result.state, "p1").runePool);
     expect(left.energy).toBe(1);
     expect(left.power).toEqual({ fury: 1 });
   });

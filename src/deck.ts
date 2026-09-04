@@ -32,7 +32,9 @@ export type DeckError =
   | "notARune"
   | "wrongBattlefieldCount"
   | "duplicateBattlefieldName"
-  | "unknownCard";
+  | "unknownCard"
+  /** R115.1 — a seat in the turn order that nobody brought a deck to. */
+  | "seatWithoutDeck";
 
 export const MAIN_DECK_MINIMUM = 40;
 export const RUNE_DECK_SIZE = 12;
@@ -155,23 +157,31 @@ export function copies(card: CardInstance, n: number): CardInstance[] {
   }));
 }
 
-export interface SetupChoice {
-  /** R485.5 — which of this player's three battlefields is used. */
-  battlefield: CardId;
+export interface SeatSetup {
+  deck: Deck;
+  /**
+   * R485.5 / R487.5 — which of this player's three battlefields is used.
+   * Absent for a seat that contributes none: R488.4.b removes the first
+   * player's battlefields in War, and R489.5.b does the same in Magma
+   * Chamber, so a mode can seat a player who brought three and presents none.
+   */
+  battlefield?: CardId;
 }
 
 export interface GameSetup {
   cards: CardInstance[];
-  p1: Deck;
-  p2: Deck;
-  choices: Record<PlayerId, SetupChoice>;
-  /** R485.7 keys the extra rune off this. */
-  startingPlayer?: PlayerId;
+  /**
+   * R115.1 — the players, in turn order. Index 0 is the First Player, and
+   * R115.1.c makes this a looping queue rather than a list, so it is also the
+   * answer to "who goes next" all game.
+   */
+  turnOrder: PlayerId[];
+  seats: Partial<Record<PlayerId, SeatSetup>>;
 }
 
 export type SetupResult =
   | { ok: true; state: GameState }
-  | { ok: false; errors: Record<PlayerId, DeckError[]> };
+  | { ok: false; errors: Partial<Record<PlayerId, DeckError[]>> };
 
 function emptyPlayer(id: PlayerId, deck: Deck) {
   // R103.2.a.1 — the Chosen Champion starts in the Champion Zone, so it is not
@@ -204,40 +214,49 @@ export function startGame(setup: GameSetup): SetupResult {
   const cards: Record<CardId, CardInstance> = {};
   for (const card of setup.cards) cards[card.id] = card;
 
-  const errors = {
-    p1: validateDeck(setup.p1, cards),
-    p2: validateDeck(setup.p2, cards),
-  };
-  if (errors.p1.length > 0 || errors.p2.length > 0) {
-    return { ok: false, errors };
+  const seatOrder = setup.turnOrder;
+  const errors: Partial<Record<PlayerId, DeckError[]>> = {};
+  for (const id of seatOrder) {
+    const seat = setup.seats[id];
+    if (seat === undefined) {
+      errors[id] = ["seatWithoutDeck"];
+      continue;
+    }
+    const found = validateDeck(seat.deck, cards);
+    if (found.length > 0) errors[id] = found;
   }
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
 
-  const startingPlayer = setup.startingPlayer ?? "p1";
-  const second: PlayerId = startingPlayer === "p1" ? "p2" : "p1";
+  const startingPlayer = seatOrder[0]!;
 
-  // R485.4 — two battlefields in play, one contributed by each player.
-  const battlefieldOrder = [
-    setup.choices.p1.battlefield,
-    setup.choices.p2.battlefield,
-  ];
+  // R485.4 / R487.4 — the battlefields in play, one per player who presents
+  // one. R488.4.b's War has the first player present none, so this is the
+  // seats that brought one rather than a count.
+  const battlefieldOrder = seatOrder.flatMap((id) => {
+    const chosen = setup.seats[id]?.battlefield;
+    return chosen === undefined ? [] : [chosen];
+  });
   const battlefields: GameState["battlefields"] = {};
   for (const id of battlefieldOrder) {
     battlefields[id] = { cardId: id, controller: null, contestedBy: null };
   }
 
+  const players: GameState["players"] = {};
+  for (const id of seatOrder) {
+    players[id] = emptyPlayer(id, setup.seats[id]!.deck);
+  }
+
   const blank: GameState = {
     turn: { player: startingPlayer, phase: "main", number: 0 },
-    players: {
-      p1: emptyPlayer("p1", setup.p1),
-      p2: emptyPlayer("p2", setup.p2),
-    },
+    turnOrder: [...seatOrder],
+    players,
     cards,
     permanents: {},
     runes: {},
     battlefields,
     battlefieldOrder,
     facedown: {},
-    playedThisTurn: { p1: [], p2: [] },
+    playedThisTurn: Object.fromEntries(seatOrder.map((id) => [id, []])),
     triggeredThisTurn: {},
     pendingDiscounts: [],
     revealed: [],
@@ -252,17 +271,17 @@ export function startGame(setup: GameSetup): SetupResult {
     modifiers: [],
     tokensCreated: 0,
     delayed: [],
-    startingPlayer,
   };
 
-  // R117 — the Mulligan happens in turn order, *before* turn 1 begins, so the
-  // queue holds both mulligans ahead of the first turn step. The driver stops
-  // at each for an answer.
+  // R117 — "In turn order, players perform their Mulligan", and it happens
+  // *before* turn 1 begins, so the queue holds every mulligan ahead of the
+  // first turn step. The driver stops at each for an answer.
   const opened = openTurn(blank, startingPlayer, 1);
   const queued = enqueue(
     opened.state,
-    { kind: "mulligan", player: startingPlayer },
-    { kind: "mulligan", player: second },
+    ...seatOrder.map(
+      (player) => ({ kind: "mulligan", player }) as const,
+    ),
     { kind: "turnStep", player: startingPlayer, step: "awaken", number: 1 },
   );
 

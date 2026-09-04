@@ -14,6 +14,7 @@ import { legalActions } from "../src/legal.js";
 import { expireModifiers } from "../src/layers.js";
 import { cannotPlay } from "../src/restrictions.js";
 import { score } from "../src/scoring.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -50,7 +51,7 @@ describe("a restriction on scoring", () => {
   it("stops the opponent scoring", () => {
     const after = score(board(NORTH), "p2", "bf-north", "hold");
 
-    expect(after.state.players.p2.points).toBe(3);
+    expect(seatOf(after.state, "p2").points).toBe(3);
     expect(after.events).toEqual([]);
   });
 
@@ -66,7 +67,7 @@ describe("a restriction on scoring", () => {
     };
     const after = score(held, "p1", "bf-north", "hold");
 
-    expect(after.state.players.p1.points).toBe(1);
+    expect(seatOf(after.state, "p1").points).toBe(1);
   });
 });
 
@@ -92,16 +93,16 @@ describe("a battlefield that restricts scoring at itself", () => {
   }
 
   it("stops a score there before the third turn", () => {
-    expect(score(board(2), "p1", "bf-north", "hold").state.players.p1.points).toBe(0);
+    expect(seatOf(score(board(2), "p1", "bf-north", "hold").state, "p1").points).toBe(0);
   });
 
   it("allows it from the third turn on", () => {
-    expect(score(board(3), "p1", "bf-north", "hold").state.players.p1.points).toBe(1);
+    expect(seatOf(score(board(3), "p1", "bf-north", "hold").state, "p1").points).toBe(1);
   });
 
   /** "…*here*" — the other battlefield is not covered. */
   it("leaves the other battlefield alone", () => {
-    expect(score(board(2), "p1", "bf-south", "hold").state.players.p1.points).toBe(1);
+    expect(seatOf(score(board(2), "p1", "bf-south", "hold").state, "p1").points).toBe(1);
   });
 });
 

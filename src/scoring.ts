@@ -2,6 +2,7 @@ import { cannotScore } from "./restrictions.js";
 import { revealFacedown } from "./hidden.js";
 import type { GameEvent, Progress } from "./events.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
+import { seatOf } from "./state.js";
 
 /** R194.3 — 8 by default. Modes of play and card effects can change it. */
 export const VICTORY_SCORE = 8;
@@ -22,7 +23,7 @@ export function score(
   battlefieldId: CardId,
   method: ScoreMethod,
 ): Progress {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
 
   if (player.scoredThisTurn.includes(battlefieldId)) {
     return { state, events: [] };
@@ -94,9 +95,9 @@ export function checkForWinner(state: GameState): Progress {
   }
 
   for (const playerId of ["p1", "p2"] as const) {
-    const points = state.players[playerId].points;
+    const points = seatOf(state, playerId).points;
     const opponentPoints =
-      state.players[playerId === "p1" ? "p2" : "p1"].points;
+      seatOf(state, playerId === "p1" ? "p2" : "p1").points;
 
     if (points >= VICTORY_SCORE && points > opponentPoints) {
       const shown = revealEveryFacedown(state);

@@ -5,6 +5,7 @@ import { FREE } from "../src/cost.js";
 import { totalCostOf } from "../src/costing.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
+import { seatOf } from "../src/state.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
 
@@ -108,7 +109,7 @@ describe("[Deflect] (R809)", () => {
       players: {
         ...board(0).players,
         p1: {
-          ...board(0).players.p1,
+          ...seatOf(board(0), "p1"),
           runePool: pool({ energy: 9, power: { fury: 1 } }),
         },
       },

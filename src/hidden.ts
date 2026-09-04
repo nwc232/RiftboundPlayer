@@ -1,3 +1,4 @@
+import { seatOf } from "./state.js";
 import { spend } from "./cost.js";
 import type { GameEvent } from "./events.js";
 import { keywordsOf } from "./layers.js";
@@ -43,7 +44,7 @@ export function hide(
   cardId: CardId,
   battlefieldId: CardId,
 ): HideOutcome | HideRejection {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const card = state.cards[cardId];
 
   if (card === undefined) return "cardNotFound";
@@ -220,7 +221,7 @@ export function sweepFacedown(state: GameState): HideOutcome {
     current = shown.state;
     events.push(...shown.events);
 
-    const owner = state.players[entry.controller];
+    const owner = seatOf(state, entry.controller);
     current = {
       ...clearFacedown(current, battlefieldId),
       players: {

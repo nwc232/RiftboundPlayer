@@ -7,6 +7,7 @@ import { applyAction } from "../src/actions.js";
 import { startGame } from "../src/deck.js";
 import { matchup } from "../src/decks/index.js";
 import { legalActions } from "../src/legal.js";
+import { seatOf } from "../src/state.js";
 import type { GameState, PlayerId } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -45,7 +46,7 @@ describe("viewOf", () => {
 
   /** R107.1.b — your own hand is yours to see. */
   it("leaves the viewer's own hand alone", () => {
-    expect(viewOf(board(), "p1").players.p1.hand).toEqual([
+    expect(seatOf(viewOf(board(), "p1"), "p1").hand).toEqual([
       "p1-hand-a",
       "p1-hand-b",
     ]);
@@ -54,11 +55,11 @@ describe("viewOf", () => {
   it("conceals the opponent's hand but not how big it is", () => {
     const view = viewOf(board(), "p1");
 
-    expect(view.players.p2.hand).toHaveLength(3);
-    expect(view.players.p2.hand.every((id) => id.startsWith(HIDDEN_CARD))).toBe(
+    expect(seatOf(view, "p2").hand).toHaveLength(3);
+    expect(seatOf(view, "p2").hand.every((id) => id.startsWith(HIDDEN_CARD))).toBe(
       true,
     );
-    expect(view.players.p2.hand).not.toContain("p2-hand-a");
+    expect(seatOf(view, "p2").hand).not.toContain("p2-hand-a");
   });
 
   /**
@@ -71,7 +72,7 @@ describe("viewOf", () => {
     expect(view.cards["p2-hand-a"]).toBeUndefined();
     expect(view.cards["p2-deck-a"]).toBeUndefined();
     // And keeps a blank in its place, so a renderer still has something.
-    for (const id of view.players.p2.hand) {
+    for (const id of seatOf(view, "p2").hand) {
       expect(view.cards[id]?.name).toBe("hidden card");
     }
   });
@@ -80,17 +81,17 @@ describe("viewOf", () => {
   it("conceals both players' decks", () => {
     const view = viewOf(board(), "p1");
 
-    expect(view.players.p1.mainDeck).toHaveLength(2);
-    expect(view.players.p1.mainDeck).not.toContain("p1-deck-a");
-    expect(view.players.p2.mainDeck).not.toContain("p2-deck-a");
+    expect(seatOf(view, "p1").mainDeck).toHaveLength(2);
+    expect(seatOf(view, "p1").mainDeck).not.toContain("p1-deck-a");
+    expect(seatOf(view, "p2").mainDeck).not.toContain("p2-deck-a");
   });
 
   /** Public zones pass through untouched. */
   it("shows both trashes, the board and the battlefields", () => {
     const view = viewOf(board(), "p1");
 
-    expect(view.players.p1.trash).toEqual(["p1-trash"]);
-    expect(view.players.p2.trash).toEqual(["p2-trash"]);
+    expect(seatOf(view, "p1").trash).toEqual(["p1-trash"]);
+    expect(seatOf(view, "p2").trash).toEqual(["p2-trash"]);
     expect(view.cards["p2-trash"]).toBeDefined();
     expect(view.cards["board-unit"]).toBeDefined();
     expect(view.permanents["board-unit"]).toBeDefined();
@@ -186,8 +187,8 @@ describe("viewOf", () => {
 
     expect(view.turn).toEqual(state.turn);
     expect(view.battlefieldOrder).toEqual(state.battlefieldOrder);
-    expect(view.players.p1.runePool).toEqual(state.players.p1.runePool);
-    expect(view.players.p2.points).toBe(state.players.p2.points);
+    expect(seatOf(view, "p1").runePool).toEqual(seatOf(state, "p1").runePool);
+    expect(seatOf(view, "p2").points).toBe(seatOf(state, "p2").points);
   });
 });
 

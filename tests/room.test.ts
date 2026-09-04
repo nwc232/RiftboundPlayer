@@ -10,6 +10,7 @@ import {
   restart,
 } from "../src/server/room.js";
 import { HIDDEN_CARD } from "../src/view.js";
+import { seatOf } from "../src/state.js";
 
 /**
  * A room, without a socket. Everything worth checking about playing over a
@@ -70,8 +71,8 @@ describe("filling a room", () => {
     // Deck 0 is Vex, deck 1 is Rengar.
     // Ids belong to a seat, so a Legend's is stamped with the seat that
     // brought it — which is what lets two players bring the same list.
-    expect(message.state.players.p1.legend).toBe("p1-gloomist");
-    expect(message.state.players.p2.legend).toBe("p2-pridestalker");
+    expect(seatOf(message.state, "p1").legend).toBe("p1-gloomist");
+    expect(seatOf(message.state, "p2").legend).toBe("p2-pridestalker");
   });
 });
 
@@ -146,7 +147,7 @@ describe("what a seat is sent", () => {
     const message = messageFor(dealt(), "p1");
     if (message.kind !== "state") throw new Error("expected a game");
 
-    for (const cardId of message.state.players.p2.hand) {
+    for (const cardId of seatOf(message.state, "p2").hand) {
       expect(cardId.startsWith(HIDDEN_CARD)).toBe(true);
       // And the definition is not smuggled along beside it.
       expect(message.state.cards[cardId]?.name).toBe("hidden card");
@@ -157,7 +158,7 @@ describe("what a seat is sent", () => {
     const message = messageFor(dealt(), "p1");
     if (message.kind !== "state") throw new Error("expected a game");
 
-    for (const cardId of message.state.players.p1.hand) {
+    for (const cardId of seatOf(message.state, "p1").hand) {
       expect(cardId.startsWith(HIDDEN_CARD)).toBe(false);
     }
   });

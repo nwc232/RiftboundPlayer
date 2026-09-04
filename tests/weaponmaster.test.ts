@@ -5,6 +5,7 @@ import { attachSelf, dealDamage } from "../src/builders.js";
 import { FREE } from "../src/cost.js";
 import { abilitiesOf, mightOf } from "../src/layers.js";
 import { legalActions } from "../src/legal.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, Cost, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -124,7 +125,7 @@ describe("[Weaponmaster] (R821)", () => {
     const after = equipping(before);
 
     // The gear cost [1][A]; only the [1] came out of the pool.
-    const paid = after.players.p1.runePool.buckets[0]!;
+    const paid = seatOf(after, "p1").runePool.buckets[0]!;
     expect(paid.energy).toBe(8);
     expect(paid.universalPower).toBe(4);
   });
@@ -138,7 +139,7 @@ describe("[Weaponmaster] (R821)", () => {
     const after = equipping(board({ energy: 2 }));
 
     expect(after.permanents.sword?.attachedTo).toBe("jax");
-    expect(after.players.p1.runePool.buckets[0]!.energy).toBe(7);
+    expect(seatOf(after, "p1").runePool.buckets[0]!.energy).toBe(7);
   });
 
   /**
@@ -194,7 +195,7 @@ describe("[Weaponmaster] (R821)", () => {
     expect(current.permanents.sword?.attachedTo).toBeUndefined();
     // Declining costs nothing — and Jax himself is free in this fixture, so
     // the pool is untouched.
-    expect(current.players.p1.runePool.buckets[0]!.energy).toBe(9);
+    expect(seatOf(current, "p1").runePool.buckets[0]!.energy).toBe(9);
   });
 
   /**

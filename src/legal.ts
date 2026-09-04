@@ -16,6 +16,7 @@ import { abilitiesOf } from "./layers.js";
 import type { TargetFilter } from "./decisions.js";
 import { MULLIGAN_MAX } from "./tasks.js";
 import type { CardId, GameState, Location, PlayerId } from "./state.js";
+import { seatOf } from "./state.js";
 
 /**
  * Everything `playerId` may legally do right now.
@@ -314,7 +315,7 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     }
   }
 
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const out: Action[] = [
     { type: "passPriority", playerId },
     { type: "passFocus", playerId },

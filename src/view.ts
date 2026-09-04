@@ -1,5 +1,6 @@
 import type { GameEvent } from "./events.js";
 import type { CardId, CardInstance, GameState, PlayerId } from "./state.js";
+import { seatOf } from "./state.js";
 
 /**
  * R107 — what one player is allowed to see.
@@ -67,7 +68,7 @@ export function viewOf(state: GameState, viewer: PlayerId): GameState {
 
   const players = { ...state.players };
   for (const id of ["p1", "p2"] as PlayerId[]) {
-    const player = state.players[id];
+    const player = seatOf(state, id);
     // R107.2 — a deck's order is private to everyone, its owner included.
     const mainDeck = conceal(player.mainDeck, `${id}-deck`);
     const runeDeck = conceal(player.runeDeck, `${id}-runes`);

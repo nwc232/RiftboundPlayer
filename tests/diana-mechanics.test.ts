@@ -7,6 +7,7 @@ import { legalActions } from "../src/legal.js";
 import { playZonesFor } from "../src/zones.js";
 import { choicePoolFor } from "../src/costing.js";
 import { FREE } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState, Location } from "../src/state.js";
 import { makeState, cost, pool, unit } from "./fixtures.js";
 
@@ -120,7 +121,7 @@ describe("branching on a card's type", () => {
       cards: { ...state.cards, [card.id]: card },
       players: {
         ...state.players,
-        p1: { ...state.players.p1, hand: [card.id] },
+        p1: { ...seatOf(state, "p1"), hand: [card.id] },
       },
     };
   }
@@ -136,9 +137,9 @@ describe("branching on a card's type", () => {
       context,
     );
 
-    expect(after.state.players.p1.trash).toEqual(["scroll"]);
-    expect(after.state.players.p1.hand).toHaveLength(1); // drew, did not gain XP
-    expect(after.state.players.p1.xp).toBe(0);
+    expect(seatOf(after.state, "p1").trash).toEqual(["scroll"]);
+    expect(seatOf(after.state, "p1").hand).toHaveLength(1); // drew, did not gain XP
+    expect(seatOf(after.state, "p1").xp).toBe(0);
   });
 
   it("takes a different arm for a different type", () => {
@@ -152,7 +153,7 @@ describe("branching on a card's type", () => {
       context,
     );
 
-    expect(after.state.players.p1.xp).toBe(5);
+    expect(seatOf(after.state, "p1").xp).toBe(5);
   });
 
   /** R383.2 — a type with no arm simply does nothing more. */
@@ -163,8 +164,8 @@ describe("branching on a card's type", () => {
       context,
     );
 
-    expect(after.state.players.p1.trash).toEqual(["tool"]);
-    expect(after.state.players.p1.hand).toEqual([]);
+    expect(seatOf(after.state, "p1").trash).toEqual(["tool"]);
+    expect(seatOf(after.state, "p1").hand).toEqual([]);
   });
 
   /** Diana, Lunari — the same question asked of the top of the deck. */
@@ -182,7 +183,7 @@ describe("branching on a card's type", () => {
 
     // R424.1.a.2 — revealing does not move it; the arm is what drew it.
     expect(after.state.revealed).toContain("d1");
-    expect(after.state.players.p1.hand).toEqual(["d1"]);
+    expect(seatOf(after.state, "p1").hand).toEqual(["d1"]);
   });
 });
 
@@ -194,7 +195,7 @@ describe("a cost paid out of the trash", () => {
       ...state,
       players: {
         ...state.players,
-        p1: { ...state.players.p1, hand: ["d2"], trash: ["a", "b"] },
+        p1: { ...seatOf(state, "p1"), hand: ["d2"], trash: ["a", "b"] },
       },
     };
 
@@ -236,7 +237,7 @@ describe("a granted play from the trash", () => {
       },
       players: {
         ...state.players,
-        p1: { ...state.players.p1, trash: ["bolt", "big"] },
+        p1: { ...seatOf(state, "p1"), trash: ["bolt", "big"] },
       },
     };
   }
@@ -299,7 +300,7 @@ describe("asking the opponent to pay", () => {
       },
       players: {
         ...state.players,
-        p2: { ...state.players.p2, runePool: pool({ energy: 5 }) },
+        p2: { ...seatOf(state, "p2"), runePool: pool({ energy: 5 }) },
       },
       chain: [
         { kind: "spell", cardId: "theirSpell", controller: "p2", targets: [] },
@@ -331,7 +332,7 @@ describe("asking the opponent to pay", () => {
     );
 
     expect(after.state.chain).toHaveLength(0);
-    expect(after.state.players.p2.trash).toContain("theirSpell");
+    expect(seatOf(after.state, "p2").trash).toContain("theirSpell");
   });
 
   it("takes the payment and leaves it alone when they pay", () => {
@@ -342,7 +343,7 @@ describe("asking the opponent to pay", () => {
     );
 
     expect(after.state.chain).toHaveLength(1);
-    expect(after.state.players.p2.runePool.buckets[0]?.energy).toBe(3);
+    expect(seatOf(after.state, "p2").runePool.buckets[0]?.energy).toBe(3);
   });
 
   /** Saying yes with an empty pool does not save it. */
@@ -351,7 +352,7 @@ describe("asking the opponent to pay", () => {
       const state = onChain();
       return {
         ...state,
-        players: { ...state.players, p2: { ...state.players.p2, runePool: pool() } },
+        players: { ...state.players, p2: { ...seatOf(state, "p2"), runePool: pool() } },
       };
     })();
     const after = execute(
@@ -393,7 +394,7 @@ describe("countering to hand", () => {
     );
 
     expect(after.state.chain).toHaveLength(0);
-    expect(after.state.players.p2.hand).toContain("theirSpell");
-    expect(after.state.players.p2.trash).not.toContain("theirSpell");
+    expect(seatOf(after.state, "p2").hand).toContain("theirSpell");
+    expect(seatOf(after.state, "p2").trash).not.toContain("theirSpell");
   });
 });

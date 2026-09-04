@@ -14,6 +14,7 @@ import {
   subjectOf,
   whyNotPlayable,
 } from "../src/ui/game.js";
+import { seatOf } from "../src/state.js";
 import type { GameState } from "../src/state.js";
 import { pool } from "./fixtures.js";
 
@@ -92,7 +93,7 @@ describe("labelling moves", () => {
    */
   it("words a rune's abilities from what they cost and give", () => {
     const state = settle(opened());
-    const runeId = state.players[state.turn.player].runes[0];
+    const runeId = seatOf(state, state.turn.player).runes[0];
     expect(runeId).toBeDefined();
 
     const labels = [0, 1].map((abilityIndex) =>
@@ -157,7 +158,7 @@ describe("telling the player what is going on", () => {
 
   it("says what an unaffordable card costs and what you hold", () => {
     const state = opening();
-    const player = state.players[state.turn.player];
+    const player = seatOf(state, state.turn.player);
     const expensive = player.hand.find(
       (id) => (state.cards[id]?.cost.energy ?? 0) >= 3,
     );
@@ -178,7 +179,7 @@ describe("telling the player what is going on", () => {
       players: {
         ...state.players,
         [state.turn.player]: {
-          ...state.players[state.turn.player],
+          ...seatOf(state, state.turn.player),
           runePool: pool({
             energy: 20,
             power: { chaos: 5, calm: 5, body: 5, fury: 5 },
@@ -186,7 +187,7 @@ describe("telling the player what is going on", () => {
         },
       },
     };
-    const player = rich.players[rich.turn.player];
+    const player = seatOf(rich, rich.turn.player);
     const targeted = player.hand.find((id) => {
       const ability = rich.cards[id]?.abilities.find(
         (each) => each.kind === "activated",
@@ -203,7 +204,7 @@ describe("telling the player what is going on", () => {
 
   it("has nothing to explain about a card that can be played", () => {
     const state = opening();
-    const runeId = state.players[state.turn.player].runes[0];
+    const runeId = seatOf(state, state.turn.player).runes[0];
 
     // A rune is not in hand, so there is no "why not" to give.
     expect(whyNotPlayable(state, state.turn.player, runeId!)).toBeNull();

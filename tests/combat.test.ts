@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import { assignDamage, isCombatAt } from "../src/combat.js";
+import { seatOf } from "../src/state.js";
 import type { GameState, Keyword, Location } from "../src/state.js";
 import { makeState, unit } from "./fixtures.js";
 
@@ -245,10 +246,10 @@ describe("resolving combat", () => {
     );
 
     expect(start.permanents.d1).toBeUndefined();
-    expect(start.players.p2.trash).toEqual(["d1"]);
+    expect(seatOf(start, "p2").trash).toEqual(["d1"]);
     expect(start.permanents.a1?.location).toEqual(NORTH);
     expect(start.battlefields["bf-north"]?.controller).toBe("p1");
-    expect(start.players.p1.points).toBe(1);
+    expect(seatOf(start, "p1").points).toBe(1);
   });
 
   /**
@@ -304,7 +305,7 @@ describe("resolving combat", () => {
     expect(start.permanents.a1).toBeUndefined();
     expect(start.permanents.d1).toBeUndefined();
     expect(start.battlefields["bf-north"]?.controller).toBeNull();
-    expect(start.players.p1.points).toBe(0);
+    expect(seatOf(start, "p1").points).toBe(0);
   });
 
   it("heals surviving units after combat (R466.1.a.1)", () => {

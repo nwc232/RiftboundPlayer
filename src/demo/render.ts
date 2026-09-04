@@ -4,7 +4,7 @@ import type { GameEvent } from "../events.js";
 import { chainItemCardId } from "../chain.js";
 import { characteristicsOf, controllerOf } from "../layers.js";
 import { legalActions } from "../legal.js";
-import { permanentsAt } from "../state.js";
+import { permanentsAt, seatOf } from "../state.js";
 import type { Cost, GameState, Location, PlayerId } from "../state.js";
 
 const useColor = process.env["NO_COLOR"] === undefined;
@@ -20,7 +20,7 @@ const yellow = (t: string) => paint("33", t);
 const green = (t: string) => paint("32", t);
 
 function formatPool(state: GameState, playerId: PlayerId): string {
-  const pool = totals(state.players[playerId].runePool);
+  const pool = totals(seatOf(state, playerId).runePool);
   const parts: string[] = [];
   if (pool.energy > 0) parts.push(`${pool.energy} energy`);
   for (const [domain, count] of Object.entries(pool.power)) {
@@ -52,7 +52,7 @@ function cardLabel(state: GameState, cardId: string): string {
 }
 
 function renderPlayer(state: GameState, playerId: PlayerId): string[] {
-  const player = state.players[playerId];
+  const player = seatOf(state, playerId);
   const lines: string[] = [bold(playerId.toUpperCase())];
 
   const hand =

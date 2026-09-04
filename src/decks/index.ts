@@ -1,6 +1,7 @@
 import { basicRune } from "../builders.js";
 import { copies } from "../deck.js";
 import type { Deck, GameSetup } from "../deck.js";
+import { SEATS } from "../state.js";
 import type { CardId, CardInstance, Domain, PlayerId } from "../state.js";
 import * as vex from "./vex.js";
 import * as rengar from "./rengar.js";
@@ -302,29 +303,39 @@ function shuffled(ids: CardId[], seed: number): CardId[] {
  */
 export function matchup(
   options: {
-    p1?: string;
-    p2?: string;
     seed?: number;
-    /** Which two lists face off, by index into `DECK_LISTS`. */
-    decks?: [number, number];
+    /**
+     * Which lists play, by index into `DECK_LISTS`, in turn order. Two by
+     * default; three or four seats a Skirmish (R487) or a War (R488).
+     */
+    decks?: number[];
+    /** Battlefield overrides, by seat, for a test that needs a given one. */
+    battlefields?: Partial<Record<PlayerId, CardId>>;
   } = {},
 ): GameSetup {
-  const [first, second] = options.decks ?? [0, 1];
-  const one = instantiate(DECK_LISTS[first] ?? DECK_LISTS[0]!, "p1");
-  const two = instantiate(DECK_LISTS[second] ?? DECK_LISTS[1]!, "p2");
+  const picks = options.decks ?? [0, 1];
+  const turnOrder = SEATS.slice(0, picks.length);
 
   const order = (deck: Deck): Deck =>
     options.seed === undefined
       ? deck
       : { ...deck, mainDeck: shuffled(deck.mainDeck, options.seed) };
 
-  return {
-    cards: [...one.cards, ...two.cards],
-    p1: order(one.deck),
-    p2: order(two.deck),
-    choices: {
-      p1: { battlefield: options.p1 ?? one.deck.battlefields[0]! },
-      p2: { battlefield: options.p2 ?? two.deck.battlefields[0]! },
-    },
-  };
+  const cards: CardInstance[] = [];
+  const seats: GameSetup["seats"] = {};
+  picks.forEach((pick, at) => {
+    const id = turnOrder[at]!;
+    // Ids are stamped per seat, so the same list at two seats is two sets of
+    // cards — which is what makes a mirror match, and a four-player game with
+    // repeats, possible at all.
+    const seated = instantiate(DECK_LISTS[pick] ?? DECK_LISTS[0]!, id);
+    cards.push(...seated.cards);
+    seats[id] = {
+      deck: order(seated.deck),
+      battlefield:
+        options.battlefields?.[id] ?? seated.deck.battlefields[0]!,
+    };
+  });
+
+  return { cards, turnOrder: [...turnOrder], seats };
 }

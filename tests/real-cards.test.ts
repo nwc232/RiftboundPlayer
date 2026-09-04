@@ -14,6 +14,7 @@ import {
 } from "../src/builders.js";
 import { totals } from "../src/cost.js";
 import { FREE } from "../src/cost.js";
+import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
@@ -78,7 +79,7 @@ describe("real cards expressed as data", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(totals(result.state.players.p1.runePool).energy).toBe(1);
+    expect(totals(seatOf(result.state, "p1").runePool).energy).toBe(1);
     expect(result.state.permanents[energyConduit.id]?.exhausted).toBe(true);
   });
 
@@ -87,7 +88,7 @@ describe("real cards expressed as data", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(totals(result.state.players.p1.runePool).power).toEqual({ fury: 1 });
+    expect(totals(seatOf(result.state, "p1").runePool).power).toEqual({ fury: 1 });
   });
 
   it("Seal of Unity differs only in its data, not its code path", () => {
@@ -95,7 +96,7 @@ describe("real cards expressed as data", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(totals(result.state.players.p1.runePool).power).toEqual({ order: 1 });
+    expect(totals(seatOf(result.state, "p1").runePool).power).toEqual({ order: 1 });
   });
 
   it("refuses to activate an already-exhausted gear", () => {
@@ -218,7 +219,7 @@ describe("cards whose cost names something", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.permanents.relic).toBeUndefined();
-    expect(result.state.players.p1.hand).toContain("relic");
+    expect(seatOf(result.state, "p1").hand).toContain("relic");
   });
 
   /** R205 — the effect asks whether the optional cost was actually paid. */
@@ -234,11 +235,11 @@ describe("cards whose cost names something", () => {
 
     const paid = cast([["ally"]], true);
     expect(paid.permanents.ally?.exhausted).toBe(true);
-    expect(paid.players.p1.hand).toHaveLength(2);
+    expect(seatOf(paid, "p1").hand).toHaveLength(2);
 
     const declined = cast([], false);
     expect(declined.permanents.ally?.exhausted).toBe(false);
-    expect(declined.players.p1.hand).toHaveLength(1);
+    expect(seatOf(declined, "p1").hand).toHaveLength(1);
   });
 });
 
