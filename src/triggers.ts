@@ -491,6 +491,11 @@ export function harvestTriggers(
       // "There" — the battlefield the inciting event names, for the abilities
       // whose effect points at it rather than at their own source.
       const eventLocation = locationNamedBy(inciting);
+      // R359.3.f.3 — information a trigger reads off its condition is noted
+      // when the condition is fulfilled, not when the ability resolves. Where
+      // a unit moved *from* is gone by then.
+      const moveEndpoints =
+        inciting.type === "unitMoved" ? [inciting.from, inciting.to] : undefined;
 
       found.push({
         controller: actor,
@@ -505,6 +510,7 @@ export function harvestTriggers(
               : [],
           ...(location !== undefined ? { sourceLocation: location } : {}),
           ...(eventLocation !== undefined ? { eventLocation } : {}),
+          ...(moveEndpoints !== undefined ? { moveEndpoints } : {}),
           ...(might !== undefined ? { sourceMight: might } : {}),
         },
       });

@@ -82,6 +82,13 @@ export type ChainItem =
        * Zone no location at all, so `sourceLocation` cannot answer it.
        */
       eventLocation?: Location;
+      /**
+       * Both ends of the move that incited this — Akali, Deadly Weapon's "a
+       * unit at a battlefield I moved **to or from**". The origin is not
+       * recoverable once the move has happened, so it is noted here the way
+       * R323.4's death attributes are.
+       */
+      moveEndpoints?: Location[];
       /** R323.4 — Might as it stood at death, which printed Might won't give. */
       sourceMight?: number;
     };

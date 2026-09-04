@@ -389,6 +389,11 @@ export function addEnergyToEach(amount: number): Effect {
   return { op: "addEnergyToEach", amount };
 }
 
+/** Scuttle Crab — "You can look at their facedown cards this turn." */
+export function seeFacedown(duration: Duration = "thisTurn"): Effect {
+  return { op: "seeFacedown", duration };
+}
+
 /** Vex, Apathetic — "They can't move it this turn." */
 export function restrictMovement(duration: Duration, targetIndex = 0): Effect {
   return { op: "restrictMovement", duration, targetIndex };

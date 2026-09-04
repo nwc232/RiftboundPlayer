@@ -394,6 +394,13 @@ export interface PlayerState {
    */
   legendExhausted?: boolean;
   /**
+   * R441 — the Empowered status, when it is the Legend wearing it. Rogue
+   * Assassin prints [Empower], and R107.4.c makes the Champion Legend a Game
+   * Object like any other — but it has no permanent, so the status lives here
+   * for the same reason `legendExhausted` does.
+   */
+  legendEmpowered?: boolean;
+  /**
    * R108.3 — the Chosen Champion. It starts here and is *playable from here*
    * (R108.3.d), which makes it a permanently available extra card rather than
    * an inert marker. Null once played, or in hand-built test boards.

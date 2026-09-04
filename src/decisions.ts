@@ -173,7 +173,33 @@ export interface TargetFilter {
    * *given* [Temporary] this turn stops qualifying.
    */
   withoutKeyword?: Keyword;
+  /**
+   * Thwonk! — "Stun an **attacking** unit"; Rogue Assassin — "move a friendly
+   * unit **in a showdown**". R323.2 hands out the designations during a
+   * cleanup, so this reads the one a unit is wearing right now rather than
+   * asking whether a combat exists somewhere.
+   */
+  designation?: "attacker" | "defender" | "either";
+  /**
+   * Akali, Deadly Weapon — "a unit at a battlefield I moved **to or from**".
+   * Neither endpoint is where the source is by the time the ability resolves:
+   * it is standing at the destination, and "or from" reaches back to a
+   * battlefield it has already left.
+   */
+  atMoveEndpoint?: true;
+  /**
+   * Shuriken Flip — "Deal 2 to **up to one** enemy unit". R355.8 wants valid
+   * choices for everything asked for, and this asks for something that may be
+   * nothing — so the filter still occupies its position and `NO_TARGET`
+   * answers it. Keeping the position is what lets `targetIndex` stay a fixed
+   * number: an effect whose target was declined reads a card that is nowhere,
+   * which every effect already treats as nothing to do.
+   */
+  optional?: true;
 }
+
+/** What an optional filter is answered with when it is declined. */
+export const NO_TARGET = "none";
 
 export function legalTargets(
   state: GameState,
@@ -183,6 +209,29 @@ export function legalTargets(
   sourceId?: CardId,
   /** Where the inciting event happened, for the filters that say "there". */
   eventLocation?: Location,
+  /** Both ends of the move that incited this, for "to or from". */
+  moveEndpoints?: readonly Location[],
+): CardId[] {
+  const found = legalSubjects(
+    state,
+    controller,
+    filter,
+    sourceId,
+    eventLocation,
+    moveEndpoints,
+  );
+  // R355.8 — declining is one of the valid choices, so it belongs in the list
+  // the prompt offers rather than being a separate question.
+  return filter.optional === true ? [...found, NO_TARGET] : found;
+}
+
+function legalSubjects(
+  state: GameState,
+  controller: PlayerId,
+  filter: TargetFilter,
+  sourceId?: CardId,
+  eventLocation?: Location,
+  moveEndpoints?: readonly Location[],
 ): CardId[] {
   // A spell on the chain is not a permanent, so it is a different search: only
   // the controller filter means anything for one.
@@ -294,6 +343,22 @@ export function legalTargets(
       if (filter.atEventLocation === true) {
         if (eventLocation === undefined) return false;
         if (!sameLocation(eventLocation, permanent.location)) return false;
+      }
+      // "…at a battlefield I moved to or from" — either end will do.
+      if (filter.atMoveEndpoint === true) {
+        if (moveEndpoints === undefined) return false;
+        if (!moveEndpoints.some((end) => sameLocation(end, permanent.location))) {
+          return false;
+        }
+      }
+      // R323.2's designations, read off the permanent: a unit is attacking
+      // because it is wearing the designation, not because a combat exists.
+      if (filter.designation !== undefined) {
+        const worn = permanent.designation;
+        if (worn === undefined) return false;
+        if (filter.designation !== "either" && worn !== filter.designation) {
+          return false;
+        }
       }
       return true;
     })

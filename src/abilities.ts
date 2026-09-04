@@ -137,6 +137,17 @@ export type Effect =
    * "lose control of that unit and recall it at end of turn" needs both.
    */
   | { op: "delay"; at: DelayedTiming; effect: Effect }
+  /**
+   * Scuttle Crab — "You can look at their facedown cards this turn." R424.2.b
+   * keeps this out of R424 entirely: showing Private information "does not
+   * count as revealing and does not trigger any effects that trigger when
+   * cards are revealed". So it grants the *looking* and nothing else.
+   *
+   * In 1v1 "their" is the only opponent, so the grant is simply "this player
+   * may look at facedown cards". Written up as an approximation for the day a
+   * format has more than two players.
+   */
+  | { op: "seeFacedown"; duration: Duration; targetIndex?: number }
   /** R454 — a recall sends a unit to its controller's base and is not a move. */
   | { op: "recall"; targetIndex: number }
   /** R816 — what [Temporary] does. Kills the ability's own source. */
@@ -1715,6 +1726,30 @@ export function execute(
       };
     }
 
+    case "seeFacedown": {
+      const looker =
+        effect.targetIndex === undefined
+          ? context.controller
+          : context.targets[effect.targetIndex];
+      if (looker !== "p1" && looker !== "p2") return { state, events: [] };
+
+      return {
+        state: {
+          ...state,
+          modifiers: [
+            ...state.modifiers,
+            {
+              id: `look-${state.modifiers.length}-${looker}`,
+              targetId: looker,
+              modification: { layer: "ability", op: "seeFacedown" },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [],
+      };
+    }
+
     case "restrictMovement": {
       const targetId = context.targets[effect.targetIndex];
       if (targetId === undefined) return { state, events: [] };
@@ -2468,6 +2503,30 @@ export function execute(
     }
 
     case "empowerSelf": {
+      // R107.4.c — the Champion Legend is a Game Object and can be Empowered,
+      // and has no permanent to carry the status. Same shape as its exhausted
+      // state, and for the same reason.
+      const player = state.players[context.controller];
+      if (player.legend === context.sourceId) {
+        if (player.legendEmpowered === true) return { state, events: [] };
+        return {
+          state: {
+            ...state,
+            players: {
+              ...state.players,
+              [context.controller]: { ...player, legendEmpowered: true },
+            },
+          },
+          events: [
+            {
+              type: "empowered",
+              playerId: context.controller,
+              cardId: context.sourceId,
+            },
+          ],
+        };
+      }
+
       const permanent = state.permanents[context.sourceId];
       // R441.1.c — "if a Game Object is instructed to be Empowered when it is
       // already Empowered, nothing additional happens."

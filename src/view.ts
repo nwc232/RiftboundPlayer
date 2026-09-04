@@ -86,9 +86,19 @@ export function viewOf(state: GameState, viewer: PlayerId): GameState {
   // R107.3.f — "Facedown Zones are Public Zones", so the fact that a card is
   // there is known; which card it is is not. The zone is keyed by battlefield,
   // so replacing the id leaves the occupancy visible, which is the point.
+  // Scuttle Crab — "You can look at their facedown cards this turn."
+  // R424.2.b makes looking explicitly not revealing, so this is a change to
+  // what the viewer is sent and to nothing else: no Revealed state, no event,
+  // and nothing that watches for one fires.
+  const mayLook = state.modifiers.some(
+    (modifier) =>
+      modifier.targetId === viewer &&
+      modifier.modification.op === "seeFacedown",
+  );
+
   const facedown: GameState["facedown"] = {};
   for (const [battlefieldId, entry] of Object.entries(state.facedown)) {
-    if (entry.controller === viewer) {
+    if (entry.controller === viewer || mayLook) {
       facedown[battlefieldId] = entry;
       continue;
     }

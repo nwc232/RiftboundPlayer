@@ -232,6 +232,17 @@ export type Modification =
       op: "restrictPlayer";
       restriction: Omit<BoardRestriction, "affects">;
     }
+  /**
+   * Scuttle Crab — "You can look at their facedown cards this turn."
+   *
+   * R424.2.b is why this is not a Reveal: "a player may choose to show Private
+   * information to one or more other players. This does not count as revealing
+   * and does not trigger any effects that trigger when cards are revealed." So
+   * it changes nothing about the game and everything about `viewOf` — which is
+   * exactly where R107 lives. `targetId` is the player who may look, and like
+   * `restrictPlayer` it rides the modifier list so R317.2.c ends it.
+   */
+  | { layer: "ability"; op: "seeFacedown" }
   /** Vilemaw — "…don't deal combat damage." See `Characteristics.silenced`. */
   | { layer: "ability"; op: "silenceCombatDamage" }
   /**
@@ -1170,8 +1181,10 @@ function computeCharacteristics(
           case "restrict":
             restrictions.push(entry.modification.restriction);
             break;
-          // Its subject is a player, not this permanent — see the modification.
+          // Both have a *player* as their subject, not this permanent — see
+          // the modifications.
           case "restrictPlayer":
+          case "seeFacedown":
             break;
           // R828.1.c — "As long as the Game Object has the Empowered status,
           // the Dependent Ability will be active." Appended rather than

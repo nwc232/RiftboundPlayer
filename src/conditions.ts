@@ -201,7 +201,13 @@ export function holds(
       });
 
     case "empowered":
-      return state.permanents[context.sourceId]?.empowered === true;
+      return (
+        state.permanents[context.sourceId]?.empowered === true ||
+        // R107.4.c — the Legend's status lives on the player, having no
+        // permanent of its own.
+        (state.players[context.controller].legend === context.sourceId &&
+          state.players[context.controller].legendEmpowered === true)
+      );
 
     case "inShowdown": {
       if (state.showdown === null) return false;
@@ -215,8 +221,11 @@ export function holds(
       );
     }
 
+    // R827.1.c.1's "Play only if not Empowered", which is the gate on the
+    // [Empower] ability itself. Reads the Legend's status too, or a Legend
+    // could Empower itself a second time.
     case "notEmpowered":
-      return state.permanents[context.sourceId]?.empowered !== true;
+      return !holds(state, { kind: "empowered" }, context);
 
     case "legion":
       // R812.2 — one other card satisfies every Legion ability at once, which

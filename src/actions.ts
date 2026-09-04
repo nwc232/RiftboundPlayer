@@ -315,6 +315,7 @@ function nextDecision(state: GameState): PendingDecision | null {
           filter,
           chainItemCardId(item),
           item.kind === "trigger" ? item.eventLocation : undefined,
+          item.kind === "trigger" ? item.moveEndpoints : undefined,
         ),
       },
     };
