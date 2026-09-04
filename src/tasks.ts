@@ -4,6 +4,7 @@ import {
   ambiguousDeath,
   combatSides,
   dealAssigned,
+  defenderAt,
   nextAssignable,
   resolveCombatAftermath,
 } from "./combat.js";
@@ -224,8 +225,9 @@ function runTask(state: GameState, task: Task): TaskOutcome {
 
     case "combatDamage": {
       const sides = combatSides(state, task.battlefieldId, task.attacker);
-      const defender: PlayerId = task.attacker === "p1" ? "p2" : "p1";
-      // Each player assigns among the *other's* units (R465.2.c).
+      // Each player assigns among the *other's* units (R465.2.c). R462 keeps a
+      // combat to two players, so "not the attacker" is the defending side
+      // whatever the mode seats.
       const targets =
         task.assigning === task.attacker ? sides.defenders : sides.attackers;
 
@@ -267,18 +269,23 @@ function runTask(state: GameState, task: Task): TaskOutcome {
       // R465.2.c — the attacker assigns first; the defender then assigns
       // against the same board, because nothing has been dealt yet.
       if (task.assigning === task.attacker) {
-        return {
-          state,
-          events: [],
-          push: [
-            {
-              ...task,
-              assigning: defender,
-              remaining: sides.defenderMight,
-              assigned,
-            },
-          ],
-        };
+        const defender = defenderAt(state, task.battlefieldId, task.attacker);
+        // No defender left to assign means no damage to assign back, so the
+        // step is finished rather than handed over.
+        if (defender !== null) {
+          return {
+            state,
+            events: [],
+            push: [
+              {
+                ...task,
+                assigning: defender,
+                remaining: sides.defenderMight,
+                assigned,
+              },
+            ],
+          };
+        }
       }
 
       // R372 — asked before any of it lands, because R370.1.c applies

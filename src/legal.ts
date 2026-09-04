@@ -303,6 +303,7 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
       case "chooseFromRevealed":
       case "assignCombatDamage":
       case "chooseStagedBattlefield":
+      case "chooseOpponent":
         return prompt.legal.map((id) => ({
           type: "decide",
           playerId,

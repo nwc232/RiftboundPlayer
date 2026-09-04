@@ -80,7 +80,10 @@ export const sabotage: CardInstance = {
       kind: "activated",
       timing: "default",
       costs: [],
-      effect: recycleFromOpponentHand("unit"),
+      // "Choose an opponent." — forced in a Duel, a real choice in a Skirmish
+      // or a War, and either way the target is what the effect reads.
+      targeting: { filters: [{ type: "player", controller: "enemy" }] },
+      effect: recycleFromOpponentHand("unit", 0),
     },
   ],
 };

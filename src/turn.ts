@@ -6,7 +6,7 @@ import { expireModifiers, restricted } from "./layers.js";
 import type { DelayedTiming } from "./layers.js";
 import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, holdControlledBattlefields } from "./scoring.js";
-import { permanentsControlledBy, seatOf } from "./state.js";
+import { nextInTurnOrder, permanentsControlledBy, seatOf } from "./state.js";
 import type { GameState, PlayerId } from "./state.js";
 
 /** R314–317. Awaken through Draw run as automatic tasks; Main waits for the player. */
@@ -22,10 +22,6 @@ export interface TurnState {
   player: PlayerId;
   phase: Phase;
   number: number;
-}
-
-export function opponentOf(playerId: PlayerId): PlayerId {
-  return playerId === "p1" ? "p2" : "p1";
 }
 
 /**
@@ -345,7 +341,9 @@ export function runTurnStep(
 
     // R317.3 — the next player with their turn queued becomes the Turn Player.
     case "handover": {
-      const next = opponentOf(player);
+      // R115.1.c — the turn queue loops, so the next turn belongs to the next
+      // seat in turn order rather than to "the other player".
+      const next = nextInTurnOrder(progress.state, player);
       const opened = openTurn(progress.state, next, number + 1);
       return {
         state: opened.state,

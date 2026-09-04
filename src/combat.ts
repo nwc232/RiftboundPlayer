@@ -190,6 +190,28 @@ export function clearDesignations(state: GameState): GameState {
   return { ...state, permanents };
 }
 
+/**
+ * R462 — "Combat can only occur between Units controlled by exactly two
+ * players", and R462.3 makes any choice that would produce a three-way combat
+ * invalid. So the defending player is whoever else has a unit here: with more
+ * than two seats there may be several other players in the game, but never
+ * two of them at a battlefield in combat.
+ *
+ * `null` when nobody is opposing — after the damage step has killed the last
+ * of them, which is exactly when there is no side left to name.
+ */
+export function defenderAt(
+  state: GameState,
+  battlefieldId: CardId,
+  attacker: PlayerId,
+): PlayerId | null {
+  for (const unit of unitsAt(state, battlefieldId)) {
+    const controller = controllerOf(state, unit.cardId);
+    if (controller !== attacker) return controller;
+  }
+  return null;
+}
+
 /** R465.2.a/b — each side's summed Might, read before any damage is dealt. */
 export function combatSides(
   state: GameState,
@@ -201,13 +223,15 @@ export function combatSides(
   attackerMight: number;
   defenderMight: number;
 } {
-  const defender: PlayerId = attacker === "p1" ? "p2" : "p1";
   const present = unitsAt(state, battlefieldId);
   const attackers = present.filter(
     (unit) => controllerOf(state, unit.cardId) === attacker,
   );
+  // Everyone else here, rather than one named opponent: R462 guarantees the
+  // two are the only players in this combat, so "not the attacker" and "the
+  // defender" name the same units — and this way no id has to be guessed.
   const defenders = present.filter(
-    (unit) => controllerOf(state, unit.cardId) === defender,
+    (unit) => controllerOf(state, unit.cardId) !== attacker,
   );
   // R423.1.b — a Stunned unit "does not contribute its might to damage in the
   // combat damage step", and Vilemaw silences an enemy the same way. R423.1.c
@@ -504,7 +528,10 @@ export function resolveCombatAftermath(
   attacker: PlayerId,
   chosen: Record<CardId, CardId> = {},
 ): Progress {
-  const defender: PlayerId = attacker === "p1" ? "p2" : "p1";
+  // Read before the damage step's deaths: once the defenders are gone there
+  // is no one at the battlefield to name, and R466.5 still has to know whose
+  // units survived.
+  const defender = defenderAt(state, battlefieldId, attacker);
   const events: GameEvent[] = [];
   let current: GameState = state;
 
@@ -521,7 +548,7 @@ export function resolveCombatAftermath(
     (unit) => controllerOf(current, unit.cardId) === attacker,
   );
   const survivingDefenders = unitsAt(current, battlefieldId).filter(
-    (unit) => controllerOf(current, unit.cardId) === defender,
+    (unit) => controllerOf(current, unit.cardId) !== attacker,
   );
 
   // R466.1.a.2 — a repelled attack goes home. Recall is not a move (R456).

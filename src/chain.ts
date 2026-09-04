@@ -225,6 +225,3 @@ export function newestItem(state: GameState): ChainItem | undefined {
   return state.chain[state.chain.length - 1];
 }
 
-export function opponentOf(playerId: PlayerId): PlayerId {
-  return playerId === "p1" ? "p2" : "p1";
-}

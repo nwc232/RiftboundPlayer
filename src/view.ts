@@ -62,12 +62,11 @@ function conceal(ids: CardId[], zone: string): CardId[] {
  * the event log — works against it unchanged.
  */
 export function viewOf(state: GameState, viewer: PlayerId): GameState {
-  const opponent: PlayerId = viewer === "p1" ? "p2" : "p1";
   const revealed = new Set<CardId>();
   const blanks: Record<CardId, CardInstance> = {};
 
   const players = { ...state.players };
-  for (const id of ["p1", "p2"] as PlayerId[]) {
+  for (const id of state.turnOrder) {
     const player = seatOf(state, id);
     // R107.2 — a deck's order is private to everyone, its owner included.
     const mainDeck = conceal(player.mainDeck, `${id}-deck`);
@@ -171,6 +170,9 @@ function pendingFor(
   // `chooseMode`'s options are arm indices off a card already on the chain,
   // not objects out of a zone, so there is nothing in it to withhold.
   if (prompt.kind === "chooseMode") return pending;
+  // Neither is `chooseOpponent`: R431.2.c's options are the players at the
+  // table, which R109 makes about as public as information gets.
+  if (prompt.kind === "chooseOpponent") return pending;
 
   return {
     ...pending,

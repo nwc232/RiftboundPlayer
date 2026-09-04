@@ -477,10 +477,14 @@ export function lookAtTop(count: number, keep: number): Effect {
 }
 
 /** Sabotage — "Choose a non-unit card from it, and recycle that card." */
-export function recycleFromOpponentHand(exclude?: "unit"): Effect {
+export function recycleFromOpponentHand(
+  exclude?: "unit",
+  playerIndex?: number,
+): Effect {
   return {
     op: "recycleFromOpponentHand",
     ...(exclude !== undefined ? { exclude } : {}),
+    ...(playerIndex !== undefined ? { playerIndex } : {}),
   };
 }
 

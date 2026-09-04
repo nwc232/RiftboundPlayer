@@ -1,6 +1,8 @@
+import { execute } from "./abilities.js";
 import type { GameEvent, Progress } from "./events.js";
 import type { GameState, PlayerId } from "./state.js";
 import { seatOf } from "./state.js";
+import type { Task } from "./tasks.js";
 
 /**
  * R431 — Burn Out. Not a loss: a player who must draw from an empty Main Deck
@@ -15,26 +17,47 @@ export { burnOut };
 
 function burnOut(state: GameState, playerId: PlayerId): Progress {
   const player = seatOf(state, playerId);
-  const opponent: PlayerId = playerId === "p1" ? "p2" : "p1";
-  const other = seatOf(state, opponent);
-
-  return {
-    state: {
-      ...state,
-      players: {
-        ...state.players,
-        [playerId]: {
-          ...player,
-          mainDeck: [...player.mainDeck, ...player.trash],
-          trash: [],
-        },
-        [opponent]: { ...other, points: other.points + 1 },
+  // R431.2.b — the recycle happens whoever ends up with the point.
+  const recycled: GameState = {
+    ...state,
+    players: {
+      ...state.players,
+      [playerId]: {
+        ...player,
+        mainDeck: [...player.mainDeck, ...player.trash],
+        trash: [],
       },
     },
-    events: [
-      { type: "burnedOut", playerId },
-      { type: "pointGained", playerId: opponent, points: 1 },
-    ],
+  };
+  const burned: GameEvent = { type: "burnedOut", playerId };
+
+  // R431.2.c — "Chooses an opponent to gain 1 point." A Duel offers one
+  // answer, so it resolves here rather than stopping the game to ask it.
+  const context = {
+    controller: playerId,
+    // The effect names no card. `PlayerId` is structurally a `CardId`, and
+    // this is only ever read back as "whose burn out is this".
+    sourceId: playerId,
+    targets: [],
+  };
+  const outcome = execute(recycled, { op: "burnOutPoint" }, context);
+  if (outcome.pause === undefined) {
+    return { state: outcome.state, events: [burned, ...outcome.events] };
+  }
+
+  // More than one opponent, so the choice is real and the queue has to ask
+  // it. **Deviation from R431.2's sequence:** the remainder of the draw
+  // (R431.2.d) finishes before the question is answered, because a draw is
+  // not a task and cannot suspend mid-loop. Written up in the survey.
+  const asking: Task = {
+    kind: "resumeEffect",
+    effect: outcome.pause.resume,
+    context: outcome.pause.context,
+    decision: outcome.pause.decision,
+  };
+  return {
+    state: { ...outcome.state, tasks: [asking, ...outcome.state.tasks] },
+    events: [burned, ...outcome.events],
   };
 }
 

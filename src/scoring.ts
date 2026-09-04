@@ -2,7 +2,7 @@ import { cannotScore } from "./restrictions.js";
 import { revealFacedown } from "./hidden.js";
 import type { GameEvent, Progress } from "./events.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
-import { seatOf } from "./state.js";
+import { opponentsOf, seatOf } from "./state.js";
 
 /** R194.3 — 8 by default. Modes of play and card effects can change it. */
 export const VICTORY_SCORE = 8;
@@ -94,12 +94,16 @@ export function checkForWinner(state: GameState): Progress {
     return { state, events: [] };
   }
 
-  for (const playerId of ["p1", "p2"] as const) {
+  for (const playerId of state.turnOrder) {
     const points = seatOf(state, playerId).points;
-    const opponentPoints =
-      seatOf(state, playerId === "p1" ? "p2" : "p1").points;
+    // R194.2 — "more points than any other player". With one opponent that is
+    // a comparison; with three it is a maximum, and a tie at the top wins for
+    // nobody.
+    const best = Math.max(
+      ...opponentsOf(state, playerId).map((id) => seatOf(state, id).points),
+    );
 
-    if (points >= VICTORY_SCORE && points > opponentPoints) {
+    if (points >= VICTORY_SCORE && points > best) {
       const shown = revealEveryFacedown(state);
       return {
         // R194.2 — setting the winner is the whole of this. Stopping the

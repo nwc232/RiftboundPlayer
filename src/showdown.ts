@@ -8,7 +8,7 @@ import type { GameEvent, Progress } from "./events.js";
 import { controllerOf } from "./layers.js";
 import { sweepFacedown } from "./hidden.js";
 import { checkForWinner, score } from "./scoring.js";
-import { permanentsAt, sameLocation } from "./state.js";
+import { nextInTurnOrder, permanentsAt, sameLocation } from "./state.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 
 /**
@@ -194,7 +194,11 @@ export function openShowdown(state: GameState, battlefieldId: CardId): Progress 
   };
 }
 
-/** R347 — the player with Focus passes. Two passes in sequence close it. */
+/**
+ * R347.2 — the player with Focus passes. R347.2.a closes the Showdown once
+ * "all Players have passed once in sequence", which is as many passes as there
+ * are seats — two in a Duel, three in a Skirmish.
+ */
 export function passFocus(state: GameState, playerId: PlayerId): Progress {
   const showdown = state.showdown;
   if (showdown === null || showdown.focus !== playerId) {
@@ -204,7 +208,7 @@ export function passFocus(state: GameState, playerId: PlayerId): Progress {
   const consecutivePasses = showdown.consecutivePasses + 1;
   const events: GameEvent[] = [{ type: "focusPassed", playerId }];
 
-  if (consecutivePasses >= 2) {
+  if (consecutivePasses >= state.turnOrder.length) {
     const closed = closeShowdown(state);
     return { state: closed.state, events: [...events, ...closed.events] };
   }
@@ -214,7 +218,8 @@ export function passFocus(state: GameState, playerId: PlayerId): Progress {
       ...state,
       showdown: {
         ...showdown,
-        focus: playerId === "p1" ? "p2" : "p1",
+        // R347.2.b — "Focus passes to the next Player in Turn Order."
+        focus: nextInTurnOrder(state, playerId),
         consecutivePasses,
       },
     },

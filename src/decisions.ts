@@ -6,7 +6,7 @@ import {
   tagsOf,
   targetingRestricted,
 } from "./layers.js";
-import { sameLocation } from "./state.js";
+import { opponentsOf, sameLocation, turnOrderFrom } from "./state.js";
 import type {
   CardId,
   Cost,
@@ -63,6 +63,13 @@ export type DecisionPrompt =
    * choice; a single staged battlefield opens without asking.
    */
   | { kind: "chooseStagedBattlefield"; legal: CardId[] }
+  /**
+   * R431.2.c — a player who Burns Out "Chooses an opponent to gain 1 point".
+   * In a Duel the choice has one answer and is never asked; R487 and R488 seat
+   * two and three opponents, and then it is a real decision — and one the
+   * burning-out player makes, which is why they are its `player`.
+   */
+  | { kind: "chooseOpponent"; legal: PlayerId[] }
   /**
    * R465.2.c — which unit to assign combat damage to next. The amount is not
    * asked for: c.3 forces exactly lethal and c.4 forbids more while other units
@@ -282,10 +289,12 @@ function legalSubjects(
 
   // Not a search over permanents: the two players are simply there.
   if (filter.type === "player") {
-    const opponent: PlayerId = controller === "p1" ? "p2" : "p1";
+    // R483.2.b — "the number of opponents" is a property of the mode, so
+    // "enemy" is a list. In a Duel it holds one, which is why this used to
+    // read as a flip.
     if (filter.controller === "friendly") return [controller];
-    if (filter.controller === "enemy") return [opponent];
-    return [controller, opponent];
+    if (filter.controller === "enemy") return opponentsOf(state, controller);
+    return turnOrderFrom(state, controller);
   }
 
   if (filter.type === "battlefield") {

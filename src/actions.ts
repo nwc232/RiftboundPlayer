@@ -11,7 +11,7 @@ import {
 } from "./costing.js";
 import { killUnits } from "./combat.js";
 import type { GameEvent } from "./events.js";
-import { ownerOf, permanentsAt, playedBy, sameLocation, seatOf } from "./state.js";
+import { nextInTurnOrder, ownerOf, permanentsAt, playedBy, sameLocation, seatOf } from "./state.js";
 import type {
   BattlefieldState,
   CardId,
@@ -661,6 +661,19 @@ export function decide(
       },
       events: [],
     });
+  }
+
+  // R431.2.c — which opponent gains the point from a Burn Out. The recycle
+  // has already happened; this is the sequence's third step.
+  if (prompt.kind === "chooseOpponent") {
+    const chosen = choice.targets ?? [];
+    if (chosen.length !== 1) return rejected("wrongTargetCount");
+    const opponent = chosen[0];
+    if (opponent === undefined || !prompt.legal.includes(opponent as PlayerId)) {
+      return rejected("invalidTarget");
+    }
+    const worked = runTasks(applyResumeAnswer(state, chosen));
+    return afterTasks(worked.state, worked.events);
   }
 
   if (prompt.kind === "chooseFromRevealed") {
@@ -1397,15 +1410,17 @@ export function passPriority(
   if (!chainExists(state)) return rejected("noShowdown");
   if (state.priority !== playerId) return rejected("notYourPriority");
 
-  const opponent = playerId === "p1" ? "p2" : "p1";
+  // R338.1.b.1 — "passes Priority to the next Player in Turn Order".
+  const next = nextInTurnOrder(state, playerId);
   const events: GameEvent[] = [{ type: "priorityPassed", playerId }];
   const passes = state.priorityPasses + 1;
 
-  // R339 — only once everyone has passed in sequence does the top item resolve.
-  if (passes < 2) {
+  // R339.1 — the item resolves only once *every* player has passed in
+  // sequence, which is one pass per seat rather than two.
+  if (passes < state.turnOrder.length) {
     return {
       ok: true,
-      state: { ...state, priority: opponent, priorityPasses: passes },
+      state: { ...state, priority: next, priorityPasses: passes },
       events,
     };
   }

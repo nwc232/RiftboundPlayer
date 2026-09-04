@@ -21,7 +21,7 @@ import type {
 } from "./state.js";
 import { leaveChain } from "./chain.js";
 import { killUnits } from "./combat.js";
-import { ownerOf, playedBy, sameLocation, seatOf } from "./state.js";
+import { opponentsOf, ownerOf, playedBy, sameLocation, seatOf, turnOrderFrom } from "./state.js";
 import { burnOut, drawCards } from "./draw.js";
 import { controllerOf, mightOf, restricted } from "./layers.js";
 import { tokenCard } from "./tokens.js";
@@ -434,7 +434,17 @@ export type Effect =
    * card from it, and recycle that card." Same shape: the choice comes after
    * the reveal.
    */
-  | { op: "recycleFromOpponentHand"; exclude?: "unit" }
+  | {
+      op: "recycleFromOpponentHand";
+      exclude?: "unit";
+      /**
+       * Sabotage opens "Choose an opponent." — a real choice once a mode
+       * seats more than one, and a forced one in a Duel. This indexes
+       * `context.targets`; absent means the sole opponent, which is what the
+       * two-player game always had.
+       */
+      playerIndex?: number;
+    }
   /**
    * A continuation, not card vocabulary: what `lookAtTop` and
    * `recycleFromOpponentHand` become once the player has answered. It reads
@@ -444,6 +454,12 @@ export type Effect =
       op: "takeRevealed";
       from: "mainDeck" | "opponentHand";
       revealed: CardId[];
+      /**
+       * Which opponent's hand, for the `opponentHand` form. A continuation
+       * the engine writes rather than card text, so the player it already
+       * settled on is carried here rather than re-derived after the pause.
+       */
+      player?: PlayerId;
     }
   /**
    * A continuation: damage whose R372 ordering has been asked about. The
@@ -471,6 +487,12 @@ export type Effect =
   | { op: "heal"; targetIndex: number }
   /** R414 — the other half of "heal it, **exhaust it**, and recall it". */
   | { op: "exhaust"; targetIndex: number }
+  /**
+   * R431.2.c — the point a Burn Out gives away. Not card vocabulary: the
+   * engine writes it when a deck runs dry, and the burned-out player's answer
+   * says which opponent gains it. With one opponent it never has to ask.
+   */
+  | { op: "burnOutPoint" }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost =
@@ -1059,6 +1081,24 @@ function withPool(
  * The interpreter. Every card's effect flows through this one function, which
  * is the only place that knows how to turn an Effect into a state change.
  */
+/**
+ * The opponent an effect is aimed at: the one its ability chose, or — when it
+ * names none — the only one there is. R483.2.b makes "the opponent" singular
+ * in a Duel and a list in every other mode, so an effect with no choice to
+ * read has an unambiguous answer only when the mode seats two.
+ */
+function chosenOpponent(
+  state: GameState,
+  context: EffectContext,
+  playerIndex: number | undefined,
+): PlayerId | undefined {
+  const opponents = opponentsOf(state, context.controller);
+  if (playerIndex === undefined) return opponents[0];
+
+  const chosen = context.targets[playerIndex];
+  return opponents.find((id) => id === chosen);
+}
+
 export function execute(
   state: GameState,
   effect: Effect,
@@ -2585,7 +2625,8 @@ export function execute(
     }
 
     case "recycleFromOpponentHand": {
-      const opponent = context.controller === "p1" ? "p2" : "p1";
+      const opponent = chosenOpponent(state, context, effect.playerIndex);
+      if (opponent === undefined) return { state, events: [] };
       const legal = seatOf(state, opponent).hand.filter(
         (cardId) =>
           effect.exclude === undefined ||
@@ -2597,6 +2638,7 @@ export function execute(
         op: "takeRevealed",
         from: "opponentHand",
         revealed: legal,
+        player: opponent,
       };
       if (legal.length === 1) {
         return execute(state, rest, { ...context, answer: legal });
@@ -2652,7 +2694,9 @@ export function execute(
         };
       }
 
-      const opponent = context.controller === "p1" ? "p2" : "p1";
+      const opponent =
+        effect.player ?? opponentsOf(state, context.controller)[0];
+      if (opponent === undefined) return { state, events: [] };
       const theirs = seatOf(state, opponent);
       return {
         state: {
@@ -2830,13 +2874,13 @@ export function execute(
     }
 
     case "forEachPlayer": {
-      const opponent: PlayerId = context.controller === "p1" ? "p2" : "p1";
-      // R318's turn order is the natural reading of "each player": the
-      // effect's controller acts first, then their opponent.
+      // R303.2.a sequences everything simultaneous by turn order "starting
+      // with the current Turn Player"; for an effect, the natural reading of
+      // "each player" starts with its controller and goes round from there.
       const players: PlayerId[] =
         effect.who === "eachOpponent"
-          ? [opponent]
-          : [context.controller, opponent];
+          ? opponentsOf(state, context.controller)
+          : turnOrderFrom(state, context.controller);
 
       let current = state;
       const events: GameEvent[] = [];
@@ -2855,6 +2899,42 @@ export function execute(
         if (outcome.pause !== undefined) break;
       }
       return { state: current, events };
+    }
+
+    case "burnOutPoint": {
+      const opponents = opponentsOf(state, context.controller);
+      const answered = context.answer?.[0];
+      const chosen =
+        opponents.find((id) => id === answered) ??
+        (opponents.length === 1 ? opponents[0] : undefined);
+      if (chosen === undefined) {
+        // More than one opponent and no answer yet, so R431.2.c is a real
+        // choice. It belongs to the player who burned out.
+        return {
+          state,
+          events: [],
+          pause: {
+            decision: {
+              player: context.controller,
+              prompt: { kind: "chooseOpponent", legal: opponents },
+            },
+            resume: { op: "burnOutPoint" },
+            context,
+          },
+        };
+      }
+
+      const them = seatOf(state, chosen);
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [chosen]: { ...them, points: them.points + 1 },
+          },
+        },
+        events: [{ type: "pointGained", playerId: chosen, points: 1 }],
+      };
     }
 
     case "scorePoint": {
