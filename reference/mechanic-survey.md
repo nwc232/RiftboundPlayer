@@ -861,12 +861,19 @@ built when a card asks for it.
   R811.1.d.1 puts it back at the battlefield it was hidden at, and it then sat
   there for the rest of the game. Found by a soak over every deck combination,
   not by reading — the fixed deck pairs in the playthroughs never reached it.
+- **A dropped connection is held for a minute before it concedes.** R650–652
+  have no notion of a lost connection: a player is in the game or has
+  conceded, so the literal reading makes a dropped socket an instant
+  concession. Over a tunnel that ends someone's game for a two-second wifi
+  hiccup, so the seat is held for `GRACE_MS` and reclaimed with a token the
+  client keeps. Nothing about R652 changes; it happens a minute later. The
+  sweep runs on the server's 30-second heartbeat, so the real wait is 60–90
+  seconds.
 - **A player removed under R652 is removed, not replaced.** R652.5's handoffs
   are built — turn, Focus and Priority all pass to the next player in order —
-  but `Room` will not seat a newcomer in the vacated chair, and a player who
-  drops cannot rejoin. The rules describe no way back into a game in progress,
-  so this is a deviation only in the sense that a real table would let someone
-  who lost their connection sit back down.
+  but `Room` will not seat a newcomer in the vacated chair, and a player whose
+  grace period has run out cannot rejoin. The rules describe no way back into
+  a game in progress, and past that minute neither does this.
 - **Teams are not built at all (R489).** 2v2 Magma Chamber is fully specified
   by R489.8.a–i and none of it exists: shared points, the invite that lets a
   teammate act on your turn (R489.8.a/R316.5.b.1), "friendly" widening to a

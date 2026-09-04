@@ -27,6 +27,7 @@ import {
 import type { Move } from "./game.js";
 import { MODES } from "../modes-of-play.js";
 import { SEATS, opponentsOf } from "../state.js";
+import { explain } from "./rejections.js";
 
 interface Snapshot {
   state: GameState;
@@ -144,6 +145,7 @@ export function App() {
   // Pointing at a card wins over the selection, so you can read anything on
   // the board without losing what you were about to play.
   const showing = hovered ?? selected;
+  const refusal = explain(isOnline ? online.rejected : rejected);
   const moves = useMemo(() => movesFor(state, acting), [state, acting]);
 
   /**
@@ -525,10 +527,19 @@ export function App() {
           </div>
         )}
         {/* Online the refusal comes back from the server, and it is the
-            engine's own reason either way. */}
-        {(isOnline ? online.rejected : rejected) !== null && (
-          <div className="rejected">
-            rejected: {isOnline ? online.rejected : rejected}
+            engine's own reason either way — `explain` is the only place it
+            becomes something a player can act on. */}
+        {refusal !== null && (
+          <div className={refusal.race ? "rejected is-race" : "rejected"}>
+            {refusal.text}
+          </div>
+        )}
+        {/* Somebody's socket dropped and their seat is being held. The others
+            are waiting on them, so they are told rather than left guessing. */}
+        {isOnline && online.away.length > 0 && (
+          <div className="rejected is-race">
+            {online.away.join(", ")} disconnected — holding their seat for a
+            minute
           </div>
         )}
       </div>

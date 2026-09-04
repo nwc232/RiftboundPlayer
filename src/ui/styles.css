@@ -527,3 +527,13 @@ button.concede {
 button.concede:hover:not(:disabled) {
   background: color-mix(in srgb, var(--bad) 18%, transparent);
 }
+
+/*
+ * A refusal that is nobody's mistake — two people clicked at once, and the
+ * server took the first. Said quietly, because "wait a moment" is not an
+ * error and should not look like one.
+ */
+.rejected.is-race {
+  border-color: color-mix(in srgb, var(--muted) 40%, transparent);
+  color: var(--muted);
+}

@@ -27,6 +27,35 @@ export interface Online {
   restart: () => void;
   /** How many have arrived, of how many the room is for, while waiting. */
   seated: { seated: number; of: number } | null;
+  /** Seats whose player has dropped and is inside the grace period. */
+  away: PlayerId[];
+}
+
+/**
+ * Where a seat's claim on itself lives. `sessionStorage` rather than
+ * `localStorage`: it survives a reload and a dropped socket, which is the
+ * whole point, but not a closed tab — a chair should not be held by a browser
+ * nobody is looking at.
+ */
+function tokenKey(room: string): string {
+  return `riftbound:seat:${room}`;
+}
+
+function rememberedToken(room: string): string | undefined {
+  try {
+    return window.sessionStorage.getItem(tokenKey(room)) ?? undefined;
+  } catch {
+    // Private windows and blocked storage throw rather than return null.
+    return undefined;
+  }
+}
+
+function rememberToken(room: string, token: string): void {
+  try {
+    window.sessionStorage.setItem(tokenKey(room), token);
+  } catch {
+    // Not being able to remember costs a reconnection, not a game.
+  }
 }
 
 /** Where the socket lives. Same host as the page, so a link is a link. */
@@ -55,6 +84,10 @@ export function useOnline(
   const [seated, setSeated] = useState<{ seated: number; of: number } | null>(
     null,
   );
+  const [away, setAway] = useState<PlayerId[]>([]);
+  /** Bumped to reconnect after a drop, which re-runs the effect below. */
+  const [attempt, setAttempt] = useState(0);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (room === null) return;
@@ -64,7 +97,17 @@ export function useOnline(
     setStatus("connecting");
 
     live.onopen = () => {
-      const join: ClientMessage = { kind: "join", room, deck, players };
+      const join: ClientMessage = {
+        kind: "join",
+        room,
+        deck,
+        players,
+        // Present the seat's own claim, if this browser has one. The server
+        // honours it only for a seat that is waiting for its player.
+        ...(rememberedToken(room) === undefined
+          ? {}
+          : { token: rememberedToken(room)! }),
+      };
       live.send(JSON.stringify(join));
     };
 
@@ -73,6 +116,8 @@ export function useOnline(
       switch (message.kind) {
         case "joined":
           setSeat(message.seat);
+          rememberToken(room, message.token);
+          setRejected(null);
           return;
         case "waiting":
           setSeat(message.seat);
@@ -83,6 +128,7 @@ export function useOnline(
           setSeat(message.seat);
           setState(message.state);
           setEvents(message.events);
+          setAway(message.away);
           setStatus("playing");
           setRejected(null);
           return;
@@ -103,17 +149,23 @@ export function useOnline(
       }
     };
 
-    live.onclose = () => setStatus("closed");
+    live.onclose = () => {
+      setStatus("closed");
+      // The server holds the seat for a minute; keep trying to take it back
+      // for as long as that lasts, so a brief hiccup costs nothing.
+      retry.current = setTimeout(() => setAttempt((n) => n + 1), 1500);
+    };
 
     return () => {
       live.onclose = null;
       live.close();
       socket.current = null;
+      if (retry.current !== null) clearTimeout(retry.current);
     };
     // The deck is part of the join, so changing it reconnects and rejoins.
     // The picker is disabled once a game exists, so that only ever happens
     // while waiting for the other seat.
-  }, [room, deck, players]);
+  }, [room, deck, players, attempt]);
 
   const send = useCallback((action: Action) => {
     const live = socket.current;
@@ -129,5 +181,5 @@ export function useOnline(
     live.send(JSON.stringify(message));
   }, []);
 
-  return { state, events, seat, room, status, rejected, send, restart, seated };
+  return { state, events, seat, room, status, rejected, send, restart, seated, away };
 }

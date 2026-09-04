@@ -30,6 +30,12 @@ export type ClientMessage =
        * omitting it means a Duel.
        */
       players?: number;
+      /**
+       * Proof that this is a seat's own player coming back after a dropped
+       * socket. Issued with `joined` and kept by the client; without it a
+       * held seat would be handed to whoever knocked next.
+       */
+      token?: string;
     }
   /**
    * R355 and everything else: the server runs this through `applyAction`
@@ -40,7 +46,13 @@ export type ClientMessage =
   | { kind: "restart" };
 
 export type ServerMessage =
-  | { kind: "joined"; room: RoomId; seat: PlayerId }
+  | {
+      kind: "joined";
+      room: RoomId;
+      seat: PlayerId;
+      /** Send this back to reclaim the seat if the connection drops. */
+      token: string;
+    }
   /** Seats are still empty, so there is no game to send. */
   | {
       kind: "waiting";
@@ -61,6 +73,12 @@ export type ServerMessage =
       state: GameState;
       /** The whole log so far, filtered the same way. */
       events: GameEvent[];
+      /**
+       * Seats whose player has dropped and is inside the grace period. Shown
+       * rather than hidden: the others are waiting on them, and "p2 is
+       * reconnecting" is the difference between that and a frozen game.
+       */
+      away: PlayerId[];
     }
   | { kind: "rejected"; reason: string }
   /**
@@ -86,9 +104,11 @@ export function parseClientMessage(text: string): ClientMessage | undefined {
     case "join":
       {
         const players = (message as { players?: unknown }).players;
+        const token = (message as { token?: unknown }).token;
         const sane =
-          players === undefined ||
-          (typeof players === "number" && Number.isInteger(players));
+          (players === undefined ||
+            (typeof players === "number" && Number.isInteger(players))) &&
+          (token === undefined || typeof token === "string");
         return typeof (message as { room?: unknown }).room === "string" &&
           typeof (message as { deck?: unknown }).deck === "number" &&
           sane

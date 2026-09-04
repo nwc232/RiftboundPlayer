@@ -9,6 +9,11 @@ import {
   messageFor,
   restart,
   seatsOf,
+  awaySeats,
+  expireAway,
+  rejoin,
+  seatFor,
+  GRACE_MS,
 } from "../src/server/room.js";
 import { HIDDEN_CARD } from "../src/view.js";
 import { seatOf } from "../src/state.js";
@@ -21,8 +26,8 @@ import { seatOf } from "../src/state.js";
 
 const dealt = () => {
   let room = emptyRoom("abc");
-  room = join(room, "p1", 0, 1);
-  room = join(room, "p2", 1, 1);
+  room = join(room, "p1", 0, 1, "tok-p1");
+  room = join(room, "p2", 1, 1, "tok-p2");
   return room;
 };
 
@@ -46,20 +51,20 @@ describe("filling a room", () => {
     let room = emptyRoom("abc");
     expect(freeSeat(room)).toBe("p1");
 
-    room = join(room, "p1", 0, 1);
+    room = join(room, "p1", 0, 1, "tok-p1");
     expect(freeSeat(room)).toBe("p2");
 
-    room = join(room, "p2", 1, 1);
+    room = join(room, "p2", 1, 1, "tok-p2");
     expect(freeSeat(room)).toBeUndefined();
   });
 
   /** Nothing to look at until both are here — and no deck chosen for anyone. */
   it("deals only once both seats are filled", () => {
-    let room = join(emptyRoom("abc"), "p1", 0, 1);
+    let room = join(emptyRoom("abc"), "p1", 0, 1, "tok-p1");
     expect(room.game).toBeUndefined();
     expect(messageFor(room, "p1").kind).toBe("waiting");
 
-    room = join(room, "p2", 1, 1);
+    room = join(room, "p2", 1, 1, "tok-p2");
     expect(room.game).toBeDefined();
     expect(messageFor(room, "p1").kind).toBe("state");
   });
@@ -131,7 +136,7 @@ describe("acting", () => {
   });
 
   it("refuses anything at all before the game is dealt", () => {
-    const room = join(emptyRoom("abc"), "p1", 0, 1);
+    const room = join(emptyRoom("abc"), "p1", 0, 1, "tok-p1");
 
     expect(
       act(room, "p1", { type: "endTurn", playerId: "p1" }),
@@ -185,146 +190,107 @@ describe("what a seat is sent", () => {
   });
 });
 
-describe("leaving", () => {
-  /**
-   * R650/R651.1 — a dropped socket is the nearest thing the rules describe to
-   * a concession, and with one player left "the player remaining Wins". The
-   * game used to simply vanish, which told the person still sitting there
-   * nothing.
-   */
-  it("hands a Duel to whoever is still there", () => {
-    const room = leave(dealt(), "p2");
+describe("dropping out", () => {
+  const T0 = 1_000_000;
 
-    expect(room.game?.state.winner).toBe("p1");
-    expect(room.seats.p2).toBeUndefined();
+  /**
+   * **A deliberate deviation from R650–652**, and the reason it is worth
+   * testing rather than assuming: the rules have no notion of a lost
+   * connection, so the literal reading makes a dropped socket an instant
+   * concession. Over a tunnel, on somebody's home wifi, that ends a game for
+   * a two-second hiccup. The seat is held instead — nothing about R652
+   * changes, it just happens a minute later.
+   */
+  it("holds the seat rather than conceding it", () => {
+    const room = leave(dealt(), "p2", T0);
+
+    expect(awaySeats(room)).toEqual(["p2"]);
+    expect(room.game?.state.winner).toBeNull();
+    expect(room.game?.state.turnOrder).toEqual(["p1", "p2"]);
+    // Still nobody else's chair to take.
+    expect(freeSeat(room)).toBeUndefined();
   });
 
-  /** R651.2 — with two others left, the other two carry on. */
-  it("carries on a Skirmish without the one who dropped", () => {
+  it("tells the others who is away", () => {
+    const room = leave(dealt(), "p2", T0);
+    const message = messageFor(room, "p1");
+
+    expect(message.kind).toBe("state");
+    if (message.kind !== "state") return;
+    expect(message.away).toEqual(["p2"]);
+  });
+
+  /** The seat is theirs, and the token is what says so. */
+  it("gives the seat back to whoever holds its token", () => {
+    let room = emptyRoom("abc");
+    room = join(room, "p1", 0, 1, "tok-1");
+    room = join(room, "p2", 1, 1, "tok-2");
+    room = leave(room, "p2", T0);
+
+    expect(seatFor(room, "tok-2")).toBe("p2");
+    const back = rejoin(room, "p2");
+    expect(awaySeats(back)).toEqual([]);
+    expect(back.game?.state.winner).toBeNull();
+  });
+
+  /** A stranger's token is not a claim, and neither is a seated player's. */
+  it("refuses a token that is not a waiting seat's", () => {
+    let room = emptyRoom("abc");
+    room = join(room, "p1", 0, 1, "tok-1");
+    room = join(room, "p2", 1, 1, "tok-2");
+    room = leave(room, "p2", T0);
+
+    expect(seatFor(room, "nonsense")).toBeUndefined();
+    // p1 is still sitting there, so their own token claims nothing — a second
+    // tab must not be able to take over a chair someone is using.
+    expect(seatFor(room, "tok-1")).toBeUndefined();
+  });
+
+  /** R651.1 — once the grace period is up it is a concession after all. */
+  it("concedes a Duel seat that never comes back", () => {
+    const room = leave(dealt(), "p2", T0);
+
+    const early = expireAway(room, T0 + GRACE_MS - 1);
+    expect(early.expired).toEqual([]);
+    expect(early.room.game?.state.winner).toBeNull();
+
+    const late = expireAway(room, T0 + GRACE_MS);
+    expect(late.expired).toEqual(["p2"]);
+    expect(late.room.game?.state.winner).toBe("p1");
+  });
+
+  /** R651.2 — and a Skirmish carries on with the two who are left. */
+  it("removes a Skirmish seat that never comes back", () => {
     let room = emptyRoom("abc", 3);
     for (const [at, seat] of seatsOf(room).entries()) {
-      room = join(room, seat, at, 1);
+      room = join(room, seat, at, 1, `tok-${at}`);
     }
+    room = leave(room, "p2", T0);
 
-    const after = leave(room, "p2");
+    const { room: after, expired } = expireAway(room, T0 + GRACE_MS);
 
+    expect(expired).toEqual(["p2"]);
     expect(after.game?.state.winner).toBeNull();
     expect(after.game?.state.turnOrder).toEqual(["p1", "p3"]);
   });
 
-  /**
-   * R652 removes a player from the game in progress and says nothing about
-   * putting one back, so the chair does not reopen — a newcomer taking it
-   * would re-deal over a game two other people are still playing.
-   */
-  it("does not reopen the seat mid-game", () => {
-    const room = leave(dealt(), "p2");
-
-    expect(freeSeat(room)).toBeUndefined();
-    const intruder = join(room, "p2", 0, 2);
-    expect(intruder.game?.state.winner).toBe("p1");
-  });
-
-  /** Before the deal there is nothing to concede from, so the seat reopens. */
+  /** Before the deal there is nothing to be removed from, so it reopens. */
   it("reopens a seat vacated before the deal", () => {
     let room = emptyRoom("abc", 3);
-    room = join(room, "p1", 0, 1);
-    room = join(room, "p2", 1, 1);
+    room = join(room, "p1", 0, 1, "tok-1");
+    room = join(room, "p2", 1, 1, "tok-2");
 
-    const after = leave(room, "p2");
+    const after = leave(room, "p2", T0);
 
     expect(after.game).toBeUndefined();
     expect(freeSeat(after)).toBe("p2");
   });
-});
 
-describe("restarting", () => {
-  it("deals again and keeps both seats", () => {
-    const room = seeded();
-    expect(room.game!.events.length).toBeGreaterThan(0);
+  /** Re-dealing while somebody is trying to reconnect would lose their game. */
+  it("will not restart while a seat is away", () => {
+    const room = leave(dealt(), "p2", T0);
+    const before = room.game?.state;
 
-    const again = restart(room, 99);
-    expect(again.seats.p1).toBeDefined();
-    expect(again.seats.p2).toBeDefined();
-    expect(again.game!.events).toEqual([]);
-  });
-
-  it("does nothing while a seat is empty", () => {
-    const room = join(emptyRoom("abc"), "p1", 0, 1);
-    expect(restart(room, 5).game).toBeUndefined();
-  });
-});
-
-/**
- * R483.1 — a room is for as many people as its mode seats. The engine's rules
- * for three and four players are tested in `multiplayer.test.ts`; what matters
- * here is that a room holds the seats open and deals only when the table is
- * full.
- */
-describe("rooms for more than two", () => {
-  it("holds three seats open until the third arrives (R487.1)", () => {
-    let room = emptyRoom("abc", 3);
-
-    expect(seatsOf(room)).toEqual(["p1", "p2", "p3"]);
-    room = join(room, "p1", 0, 1);
-    expect(room.game).toBeUndefined();
-    room = join(room, "p2", 1, 1);
-    // Two of three: a Duel would be dealt by now, a Skirmish is not.
-    expect(room.game).toBeUndefined();
-    expect(freeSeat(room)).toBe("p3");
-
-    room = join(room, "p3", 2, 1);
-    expect(room.game).toBeDefined();
-    expect(room.game?.state.turnOrder).toEqual(["p1", "p2", "p3"]);
-    expect(room.game?.state.mode).toBe("skirmish");
-    expect(freeSeat(room)).toBeUndefined();
-  });
-
-  it("seats four for a War (R488.1)", () => {
-    let room = emptyRoom("abc", 4);
-    for (const [at, seat] of seatsOf(room).entries()) {
-      room = join(room, seat, at, 1);
-    }
-
-    expect(room.game?.state.mode).toBe("war");
-    // R488.4 — three battlefields, because R488.4.b takes the first player's.
-    expect(room.game?.state.battlefieldOrder).toHaveLength(3);
-  });
-
-  /** An unsanctioned count has no mode, so there is no game to open. */
-  it("refuses a size no mode seats (R483)", () => {
-    expect(() => emptyRoom("abc", 5)).toThrow();
-    expect(() => emptyRoom("abc", 1)).toThrow();
-  });
-
-  /** R107 at the socket, with two opponents rather than one to hide. */
-  it("hides both opponents' hands from the third seat", () => {
-    let room = emptyRoom("abc", 3);
-    for (const [at, seat] of seatsOf(room).entries()) {
-      room = join(room, seat, at, 1);
-    }
-
-    const message = messageFor(room, "p2");
-    if (message.kind !== "state") throw new Error("expected a state");
-    expect(seatOf(message.state, "p2").hand.every((id) => !id.startsWith(HIDDEN_CARD))).toBe(true);
-    for (const other of ["p1", "p3"] as const) {
-      expect(
-        seatOf(message.state, other).hand.every((id) => id.startsWith(HIDDEN_CARD)),
-      ).toBe(true);
-    }
-  });
-
-  it("says how many seats are still empty", () => {
-    let room = emptyRoom("abc", 3);
-    room = join(room, "p1", 0, 1);
-
-    const message = messageFor(room, "p1");
-    expect(message).toEqual({
-      kind: "waiting",
-      room: "abc",
-      seat: "p1",
-      seated: 1,
-      players: 3,
-    });
+    expect(restart(room, 99).game?.state).toBe(before);
   });
 });

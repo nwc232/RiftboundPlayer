@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join as joinPath, normalize, resolve } from "node:path";
@@ -14,6 +15,9 @@ import {
   messageFor,
   restart,
   seatsOf,
+  expireAway,
+  rejoin,
+  seatFor,
 } from "./room.js";
 import type { Room } from "./room.js";
 import type { PlayerId } from "../state.js";
@@ -128,7 +132,12 @@ sockets.on("connection", (socket) => {
           return;
         }
       }
-      const seat = freeSeat(room);
+      // A token for a seat that is waiting for its player takes them back to
+      // it — the same chair, the same cards, the same game. Anything else is
+      // a new arrival and gets whatever seat is free.
+      const returning =
+        message.token === undefined ? undefined : seatFor(room, message.token);
+      const seat = returning ?? freeSeat(room);
       if (seat === undefined) {
         tell(socket, { kind: "gone", reason: "roomFull" });
         return;
@@ -137,11 +146,15 @@ sockets.on("connection", (socket) => {
       // A seed per room rather than per game, so both seats are dealt the same
       // shuffle — the engine takes deck order as given and does its own
       // shuffling at setup.
-      const filled = join(room, seat, message.deck, Date.now() % 100000);
+      const token = returning === undefined ? randomUUID() : message.token!;
+      const filled =
+        returning === undefined
+          ? join(room, seat, message.deck, Date.now() % 100000, token)
+          : rejoin(room, seat);
       rooms.set(room.id, filled);
       sitting.set(socket, { room: room.id, seat });
 
-      tell(socket, { kind: "joined", room: room.id, seat });
+      tell(socket, { kind: "joined", room: room.id, seat, token });
       broadcast(filled);
       return;
     }
@@ -183,7 +196,7 @@ sockets.on("connection", (socket) => {
     const room = rooms.get(seated.room);
     if (room === undefined) return;
 
-    const left = leave(room, seated.seat);
+    const left = leave(room, seated.seat, Date.now());
     // An empty room is forgotten rather than kept: there are no accounts to
     // hold it for, and a room code is cheap to agree on again. Asked of every
     // seat the mode uses — checking p1 and p2 dropped a Skirmish the moment
@@ -195,9 +208,10 @@ sockets.on("connection", (socket) => {
     rooms.set(room.id, left);
     for (const [other, seat] of sitting) {
       if (seat.room !== room.id) continue;
-      // R650/R652 — with three seats the game carries on, so this is news
-      // rather than the end of it. The state that follows says which.
-      tell(other, { kind: "gone", reason: "playerLeft", seat: seated.seat });
+      // Their seat is being held, not emptied — `GRACE_MS` later it becomes
+      // R650's concession. The state that follows carries `away`, so the
+      // others can be told someone is reconnecting rather than gone.
+      tell(other, { kind: "gone", reason: "playerAway", seat: seated.seat });
       tell(other, messageFor(left, seat.seat));
     }
   });
@@ -210,6 +224,27 @@ sockets.on("connection", (socket) => {
  * back.
  */
 const heartbeat = setInterval(() => {
+  // A held seat becomes R650's concession once the grace period is up. Run on
+  // the same timer rather than a timeout per seat: there is nothing to cancel
+  // when somebody comes back, and a room nobody is watching cleans itself up.
+  const now = Date.now();
+  for (const [id, room] of rooms) {
+    const { room: after, expired } = expireAway(room, now);
+    if (expired.length === 0) continue;
+    if (seatsOf(after).every((seat) => after.seats[seat] === undefined)) {
+      rooms.delete(id);
+      continue;
+    }
+    rooms.set(id, after);
+    for (const [socket, seat] of sitting) {
+      if (seat.room !== id) continue;
+      for (const gone of expired) {
+        tell(socket, { kind: "gone", reason: "playerLeft", seat: gone });
+      }
+      tell(socket, messageFor(after, seat.seat));
+    }
+  }
+
   for (const socket of sockets.clients) {
     if (!alive.has(socket)) {
       // `terminate` rather than `close`: it has already stopped answering, so

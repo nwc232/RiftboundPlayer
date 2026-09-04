@@ -22,7 +22,31 @@ export interface Seat {
   player: PlayerId;
   /** Which authored list they brought, by index into `DECKS`. */
   deck: number;
+  /**
+   * What proves this is the same person coming back. There are no accounts,
+   * so the seat is held against a secret the client keeps and nothing else
+   * knows — without it, a vacated chair would be handed to whoever knocked.
+   */
+  token: string;
+  /**
+   * When their socket dropped, if it has. A seat that is away is still theirs:
+   * `GRACE_MS` later it becomes R650's concession, and until then they can
+   * come back to it.
+   */
+  away?: number;
 }
+
+/**
+ * How long a dropped seat is held.
+ *
+ * **A deliberate deviation from R650–652.** The rules have no notion of a lost
+ * connection: a player is in the game or has conceded. Treating a dropped
+ * socket as an instant concession is the literal reading and is what this did
+ * — but over a tunnel, on someone's home wifi, a two-second hiccup would end
+ * their game with no way back. So the concession is delayed rather than
+ * skipped: nothing about R652 changes, it just happens a minute later.
+ */
+export const GRACE_MS = 60_000;
 
 export interface Room {
   id: RoomId;
@@ -78,10 +102,11 @@ export function join(
   seat: PlayerId,
   deck: number,
   seed: number,
+  token: string,
 ): Room {
   const filled: Room = {
     ...room,
-    seats: { ...room.seats, [seat]: { player: seat, deck } },
+    seats: { ...room.seats, [seat]: { player: seat, deck, token } },
   };
   // A game already dealt is never re-dealt by an arrival. `freeSeat` should
   // have refused the joiner already; this is the same rule said where it
@@ -99,30 +124,84 @@ export function join(
 }
 
 /**
- * Someone disconnects.
+ * Someone's socket drops.
  *
- * The rules have no word for a dropped socket, so this treats it as R650's
- * concession, which is the closest thing they describe: with two seats R651.1
- * hands the game to whoever is left, and with three R652 takes the leaver off
- * the board and the other two carry on. Anything else would end a Skirmish
- * for two people because a third lost their wifi.
- *
- * Before the deal there is no game to concede from, so the seat simply opens
- * up again — which is also the only case where someone can come back.
+ * Before the deal there is nothing to be removed from, so the seat simply
+ * opens up again. Once a game exists the seat is held rather than emptied —
+ * see `GRACE_MS` — and `expireAway` turns the wait into R650's concession if
+ * they do not come back.
  */
-export function leave(room: Room, seat: PlayerId): Room {
-  const { [seat]: _gone, ...seats } = room.seats;
-  if (room.game === undefined) return { ...room, seats, game: undefined };
+export function leave(room: Room, seat: PlayerId, now: number): Room {
+  const sitting = room.seats[seat];
+  if (room.game === undefined || sitting === undefined) {
+    const { [seat]: _gone, ...seats } = room.seats;
+    return { ...room, seats, game: undefined };
+  }
 
-  const left = concede(room.game.state, seat);
   return {
     ...room,
-    seats,
-    game: {
-      state: left.state,
-      events: [...room.game.events, ...left.events],
-    },
+    seats: { ...room.seats, [seat]: { ...sitting, away: now } },
   };
+}
+
+/** The seats whose players have dropped and not yet come back. */
+export function awaySeats(room: Room): PlayerId[] {
+  return seatsOf(room).filter((id) => room.seats[id]?.away !== undefined);
+}
+
+/**
+ * The seat this token belongs to, if it is one that is waiting for its player.
+ * A token for a seat that is still connected is refused: a second tab would
+ * otherwise take over a chair somebody is sitting in.
+ */
+export function seatFor(room: Room, token: string): PlayerId | undefined {
+  return seatsOf(room).find((id) => {
+    const seat = room.seats[id];
+    return seat?.token === token && seat.away !== undefined;
+  });
+}
+
+/** They came back inside the grace period, so the seat is simply theirs again. */
+export function rejoin(room: Room, seat: PlayerId): Room {
+  const sitting = room.seats[seat];
+  if (sitting === undefined) return room;
+  const { away: _back, ...rest } = sitting;
+  return { ...room, seats: { ...room.seats, [seat]: rest } };
+}
+
+/**
+ * Turns waiting into leaving. A seat away longer than `GRACE_MS` concedes —
+ * R651.1 hands a Duel to whoever is left, R652 takes them off the board of a
+ * Skirmish and the other two carry on.
+ */
+export function expireAway(
+  room: Room,
+  now: number,
+  grace = GRACE_MS,
+): { room: Room; expired: PlayerId[] } {
+  const expired = awaySeats(room).filter(
+    (id) => now - (room.seats[id]?.away ?? now) >= grace,
+  );
+  if (expired.length === 0) return { room, expired: [] };
+
+  let current = room;
+  for (const seat of expired) {
+    const { [seat]: _gone, ...seats } = current.seats;
+    if (current.game === undefined) {
+      current = { ...current, seats };
+      continue;
+    }
+    const left = concede(current.game.state, seat);
+    current = {
+      ...current,
+      seats,
+      game: {
+        state: left.state,
+        events: [...current.game.events, ...left.events],
+      },
+    };
+  }
+  return { room: current, expired };
 }
 
 export type ActOutcome =
@@ -160,6 +239,7 @@ export function act(room: Room, seat: PlayerId, action: Action): ActOutcome {
 
 /** Deals again, keeping every seat and their decks. */
 export function restart(room: Room, seed: number): Room {
+  if (awaySeats(room).length > 0) return room;
   const decks = tableDecks(room);
   if (decks === undefined) return room;
   return { ...room, game: { state: newGame(seed, decks), events: [] } };
@@ -191,5 +271,8 @@ export function messageFor(room: Room, seat: PlayerId): ServerMessage {
     seat,
     state: viewOf(room.game.state, seat),
     events: eventsFor(room.game.events, seat),
+    // Whose socket has dropped, so the others are told why nothing is
+    // happening rather than being left to guess.
+    away: awaySeats(room),
   };
 }
