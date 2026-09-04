@@ -9,6 +9,7 @@ import {
 import { sameLocation } from "./state.js";
 import type {
   CardId,
+  Cost,
   GameState,
   Keyword,
   Location,
@@ -74,6 +75,14 @@ export type DecisionPrompt =
    * `keep` is how many of `legal` are being asked for.
    */
   | { kind: "chooseFromRevealed"; legal: CardId[]; keep: number }
+  /**
+   * Hard Bargain — "Counter a spell unless its controller pays [2]." Asked of
+   * the *opponent*, mid-resolution: R320.1's decisions already name the player
+   * they are addressed to, and this is the first card to point one the other
+   * way. Answered with the spell to pay for it, or with nothing to decline —
+   * the same shape as every other "including none" answer.
+   */
+  | { kind: "payOrDecline"; cost: Cost; legal: CardId[] }
   /**
    * R436.1 — a Predict: which of the revealed cards to Recycle. Unlike
    * `chooseFromRevealed` the count is not fixed — "any number" includes none,
@@ -196,6 +205,12 @@ export interface TargetFilter {
    * which every effect already treats as nothing to do.
    */
   optional?: true;
+  /**
+   * Moonfall — "Choose a battlefield **where you have units**". A battlefield
+   * filter rather than a unit one: what is being chosen is the place, and the
+   * units standing there are the condition on it.
+   */
+  withYourUnits?: true;
 }
 
 /** What an optional filter is answered with when it is declined. */
@@ -278,6 +293,18 @@ function legalSubjects(
       const its = state.battlefields[battlefieldId]?.controller;
       if (filter.controller === "friendly" && its !== controller) return false;
       if (filter.controller === "enemy" && its === controller) return false;
+      // "…where you have units" — R190.4.a's control is a different question
+      // from simply standing there, and this asks the second one.
+      if (filter.withYourUnits === true) {
+        const here: Location = { kind: "battlefield", id: battlefieldId };
+        const mine = Object.values(state.permanents).some(
+          (permanent) =>
+            state.cards[permanent.cardId]?.type === "unit" &&
+            sameLocation(permanent.location, here) &&
+            controllerOf(state, permanent.cardId) === controller,
+        );
+        if (!mine) return false;
+      }
       return true;
     });
   }

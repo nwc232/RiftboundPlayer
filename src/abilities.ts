@@ -20,7 +20,7 @@ import type {
 } from "./state.js";
 import { leaveChain } from "./chain.js";
 import { killUnits } from "./combat.js";
-import { ownerOf } from "./state.js";
+import { ownerOf, sameLocation } from "./state.js";
 import { burnOut, drawCards } from "./draw.js";
 import { controllerOf, mightOf, restricted } from "./layers.js";
 import { tokenCard } from "./tokens.js";
@@ -66,7 +66,13 @@ export type Effect =
   | { op: "dealDamage"; amount: number; targetIndex: number }
   /** `targetIndex` names a chosen *player* — "each player draws 1". */
   | { op: "draw"; count: number; targetIndex?: number }
-  | { op: "counterSpell"; targetIndex: number }
+  /**
+   * R359.3.d — a countered spell goes to its owner's trash. Abandon returns
+   * it to their hand instead, which is a redirect on the way off the chain
+   * rather than a different kind of counter — the same shape [Flow]'s banish
+   * takes (R829.1.b.1).
+   */
+  | { op: "counterSpell"; targetIndex: number; to?: "hand" }
   /**
    * R432.1 — modulate a target's Might for a duration. `min`/`max` are
    * R477.3.b's limitation: applied once, at this moment, and remembered at the
@@ -80,6 +86,26 @@ export type Effect =
       min?: number;
       max?: number;
       targetIndex: number;
+    }
+  /**
+   * Thousand-Tailed Watcher — "give enemy units -3 [M] this turn, to a minimum
+   * of 1"; Moonfall — "give enemy units *there* -2 [M] this turn".
+   *
+   * R355.5.a is why this is not targeting: "this does not include cards that
+   * affect one or more Game Objects based on criteria". Nothing is chosen, so
+   * nothing is a target — which also means [Deflect] does not tax it and a
+   * unit that can't be chosen is still caught.
+   */
+  | {
+      op: "modifyMightEach";
+      /** Relative to the effect's controller. */
+      who: "enemy" | "friendly";
+      /** Confined to the location a chosen battlefield names, when given. */
+      atTargetIndex?: number;
+      amount: number;
+      duration: Duration;
+      /** R477.3.b's limitation — "to a minimum of 1". */
+      min?: number;
     }
   /** Fortified Position — "It gains [Shield 2] this combat." */
   | {
@@ -171,6 +197,52 @@ export type Effect =
    * cards in your hand" is this; Sona's "if I'm at a battlefield" is not.
    */
   | { op: "conditional"; test: Condition; then: Effect; otherwise?: Effect }
+  /**
+   * Hwei — "draw 1, then discard 1. Then, do the following based on the
+   * discarded card's type"; Diana, Lunari — "reveal the top card of your Main
+   * Deck. If it's a spell, draw it."
+   *
+   * One op rather than two because the branch is the same question either way:
+   * a card's type decides what happens next. The card has to be *found* first,
+   * and `of` is which of the two ways this card does that — the arms cannot
+   * name a card the effect has not produced yet.
+   */
+  | {
+      op: "branchOnCardType";
+      /** R422's discard, or R424's reveal of the top of the Main Deck. */
+      of: "discardOne" | "revealTop";
+      /** Nothing happens for a type with no arm, which is R383.2's default. */
+      arms: Partial<Record<CardType, Effect>>;
+    }
+  /**
+   * Fizz, Trickster — "you may play a spell from your trash with Energy cost
+   * no more than [3], ignoring its Energy cost. Recycle that spell after you
+   * play it."
+   *
+   * Grants the permission rather than performing the play. The card reads as
+   * one thing happening now; this makes it a thing the player may then do,
+   * which is what lets the spell go through R354's actual steps and choose its
+   * own targets. Written up as a timing deviation.
+   */
+  | {
+      op: "grantPlayFromTrash";
+      cardType?: CardType;
+      maxEnergy?: number;
+      waiveEnergy?: true;
+      recycleOnLeave?: true;
+      duration: Duration;
+    }
+  /**
+   * Hard Bargain — "Counter a spell **unless its controller pays [2]**".
+   *
+   * The only effect in the pool that asks the *opponent* a question while it
+   * resolves. R320.1's decision machinery already names the player it is
+   * addressed to, so this needed no new mechanism — just the first card to use
+   * it that way.
+   */
+  | { op: "counterUnlessPaid"; targetIndex: number; cost: Cost }
+  /** The continuation of `counterUnlessPaid`, once its controller has answered. */
+  | { op: "resolveUnlessPaid"; targetId: CardId; cost: Cost }
   /** R730.1 — Kha'Zix, Mutating Horror's "gain 2 XP". */
   | { op: "gainXP"; amount: number }
   /**
@@ -425,12 +497,18 @@ export type AbilityCost =
        * an unbuffed unit has no buff to spend — which is the game action's
        * business rather than the filter's.
        */
-      does: "kill" | "exhaust" | "spendBuff" | "returnToHand" | "discard";
+      does: "kill" | "exhaust" | "spendBuff" | "returnToHand" | "discard" | "recycle";
       /**
        * What may be chosen. Omitted means the controller's hand, which is a
        * different search from the board and the only pool a Discard uses.
        */
       from?: TargetFilter;
+      /**
+       * Last Rites — "Recycle 2 cards **from your trash**". A third pool: not
+       * the board, which `from` searches, and not the hand, which is the
+       * default. R416.1 sends them to the bottom of the Main Deck.
+       */
+      fromTrash?: true;
       /**
        * "Kill *any number of* friendly units" — Commander Ledros, Kraken
        * Hunter. R355.8 makes zero a legal answer to "any number", so this is
@@ -1061,11 +1139,38 @@ export function execute(
       const countered = state.chain[index]!;
       // The second way off the chain, and it goes through the same door: a
       // [Flow] spell that is countered is banished too (R829.1.b.1).
-      const left = leaveChain(
-        { ...state, chain: state.chain.filter((_, i) => i !== index) },
-        countered,
-        "countered",
-      );
+      const off = { ...state, chain: state.chain.filter((_, i) => i !== index) };
+      // Abandon — "Return it to its owner's hand instead of putting it in
+      // their trash." R56 makes that the *owner's* hand, and it replaces
+      // R359.3.d's destination rather than adding to it, so `leaveChain` is
+      // skipped entirely.
+      // R56 names the *owner's* hand. A spell reaches the chain only from its
+      // own controller's zones and never changes decks, so the item's
+      // controller is that owner — and it is the one thing still known about a
+      // card that has just left every zone.
+      const owns = countered.controller;
+      const left =
+        effect.to === "hand"
+          ? {
+              state: {
+                ...off,
+                players: {
+                  ...off.players,
+                  [owns]: {
+                    ...off.players[owns],
+                    hand: [...off.players[owns].hand, targetId],
+                  },
+                },
+              },
+              events: [
+                {
+                  type: "returnedToHand" as const,
+                  playerId: owns,
+                  cardId: targetId,
+                },
+              ],
+            }
+          : leaveChain(off, countered, "countered");
       return {
         state: left.state,
         events: [
@@ -1084,6 +1189,236 @@ export function execute(
      * that limited level. "-4 Might to a min of 1" on a 2-Might unit generates
      * -1, and stays -1 even if the unit is buffed afterwards.
      */
+    /**
+     * The same arithmetic as `modifyMight`, applied to everything matching the
+     * criteria instead of to one chosen unit. R477.3.b's limitation is applied
+     * per unit, because "to a minimum of 1" is about each of them.
+     */
+    /**
+     * Finds a card, then runs the arm its type names. The finding is part of
+     * the effect because the arms refer to what it found — there is no way to
+     * write "the discarded card" as a target chosen ahead of time.
+     */
+    case "grantPlayFromTrash":
+      return {
+        state: {
+          ...state,
+          modifiers: [
+            ...state.modifiers,
+            {
+              id: `trashplay-${state.modifiers.length}-${context.controller}`,
+              targetId: context.controller,
+              modification: {
+                layer: "ability",
+                op: "playFromTrash",
+                ...(effect.cardType !== undefined
+                  ? { cardType: effect.cardType }
+                  : {}),
+                ...(effect.maxEnergy !== undefined
+                  ? { maxEnergy: effect.maxEnergy }
+                  : {}),
+                ...(effect.waiveEnergy !== undefined
+                  ? { waiveEnergy: effect.waiveEnergy }
+                  : {}),
+                ...(effect.recycleOnLeave !== undefined
+                  ? { recycleOnLeave: effect.recycleOnLeave }
+                  : {}),
+              },
+              duration: effect.duration,
+            },
+          ],
+        },
+        events: [],
+      };
+
+    /**
+     * Asks the countered spell's controller whether they would rather pay.
+     * The prompt is answered with the spell itself to pay, or with nothing to
+     * decline — the same shape every other "any number, including none" answer
+     * takes, so no new answering machinery was needed.
+     */
+    case "counterUnlessPaid": {
+      const targetId = context.targets[effect.targetIndex];
+      if (targetId === undefined) return { state, events: [] };
+      const item = state.chain.find(
+        (each) => each.kind === "spell" && each.cardId === targetId,
+      );
+      if (item === undefined) return { state, events: [] };
+
+      return {
+        state,
+        events: [],
+        pause: {
+          decision: {
+            // R383.3 — it is their spell, so it is their choice.
+            player: item.controller,
+            prompt: { kind: "payOrDecline", cost: effect.cost, legal: [targetId] },
+          },
+          resume: {
+            op: "resolveUnlessPaid",
+            targetId,
+            cost: effect.cost,
+          },
+          context,
+        },
+      };
+    }
+
+    case "resolveUnlessPaid": {
+      const item = state.chain.find(
+        (each) => each.kind === "spell" && each.cardId === effect.targetId,
+      );
+      if (item === undefined) return { state, events: [] };
+
+      const paying = (context.answer ?? []).includes(effect.targetId);
+      if (!paying) {
+        return execute(
+          state,
+          { op: "counterSpell", targetIndex: 0 },
+          { ...context, targets: [effect.targetId] },
+        );
+      }
+
+      // They said yes, so the cost is taken now. R356 is not involved: this is
+      // not a cost of playing anything, it is what the spell asked for.
+      const player = state.players[item.controller];
+      const remaining = spend(player.runePool, effect.cost, {
+        kind: "activateAbility",
+        inShowdown: state.showdown !== null,
+      });
+      if (remaining === undefined) {
+        // They could not actually pay, so the counter stands.
+        return execute(
+          state,
+          { op: "counterSpell", targetIndex: 0 },
+          { ...context, targets: [effect.targetId] },
+        );
+      }
+
+      return {
+        state: {
+          ...state,
+          players: {
+            ...state.players,
+            [item.controller]: { ...player, runePool: remaining },
+          },
+        },
+        events: [
+          {
+            type: "costPaid",
+            playerId: item.controller,
+            cardId: effect.targetId,
+            cost: effect.cost,
+          },
+        ],
+      };
+    }
+
+    case "branchOnCardType": {
+      const player = state.players[context.controller];
+      let current = state;
+      const events: GameEvent[] = [];
+      let found: CardId | undefined;
+
+      if (effect.of === "discardOne") {
+        // R422.4 — "a player must Discard as many cards as possible", so an
+        // empty hand discards nothing and the branch simply has no card.
+        // Which card is not asked: R355 puts choices at the start of playing,
+        // and this is resolution. Taken from the front, as the front of the
+        // hand is where an unchosen discard has always come from here.
+        found = player.hand[0];
+        if (found === undefined) return { state, events: [] };
+        current = {
+          ...current,
+          players: {
+            ...current.players,
+            [context.controller]: {
+              ...player,
+              hand: player.hand.slice(1),
+              trash: [...player.trash, found],
+            },
+          },
+        };
+        events.push({
+          type: "cardDiscarded",
+          playerId: context.controller,
+          cardId: found,
+        });
+      } else {
+        // R424.1.a.2 — a revealed card stays where it is; this only makes it
+        // known, and the arm decides whether it then moves.
+        found = player.mainDeck[0];
+        if (found === undefined) return { state, events: [] };
+        current = { ...current, revealed: [...current.revealed, found] };
+        events.push({
+          type: "cardRevealed",
+          playerId: context.controller,
+          cardId: found,
+        });
+      }
+
+      const type = current.cards[found]?.type;
+      const arm = type === undefined ? undefined : effect.arms[type];
+      if (arm === undefined) return { state: current, events };
+
+      const outcome = execute(current, arm, context);
+      return {
+        ...outcome,
+        state: outcome.state,
+        events: [...events, ...outcome.events],
+      };
+    }
+
+    case "modifyMightEach": {
+      const mine = context.controller;
+      const where =
+        effect.atTargetIndex === undefined
+          ? undefined
+          : context.targets[effect.atTargetIndex];
+      const at: Location | undefined =
+        where === undefined ? undefined : { kind: "battlefield", id: where };
+
+      const caught = Object.values(state.permanents).filter((permanent) => {
+        if (state.cards[permanent.cardId]?.type !== "unit") return false;
+        const theirs = controllerOf(state, permanent.cardId);
+        if (effect.who === "enemy" && theirs === mine) return false;
+        if (effect.who === "friendly" && theirs !== mine) return false;
+        if (at !== undefined && !sameLocation(at, permanent.location)) return false;
+        return true;
+      });
+
+      let current = state;
+      const events: GameEvent[] = [];
+      for (const permanent of caught) {
+        const was = mightOf(current, permanent.cardId);
+        let limited = was + effect.amount;
+        if (effect.min !== undefined) limited = Math.max(effect.min, limited);
+        const amount = limited - was;
+        if (amount === 0) continue;
+
+        current = {
+          ...current,
+          modifiers: [
+            ...current.modifiers,
+            {
+              id: `each-${current.modifiers.length}-${permanent.cardId}`,
+              targetId: permanent.cardId,
+              modification: { layer: "arithmetic", op: "addMight", amount },
+              duration: effect.duration,
+            },
+          ],
+        };
+        events.push({
+          type: "mightModified",
+          playerId: controllerOf(current, permanent.cardId),
+          cardId: permanent.cardId,
+          amount,
+          duration: effect.duration,
+        });
+      }
+      return { state: current, events };
+    }
+
     case "modifyMight": {
       const targetId = context.targets[effect.targetIndex];
       if (targetId === undefined) return { state, events: [] };

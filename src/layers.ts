@@ -243,6 +243,24 @@ export type Modification =
    * `restrictPlayer` it rides the modifier list so R317.2.c ends it.
    */
   | { layer: "ability"; op: "seeFacedown" }
+  /**
+   * Fizz, Trickster — "you may play a spell from your trash with Energy cost
+   * no more than [3], ignoring its Energy cost. Recycle that spell after you
+   * play it."
+   *
+   * A permission granted to a *player*, so it rides the modifier list beside
+   * the other two whose subject is one. `playZonesFor` reads it and offers the
+   * play beside [Flow]'s, which opens the same door for a different reason.
+   */
+  | {
+      layer: "ability";
+      op: "playFromTrash";
+      cardType?: CardType;
+      /** Read as printed — R711 leaves a card in the trash on printed values. */
+      maxEnergy?: number;
+      waiveEnergy?: true;
+      recycleOnLeave?: true;
+    }
   /** Vilemaw — "…don't deal combat damage." See `Characteristics.silenced`. */
   | { layer: "ability"; op: "silenceCombatDamage" }
   /**
@@ -1185,6 +1203,7 @@ function computeCharacteristics(
           // the modifications.
           case "restrictPlayer":
           case "seeFacedown":
+          case "playFromTrash":
             break;
           // R828.1.c — "As long as the Game Object has the Empowered status,
           // the Dependent Ability will be active." Appended rather than

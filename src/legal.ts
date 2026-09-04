@@ -281,7 +281,11 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
         }));
       // R436.1 — "Recycle any number", so every subset is an answer and the
       // empty one means "keep them all".
+      // R436.1 — "Recycle any number", so every subset is an answer and the
+      // empty one means "keep them all". Hard Bargain's pay-or-decline is the
+      // same two-answer shape: the spell, or nothing.
       case "predict":
+      case "payOrDecline":
         return subsets(prompt.legal, prompt.legal.length).map((targets) => ({
           type: "decide",
           playerId,

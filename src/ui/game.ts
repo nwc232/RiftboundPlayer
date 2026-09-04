@@ -156,7 +156,11 @@ export function describe(state: GameState, action: Action): string {
       if ((action.targets ?? []).length === 0) {
         // The only two prompts that accept nothing, and they mean opposite
         // things: R117.1 keeps the opening hand, R436.1 keeps the top card.
-        return state.pending?.prompt.kind === "predict"
+        // The three prompts that accept nothing, and they mean three
+        // different things.
+        return state.pending?.prompt.kind === "payOrDecline"
+          ? "don't pay"
+          : state.pending?.prompt.kind === "predict"
           ? "recycle nothing"
           : "keep this hand";
       }
@@ -265,7 +269,10 @@ export function promptArity(state: GameState): { min: number; max: number } {
     case "orderPredicted":
       return { min: prompt.legal.length, max: prompt.legal.length };
     // R436.1 — Recycle "any number", so keeping every card is a real answer.
+    // Hard Bargain's pay-or-decline is the same shape with one card in it:
+    // naming the spell pays, naming nothing declines.
     case "predict":
+    case "payOrDecline":
       return { min: 0, max: prompt.legal.length };
     default:
       return { min: 1, max: 1 };

@@ -675,6 +675,18 @@ export function decide(
     return afterTasks(worked.state, worked.events);
   }
 
+  // Hard Bargain — answered with the spell to pay for it, or with nothing to
+  // decline. R320.1 already put the decision in front of the right player;
+  // this only checks the answer is one of the two it offered.
+  if (prompt.kind === "payOrDecline") {
+    const chosen = choice.targets ?? [];
+    if (!chosen.every((id) => prompt.legal.includes(id))) {
+      return rejected("invalidTarget");
+    }
+    const worked = runTasks(applyResumeAnswer(state, chosen));
+    return afterTasks(worked.state, worked.events);
+  }
+
   const item = state.chain[prompt.chainIndex];
   if (item === undefined || item.kind !== "trigger") return rejected("noDecision");
 
@@ -1220,6 +1232,7 @@ export function playSpell(
     payOptional,
     payRepeats,
     ignoreBaseCost: zone.ignoreBaseCost === true,
+    waiveEnergy: zone.waiveEnergy === true,
     ...(zone.alternateCost !== undefined
       ? { alternateCost: zone.alternateCost }
       : {}),
@@ -1336,6 +1349,9 @@ export function playSpell(
           // R829.1.b.1 — the replacement belongs to this play, so the chain
           // item is what carries it off the chain.
           ...(zone.banishOnLeave === true ? { banishOnLeave: true as const } : {}),
+          ...(zone.recycleOnLeave === true
+            ? { recycleOnLeave: true as const }
+            : {}),
           playedFrom: zone.source,
         },
       ],
@@ -1620,6 +1636,22 @@ function performChosenCost(
       }
       return { state: { ...state, permanents }, events: [] };
     }
+
+    // R416.1 — recycled cards go to the bottom of the Main Deck, in the order
+    // the player named them.
+    case "recycle":
+      return {
+        state: withPlayer(state, controller, {
+          ...player,
+          trash: player.trash.filter((cardId) => !chosen.includes(cardId)),
+          mainDeck: [...player.mainDeck, ...chosen],
+        }),
+        events: chosen.map((cardId) => ({
+          type: "cardRecycled" as const,
+          playerId: controller,
+          cardId,
+        })),
+      };
 
     // R56 — the *owner's* hand, which need not be the controller's.
     case "returnToHand": {

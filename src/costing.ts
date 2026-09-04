@@ -229,6 +229,9 @@ export function choicePoolFor(
   cost: Extract<AbilityCost, { kind: "chosen" }>,
   sourceId: CardId,
 ): CardId[] {
+  // R416.1 — the trash is a public zone, so there is nothing to filter by
+  // beyond being in it.
+  if (cost.fromTrash === true) return [...state.players[controller].trash];
   // R422.1.a — a Discard chooses from the discarding player's hand, which is
   // not a board search and so has no filter to apply.
   if (cost.from === undefined) return state.players[controller].hand;
@@ -427,6 +430,11 @@ export interface CostOptions {
   /** R356.2.b.1 — whether the player chose to pay the optional additional cost. */
   payOptional?: boolean;
   /**
+   * Fizz, Trickster — "ignoring its Energy cost. (You must still pay its Power
+   * cost.)" Narrower than `ignoreBaseCost`: only the Energy half goes.
+   */
+  waiveEnergy?: boolean;
+  /**
    * R820.1.c.2 — which of the card's [Repeat] costs this play pays, by index.
    * A list rather than a count because the costs differ from each other, and
    * R820.1.c.3 allows each at most once.
@@ -452,6 +460,10 @@ export function totalCostOf(
       : options.ignoreBaseCost === true
         ? { energy: 0, power: {}, anyPower: 0 }
         : characteristicsOf(state, cardId).cost;
+
+  // Fizz — the Energy half of the base cost, and only that half. Applied
+  // before R356.2's additional costs, which can then raise it again.
+  if (options.waiveEnergy === true) total = { ...total, energy: 0 };
 
   // 2. Additional costs (R356.2).
   // Only the resource half is priced; R356.2's non-resource costs are paid as

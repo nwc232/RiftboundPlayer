@@ -47,6 +47,12 @@ export type ChainItem =
        * *this* play: the same spell played from hand does no such thing.
        */
       banishOnLeave?: true;
+      /**
+       * Fizz, Trickster — "Recycle that spell after you play it." The same
+       * shape as `banishOnLeave` and for the same reason: it belongs to *this*
+       * play, so the item is what carries it.
+       */
+      recycleOnLeave?: true;
       /** Which zone the spell was played from — Back Off asks (R811.1.b). */
       playedFrom?: PlaySource;
     }
@@ -121,6 +127,22 @@ export function leaveChain(
   // R829.1.b.1 — "if the spell would leave the chain after becoming a
   // finalized chain item, and leaving the chain wasn't instructed by its own
   // execution, banish it instead."
+  // R416.1 — to the bottom of the Main Deck instead of the trash.
+  if (item.recycleOnLeave === true && reason !== "itsOwnExecution") {
+    return {
+      state: {
+        ...state,
+        players: {
+          ...state.players,
+          [owner]: { ...player, mainDeck: [...player.mainDeck, item.cardId] },
+        },
+      },
+      events: [
+        { type: "cardRecycled", playerId: owner, cardId: item.cardId },
+      ],
+    };
+  }
+
   if (item.banishOnLeave === true && reason !== "itsOwnExecution") {
     return {
       state: {

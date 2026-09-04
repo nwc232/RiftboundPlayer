@@ -57,6 +57,13 @@ export interface PlayZone {
    * play: the same card played from hand next turn does no such thing.
    */
   banishOnLeave?: true;
+  /**
+   * Fizz, Trickster — "ignoring its Energy cost. (You must still pay its Power
+   * cost.)" Narrower than `ignoreBaseCost`, which zeroes the whole thing.
+   */
+  waiveEnergy?: true;
+  /** Fizz — "Recycle that spell after you play it." */
+  recycleOnLeave?: true;
 }
 
 /**
@@ -95,15 +102,60 @@ export function playZonesFor(
   // banish it." R829.1.b.2 is the limit of what the keyword changes: the zone,
   // and nothing about timing or any other permission.
   if (player.trash.includes(cardId)) {
-    return flowCostsOf(state, cardId, playerId).map((costs) => ({
+    const flow = flowCostsOf(state, cardId, playerId).map((costs) => ({
       source: "trash" as const,
       alternateCost: resourcePartOf(costs),
       extraCosts: costs.filter((each) => each.kind !== "pay"),
       banishOnLeave: true as const,
     }));
+
+    // Fizz, Trickster — "you may play a spell from your trash with Energy cost
+    // no more than [3], ignoring its Energy cost… Recycle that spell after you
+    // play it." A granted permission rather than a keyword, so it is read off
+    // the player rather than off the card, but it opens the same door [Flow]
+    // does and is offered beside it.
+    const granted = grantedTrashPlays(state, playerId, cardId);
+    return [...flow, ...granted];
   }
 
   return [];
+}
+
+/**
+ * The trash plays a granted permission opens, if any reaches this card.
+ *
+ * Read off the player's modifiers rather than the card's keywords, because the
+ * permission belongs to whoever was granted it — R711 keeps the card in the
+ * trash on printed values either way.
+ */
+function grantedTrashPlays(
+  state: GameState,
+  playerId: PlayerId,
+  cardId: CardId,
+): PlayZone[] {
+  const card = state.cards[cardId];
+  if (card === undefined) return [];
+
+  const out: PlayZone[] = [];
+  for (const modifier of state.modifiers) {
+    if (modifier.targetId !== playerId) continue;
+    const grant = modifier.modification;
+    if (grant.op !== "playFromTrash") continue;
+    if (grant.cardType !== undefined && card.type !== grant.cardType) continue;
+    // "…with Energy cost no more than [3]", read as printed: R711 leaves a
+    // card in the trash on its printed values.
+    if (grant.maxEnergy !== undefined && card.cost.energy > grant.maxEnergy) {
+      continue;
+    }
+    out.push({
+      source: "trash",
+      ...(grant.waiveEnergy === true ? { waiveEnergy: true as const } : {}),
+      ...(grant.recycleOnLeave === true
+        ? { recycleOnLeave: true as const }
+        : {}),
+    });
+  }
+  return out;
 }
 
 /**

@@ -3,7 +3,14 @@ import { VICTORY_SCORE } from "../scoring.js";
 import { artFor } from "./card-art.js";
 import { characteristicsOf } from "../layers.js";
 import type { GameState, CardId, Location, PlayerId } from "../state.js";
-import { OPPONENT, controlOf, costLabel, nameOf, unitsAt } from "./game.js";
+import {
+  OPPONENT,
+  controlOf,
+  costLabel,
+  describeCost,
+  nameOf,
+  unitsAt,
+} from "./game.js";
 import type { Move, MoveGroup } from "./game.js";
 
 interface Selectable {
@@ -561,6 +568,14 @@ export function Prompt({ state }: { state: GameState }) {
           : `predict — click any of the ${prompt.legal.length} to recycle, then confirm`;
       case "orderPredicted":
         return "click the rest in the order they go back on top";
+      // Hard Bargain — the spell's own controller is being asked, and doing
+      // nothing is the answer that lets it be countered, so the choice has to
+      // read as a choice rather than as a stuck prompt.
+      case "payOrDecline":
+        return `pay ${describeCost(prompt.cost)} to keep ${nameOf(
+          state,
+          prompt.legal[0] ?? "",
+        )}, or confirm to let it be countered`;
       default:
         return "choose";
     }
