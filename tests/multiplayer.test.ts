@@ -233,6 +233,10 @@ describe("whole games with more than two seats", () => {
         }
       }
 
+      // R650 lets anyone concede at any moment, so `legalActions` offers it
+      // every time. A random player who takes it ends the game on move one and
+      // exercises nothing, so this one is declined rather than weighted.
+      options = options.filter((action) => action.type !== "concede");
       const busy = options.filter((action) => action.type !== "endTurn");
       const pool = busy.length > 0 && rand() < 0.85 ? busy : options;
       const action = pool[Math.floor(rand() * pool.length)]!;

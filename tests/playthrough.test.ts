@@ -75,6 +75,10 @@ function play(seed: number, maxSteps = 4000, decks?: [number, number]): Outcome 
       if (options.length === 0) return { state, steps, stuck: true };
     }
     // Bias away from ending the turn, or the games never develop.
+    // R650 lets anyone concede at any moment, so `legalActions` offers it
+    // every time. A random player who takes it ends the game on move one and
+    // exercises nothing, so this one is declined rather than weighted.
+    options = options.filter((action) => action.type !== "concede");
     const busy = options.filter((action) => action.type !== "endTurn");
     const pool = busy.length > 0 && rand() < 0.85 ? busy : options;
     take(pool[Math.floor(rand() * pool.length)]!);

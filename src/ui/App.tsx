@@ -458,6 +458,22 @@ export function App() {
         >
           undo
         </button>
+        {/* R650 — legal at any time, and kept away from the move list on
+            purpose: online it cannot be undone, so it asks first. */}
+        <button
+          className="concede"
+          disabled={state.winner !== null}
+          onClick={() => {
+            const who = isOnline ? online.seat : acting;
+            if (who === null) return;
+            if (!window.confirm(`Concede as ${who}? This cannot be undone.`)) {
+              return;
+            }
+            play({ type: "concede", playerId: who });
+          }}
+        >
+          concede
+        </button>
       </header>
 
       <div className="banners">

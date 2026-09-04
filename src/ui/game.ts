@@ -167,6 +167,10 @@ export function describe(state: GameState, action: Action): string {
       return "pass focus";
     case "drawCard":
       return "draw";
+    // R650 — offered nowhere near the other moves; the UI gives it its own
+    // button, because a misclick here cannot be undone in an online game.
+    case "concede":
+      return "concede";
     default: {
       const unhandled: never = action;
       void unhandled;
@@ -282,11 +286,19 @@ export interface Move {
 
 /** Every legal move for the acting player, already labelled. */
 export function movesFor(state: GameState, playerId: PlayerId): Move[] {
-  return legalActions(state, playerId).map((action) => ({
-    action,
-    label: describe(state, action),
-    subject: subjectOf(action),
-  }));
+  return (
+    legalActions(state, playerId)
+      // R650 makes conceding legal at any time, so `legalActions` offers it as
+      // it must. It is kept out of the move list on purpose: an online game
+      // cannot be undone, and a resignation should never be one click away
+      // from "end turn". `ConcedeButton` asks for it deliberately instead.
+      .filter((action) => action.type !== "concede")
+      .map((action) => ({
+        action,
+        label: describe(state, action),
+        subject: subjectOf(action),
+      }))
+  );
 }
 
 export interface MoveGroup {

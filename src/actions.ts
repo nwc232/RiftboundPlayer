@@ -58,6 +58,7 @@ import { passFocus as runPassFocus,
 } from "./showdown.js";
 import { isValidPlayLocation, playedWithReactionTiming } from "./play.js";
 import { cannotPlay } from "./restrictions.js";
+import { concede } from "./concede.js";
 import {
   hide as runHide,
 } from "./hidden.js";
@@ -86,6 +87,12 @@ export type Action =
       destination: Location;
     }
   | { type: "endTurn"; playerId: PlayerId }
+  /**
+   * R650 — "A player may concede at any time." The only action with no
+   * timing restriction at all, which is why it is checked before R320.1's
+   * outstanding-decision guard rather than after it.
+   */
+  | { type: "concede"; playerId: PlayerId }
   | { type: "passFocus"; playerId: PlayerId }
   | { type: "passPriority"; playerId: PlayerId }
   | {
@@ -2052,6 +2059,19 @@ export function activateAbility(
 export function applyAction(state: GameState, action: Action): ActionResult {
   if (state.winner !== null) {
     return rejected("gameOver");
+  }
+  // R650 — "at any time" means exactly that: a player who wants to leave is
+  // not made to answer an outstanding decision first, and R651.3 withdraws
+  // the question along with them.
+  if (action.type === "concede") {
+    if (!state.turnOrder.includes(action.playerId)) {
+      return rejected("notYourTurn");
+    }
+    const left = concede(state, action.playerId);
+    return thenCleanup(
+      { ok: true, state: left.state, events: left.events },
+      { scanned: true },
+    );
   }
   // R320.1 — nothing finalizes or resolves while a choice is outstanding.
   if (state.pending !== null && action.type !== "decide") {

@@ -286,6 +286,13 @@ export interface BattlefieldState {
   controller: PlayerId | null;
   /** Who applied Contested — they gain Focus (R345) and are the Attacker (R464.2.c.1). */
   contestedBy: PlayerId | null;
+  /**
+   * R485.4.a — who brought it. Distinct from `controller`, which changes hands
+   * all game: this never does. R652.2 is what needs it — a player leaving the
+   * game takes the battlefield they contributed with them, and nothing else
+   * records whose it was.
+   */
+  owner?: PlayerId;
 }
 
 /**

@@ -37,6 +37,14 @@ export function renderEvent(event: GameEvent): string {
   switch (event.type) {
     case "cardDrawn":
       return `${event.playerId} drew ${named(event.cardId)}`;
+    // R650/R652 — a player leaves the game in progress.
+    case "conceded":
+      return `${event.playerId} conceded`;
+    case "playerRemoved":
+      return `${event.playerId} was removed from the game`;
+    // R652.2.a — their battlefield stands, blank, with whatever is on it.
+    case "battlefieldReplaced":
+      return `${event.battlefieldId} was replaced with a token battlefield`;
     // R487.7/R488.7 — going first costs you your first draw.
     case "drawSkipped":
       return `${event.playerId} skipped their first draw (going first)`;

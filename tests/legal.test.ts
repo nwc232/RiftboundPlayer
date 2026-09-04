@@ -141,8 +141,11 @@ describe("legalActions", () => {
     });
     if (!played.ok) throw new Error("setup failed");
 
-    // p1's play trigger is on the chain; p1 holds priority (R337.4).
-    expect(legalActions(played.state, "p2")).toEqual([]);
+    // p1's play trigger is on the chain; p1 holds priority (R337.4), so the
+    // only thing left to p2 is R650's "a player may concede at any time".
+    expect(legalActions(played.state, "p2")).toEqual([
+      { type: "concede", playerId: "p2" },
+    ]);
     expect(has(legalActions(played.state, "p1"), { type: "passPriority" })).toBe(
       true,
     );

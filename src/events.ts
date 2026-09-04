@@ -179,6 +179,16 @@ export type GameEvent =
   | { type: "spellPlayed"; playerId: PlayerId; cardId: CardId }
   | { type: "spellResolved"; playerId: PlayerId; cardId: CardId }
   | { type: "spellCountered"; playerId: PlayerId; cardId: CardId }
+  /** R650 — a player concedes and is removed from the game in progress. */
+  | { type: "conceded"; playerId: PlayerId }
+  /** R652 — everything of theirs has come off the board. */
+  | { type: "playerRemoved"; playerId: PlayerId }
+  /**
+   * R652.2.a — the battlefield they contributed is replaced in place with a
+   * token battlefield with no abilities. R652.2.b leaves whatever stands
+   * there alone, which is why it is a replacement rather than a removal.
+   */
+  | { type: "battlefieldReplaced"; battlefieldId: CardId }
   | { type: "priorityPassed"; playerId: PlayerId }
   | { type: "abilityTriggered"; playerId: PlayerId; cardId: CardId }
   | { type: "triggerResolved"; playerId: PlayerId; cardId: CardId }

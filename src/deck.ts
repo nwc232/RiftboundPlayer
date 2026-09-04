@@ -256,8 +256,17 @@ export function startGame(setup: GameSetup): SetupResult {
     };
   }
   const battlefields: GameState["battlefields"] = {};
-  for (const id of battlefieldOrder) {
-    battlefields[id] = { cardId: id, controller: null, contestedBy: null };
+  for (const id of seatOrder) {
+    const chosen = setup.seats[id]?.battlefield;
+    if (chosen === undefined) continue;
+    // R485.4.a / R652.2 — the seat that presented it, kept because nothing
+    // else records it once the game is running.
+    battlefields[chosen] = {
+      cardId: chosen,
+      controller: null,
+      contestedBy: null,
+      owner: id,
+    };
   }
 
   const players: GameState["players"] = {};

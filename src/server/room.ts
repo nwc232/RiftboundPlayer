@@ -1,4 +1,5 @@
 import { applyAction } from "../actions.js";
+import { concede } from "../concede.js";
 import type { Action } from "../actions.js";
 import type { GameEvent } from "../events.js";
 import { newGame } from "../ui/game.js";
@@ -47,8 +48,16 @@ export function seatsOf(room: Room): PlayerId[] {
   return seatsFor(modeFor(room.players));
 }
 
-/** The seat a joiner gets, or undefined when the room is full. */
+/**
+ * The seat a joiner gets, or undefined when there is none to give.
+ *
+ * A seat vacated *during* a game is not one: R652 removes a player from the
+ * game in progress, and there is no rule for putting one back. Letting a
+ * newcomer take the chair would either re-deal over a game two other people
+ * are in the middle of, or seat them with no cards.
+ */
 export function freeSeat(room: Room): PlayerId | undefined {
+  if (room.game !== undefined) return undefined;
   return seatsOf(room).find((id) => room.seats[id] === undefined);
 }
 
@@ -74,8 +83,12 @@ export function join(
     ...room,
     seats: { ...room.seats, [seat]: { player: seat, deck } },
   };
-  const decks = tableDecks(filled);
+  // A game already dealt is never re-dealt by an arrival. `freeSeat` should
+  // have refused the joiner already; this is the same rule said where it
+  // would do the damage.
+  if (room.game !== undefined) return filled;
 
+  const decks = tableDecks(filled);
   return {
     ...filled,
     game:
@@ -85,12 +98,31 @@ export function join(
   };
 }
 
+/**
+ * Someone disconnects.
+ *
+ * The rules have no word for a dropped socket, so this treats it as R650's
+ * concession, which is the closest thing they describe: with two seats R651.1
+ * hands the game to whoever is left, and with three R652 takes the leaver off
+ * the board and the other two carry on. Anything else would end a Skirmish
+ * for two people because a third lost their wifi.
+ *
+ * Before the deal there is no game to concede from, so the seat simply opens
+ * up again — which is also the only case where someone can come back.
+ */
 export function leave(room: Room, seat: PlayerId): Room {
   const { [seat]: _gone, ...seats } = room.seats;
-  // The game goes with them. Resuming would mean holding a seat for someone
-  // who may never come back, and there is nothing here to hold it against —
-  // no accounts, no persistence, just a room code.
-  return { ...room, seats, game: undefined };
+  if (room.game === undefined) return { ...room, seats, game: undefined };
+
+  const left = concede(room.game.state, seat);
+  return {
+    ...room,
+    seats,
+    game: {
+      state: left.state,
+      events: [...room.game.events, ...left.events],
+    },
+  };
 }
 
 export type ActOutcome =

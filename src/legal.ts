@@ -321,6 +321,11 @@ function candidates(state: GameState, playerId: PlayerId): Action[] {
     { type: "passPriority", playerId },
     { type: "passFocus", playerId },
     { type: "endTurn", playerId },
+    // R650 — "A player may concede at any time", so it is always legal and
+    // belongs here rather than being a rule the UI knows on its own. A caller
+    // that does not want it offered filters it out; the engine does not
+    // decide that anyone would rather keep playing.
+    { type: "concede", playerId },
   ];
 
   // R108.3.d — the Chosen Champion is playable from its zone alongside the hand.

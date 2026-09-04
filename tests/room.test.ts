@@ -186,11 +186,55 @@ describe("what a seat is sent", () => {
 });
 
 describe("leaving", () => {
-  it("frees the seat and ends the game", () => {
+  /**
+   * R650/R651.1 — a dropped socket is the nearest thing the rules describe to
+   * a concession, and with one player left "the player remaining Wins". The
+   * game used to simply vanish, which told the person still sitting there
+   * nothing.
+   */
+  it("hands a Duel to whoever is still there", () => {
     const room = leave(dealt(), "p2");
 
-    expect(freeSeat(room)).toBe("p2");
-    expect(room.game).toBeUndefined();
+    expect(room.game?.state.winner).toBe("p1");
+    expect(room.seats.p2).toBeUndefined();
+  });
+
+  /** R651.2 — with two others left, the other two carry on. */
+  it("carries on a Skirmish without the one who dropped", () => {
+    let room = emptyRoom("abc", 3);
+    for (const [at, seat] of seatsOf(room).entries()) {
+      room = join(room, seat, at, 1);
+    }
+
+    const after = leave(room, "p2");
+
+    expect(after.game?.state.winner).toBeNull();
+    expect(after.game?.state.turnOrder).toEqual(["p1", "p3"]);
+  });
+
+  /**
+   * R652 removes a player from the game in progress and says nothing about
+   * putting one back, so the chair does not reopen — a newcomer taking it
+   * would re-deal over a game two other people are still playing.
+   */
+  it("does not reopen the seat mid-game", () => {
+    const room = leave(dealt(), "p2");
+
+    expect(freeSeat(room)).toBeUndefined();
+    const intruder = join(room, "p2", 0, 2);
+    expect(intruder.game?.state.winner).toBe("p1");
+  });
+
+  /** Before the deal there is nothing to concede from, so the seat reopens. */
+  it("reopens a seat vacated before the deal", () => {
+    let room = emptyRoom("abc", 3);
+    room = join(room, "p1", 0, 1);
+    room = join(room, "p2", 1, 1);
+
+    const after = leave(room, "p2");
+
+    expect(after.game).toBeUndefined();
+    expect(freeSeat(after)).toBe("p2");
   });
 });
 

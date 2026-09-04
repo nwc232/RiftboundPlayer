@@ -153,6 +153,8 @@ describe("telling the player what is going on", () => {
     const headings = groups.map((group) => group.heading);
     expect(headings).toContain("Chaos Rune");
     expect(groups.at(-1)?.cardId).toBeNull();
+    // R650's concede is legal here too, but `movesFor` keeps it out of the
+    // list on purpose — see `src/ui/game.ts`.
     expect(groups.at(-1)?.moves.map((m) => m.label)).toEqual(["end turn"]);
   });
 

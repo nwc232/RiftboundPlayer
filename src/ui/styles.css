@@ -513,3 +513,17 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 .top { flex-wrap: wrap; row-gap: 6px; }
 .lobby-deck select { max-width: 14rem; }
+
+/*
+ * R650's concede. Deliberately not styled like the buttons beside it: it is
+ * the one control in the app that cannot be taken back, and it should not
+ * look like "undo" with a different word on it.
+ */
+button.concede {
+  margin-left: auto;
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  color: var(--bad);
+}
+button.concede:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+}
