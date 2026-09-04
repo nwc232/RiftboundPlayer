@@ -11,10 +11,10 @@ import {
   discardCost,
   draw,
 } from "../src/builders.js";
-import { VICTORY_SCORE } from "../src/scoring.js";
 import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
+import { DUEL } from "../src/modes-of-play.js";
 
 const context = (targets: string[] = []): EffectContext => ({
   controller: "p1",
@@ -169,7 +169,7 @@ describe("burning (R440)", () => {
     const after = execute(board({ p1Deck: [], p1Trash: [] }), burn(3), context());
 
     expect(seatOf(after.state, "p1").mainDeck).toEqual([]);
-    expect(seatOf(after.state, "p2").points).toBeLessThanOrEqual(VICTORY_SCORE);
+    expect(seatOf(after.state, "p2").points).toBeLessThanOrEqual(DUEL.victoryScore);
   });
 });
 

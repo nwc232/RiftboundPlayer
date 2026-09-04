@@ -5,6 +5,7 @@ import type { PendingDecision } from "./decisions.js";
 import type { ShowdownState } from "./showdown.js";
 import type { DelayedEffect, Duration, Modifier } from "./layers.js";
 import type { Task } from "./tasks.js";
+import type { ModeId } from "./modes-of-play.js";
 import type { TurnState } from "./turn.js";
 
 /**
@@ -439,6 +440,12 @@ export const FACEDOWN_CAPACITY = 1;
 
 export interface GameState {
   turn: TurnState;
+  /**
+   * R483 — which Mode of Play this is. It fixes the Victory Score (R483.3) and
+   * the First Turn Process (R483.7), both of which the engine has to read
+   * during a game rather than only at setup.
+   */
+  mode: ModeId;
   /**
    * R115.1 — "Turn Order is established as a repeating set of the players."
    * This is the authority on who is in the game and in what sequence; the

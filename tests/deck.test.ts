@@ -12,10 +12,11 @@ import {
 } from "../src/deck.js";
 import type { Deck } from "../src/deck.js";
 import { drawCards } from "../src/draw.js";
-import { VICTORY_SCORE, checkForWinner } from "../src/scoring.js";
+import { checkForWinner } from "../src/scoring.js";
 import { seatOf } from "../src/state.js";
 import type { CardId, CardInstance, GameState } from "../src/state.js";
 import { makeState, unit } from "./fixtures.js";
+import { DUEL } from "../src/modes-of-play.js";
 
 /** R133.8.b — the tag is what links a Legend to its Champion Unit (R103.2.a.2). */
 const CHAMPION_TAG = "Testman";
@@ -340,7 +341,7 @@ describe("Burn Out (R431)", () => {
       ...base,
       players: {
         ...base.players,
-        p2: { ...seatOf(base, "p2"), points: VICTORY_SCORE - 1 },
+        p2: { ...seatOf(base, "p2"), points: DUEL.victoryScore - 1 },
       },
     };
 

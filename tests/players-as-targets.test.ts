@@ -12,10 +12,10 @@ import {
 import { legalTargets } from "../src/decisions.js";
 import { legalActions } from "../src/legal.js";
 import { FREE } from "../src/cost.js";
-import { VICTORY_SCORE } from "../src/scoring.js";
 import { seatOf } from "../src/state.js";
 import type { CardInstance, GameState } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
+import { DUEL } from "../src/modes-of-play.js";
 
 const context = (targets: string[] = []): EffectContext => ({
   controller: "p1",
@@ -107,12 +107,12 @@ describe("scoring a point", () => {
       ...base,
       players: {
         ...base.players,
-        p1: { ...seatOf(base, "p1"), points: VICTORY_SCORE - 1 },
+        p1: { ...seatOf(base, "p1"), points: DUEL.victoryScore - 1 },
       },
     };
 
     const after = execute(nearly, scorePoint(1), context());
-    expect(seatOf(after.state, "p1").points).toBe(VICTORY_SCORE);
+    expect(seatOf(after.state, "p1").points).toBe(DUEL.victoryScore);
   });
 });
 

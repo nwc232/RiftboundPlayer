@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
 import type { Action } from "../src/actions.js";
 import type { GameEvent } from "../src/events.js";
-import { VICTORY_SCORE } from "../src/scoring.js";
 import {
   openShowdown,
   runCleanup,
@@ -12,6 +11,7 @@ import { seatOf } from "../src/state.js";
 import type { GameState, Location } from "../src/state.js";
 import { beginTurn } from "../src/tasks.js";
 import { makeState, unit } from "./fixtures.js";
+import { DUEL } from "../src/modes-of-play.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
 
@@ -188,7 +188,7 @@ describe("winning", () => {
         ...board().players,
         p1: {
           ...seatOf(board(), "p1"),
-          points: VICTORY_SCORE - 1,
+          points: DUEL.victoryScore - 1,
           scoredThisTurn: ["bf-south"],
         },
       },
@@ -196,7 +196,7 @@ describe("winning", () => {
 
     const { state, log } = run(nearlyWon, [MOVE_NORTH, P1_PASS, P2_PASS]);
 
-    expect(seatOf(state, "p1").points).toBe(VICTORY_SCORE);
+    expect(seatOf(state, "p1").points).toBe(DUEL.victoryScore);
     expect(state.winner).toBe("p1");
     expect(log.map((e) => e.type)).toContain("gameWon");
   });
@@ -207,7 +207,7 @@ describe("winning", () => {
         ...board().players,
         p1: {
           ...seatOf(board(), "p1"),
-          points: VICTORY_SCORE - 1,
+          points: DUEL.victoryScore - 1,
           mainDeck: ["e1"],
         },
       },
@@ -215,7 +215,7 @@ describe("winning", () => {
 
     const { state } = run(nearlyWon, [MOVE_NORTH, P1_PASS, P2_PASS]);
 
-    expect(seatOf(state, "p1").points).toBe(VICTORY_SCORE - 1);
+    expect(seatOf(state, "p1").points).toBe(DUEL.victoryScore - 1);
     expect(seatOf(state, "p1").hand).toEqual(["e1"]);
     expect(state.winner).toBeNull();
   });
@@ -226,7 +226,7 @@ describe("winning", () => {
         ...board().players,
         p1: {
           ...seatOf(board(), "p1"),
-          points: VICTORY_SCORE - 1,
+          points: DUEL.victoryScore - 1,
           scoredThisTurn: ["bf-south"],
         },
       },

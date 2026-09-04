@@ -16,6 +16,13 @@ import type { Phase } from "./turn.js";
 
 export type GameEvent =
   | { type: "cardDrawn"; playerId: PlayerId; cardId: CardId }
+  /**
+   * R443 — a Skip, and the only one the engine performs: R487.7/R488.7's
+   * "The player going first does not draw a card during their first Draw
+   * Phase". Worth an event because a player watching their own turn go by
+   * without a card deserves to be told why.
+   */
+  | { type: "drawSkipped"; playerId: PlayerId }
   | { type: "unitPlayed"; playerId: PlayerId; cardId: CardId }
   | { type: "runeChanneled"; playerId: PlayerId; cardId: CardId }
   | { type: "runeRecycled"; playerId: PlayerId; cardId: CardId }

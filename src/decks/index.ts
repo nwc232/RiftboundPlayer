@@ -1,6 +1,7 @@
 import { basicRune } from "../builders.js";
 import { copies } from "../deck.js";
 import type { Deck, GameSetup } from "../deck.js";
+import { modeFor } from "../modes-of-play.js";
 import { SEATS } from "../state.js";
 import type { CardId, CardInstance, Domain, PlayerId } from "../state.js";
 import * as vex from "./vex.js";
@@ -314,6 +315,7 @@ export function matchup(
   } = {},
 ): GameSetup {
   const picks = options.decks ?? [0, 1];
+  const mode = modeFor(picks.length);
   const turnOrder = SEATS.slice(0, picks.length);
 
   const order = (deck: Deck): Deck =>
@@ -330,12 +332,20 @@ export function matchup(
     // repeats, possible at all.
     const seated = instantiate(DECK_LISTS[pick] ?? DECK_LISTS[0]!, id);
     cards.push(...seated.cards);
+    // R488.4.b — "The player who is taking the first turn removes their
+    // Battlefields." Only a War does this, and it is why four seats put three
+    // battlefields on the table rather than four.
+    const presents = at > 0 || mode.firstPlayerPresentsBattlefield;
     seats[id] = {
       deck: order(seated.deck),
-      battlefield:
-        options.battlefields?.[id] ?? seated.deck.battlefields[0]!,
+      ...(presents
+        ? {
+            battlefield:
+              options.battlefields?.[id] ?? seated.deck.battlefields[0]!,
+          }
+        : {}),
     };
   });
 
-  return { cards, turnOrder: [...turnOrder], seats };
+  return { cards, turnOrder: [...turnOrder], seats, mode: mode.id };
 }

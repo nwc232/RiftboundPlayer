@@ -1,5 +1,6 @@
 import { basicRune } from "../src/builders.js";
 import { EMPTY_POOL, FREE } from "../src/cost.js";
+import { modeFor } from "../src/modes-of-play.js";
 import type {
   CardInstance,
   Cost,
@@ -140,6 +141,9 @@ export function makeState(options: {
 
   return {
     turn: { player: "p1", phase: "main", number: 1 },
+    // R485 unless a test seats more: `modeFor` is the sanctioned mode for
+    // however many seats the fixture asked for.
+    mode: modeFor(turnOrder.length).id,
     turnOrder,
     players,
     cards,

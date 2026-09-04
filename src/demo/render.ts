@@ -1,5 +1,5 @@
 import { totals } from "../cost.js";
-import { VICTORY_SCORE } from "../scoring.js";
+import { victoryScore } from "../scoring.js";
 import type { GameEvent } from "../events.js";
 import { chainItemCardId } from "../chain.js";
 import { characteristicsOf, controllerOf } from "../layers.js";
@@ -90,7 +90,7 @@ function renderPlayer(state: GameState, playerId: PlayerId): string[] {
     `  decks      ${dim(`main ${player.mainDeck.length}, rune ${player.runeDeck.length}`)}`,
   );
   lines.push(`  pool       ${formatPool(state, playerId)}`);
-  lines.push(`  points     ${bold(String(player.points))}${dim(` / ${VICTORY_SCORE}`)}`);
+  lines.push(`  points     ${bold(String(player.points))}${dim(` / ${victoryScore(state)}`)}`);
 
   return lines;
 }

@@ -1,5 +1,5 @@
 import { totals } from "../cost.js";
-import { VICTORY_SCORE } from "../scoring.js";
+import { victoryScore } from "../scoring.js";
 import { artFor } from "./card-art.js";
 import { characteristicsOf } from "../layers.js";
 import type { GameState, CardId, Location, PlayerId } from "../state.js";
@@ -208,7 +208,7 @@ export function PlayerPanel({
         <div className="tallies">
           <span className="score">
             {player.points}
-            <em>/{VICTORY_SCORE}</em>
+            <em>/{victoryScore(state)}</em>
           </span>
           {player.xp > 0 && <span className="tally">{player.xp} XP</span>}
           <span className="tally">deck {player.mainDeck.length}</span>

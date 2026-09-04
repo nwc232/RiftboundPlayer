@@ -8,6 +8,7 @@ import type { GameEvent, Progress } from "./events.js";
 import { checkForWinner, holdControlledBattlefields } from "./scoring.js";
 import { nextInTurnOrder, permanentsControlledBy, seatOf } from "./state.js";
 import type { GameState, PlayerId } from "./state.js";
+import { modeById } from "./modes-of-play.js";
 
 /** R314–317. Awaken through Draw run as automatic tasks; Main waits for the player. */
 export type Phase =
@@ -156,8 +157,33 @@ function channelTwo(progress: Progress, player: PlayerId, number: number): Progr
 }
 
 /** R315.4 — the turn player draws 1, burning out if the deck is dry (R431). */
-function drawOne(progress: Progress, player: PlayerId): Progress {
-  const drawn = drawCards(progress.state, player, 1);
+/**
+ * R315.4 — the turn player draws one.
+ *
+ * R487.7 and R488.7 open with "The player going first does not draw a card
+ * during their first Draw Phase of the game" — the free-for-all modes' answer
+ * to going first being worth more with three or four players than with two.
+ * R485.7's Duel has no such clause, so the flag rides on the mode rather than
+ * on the seat.
+ */
+function drawOne(
+  progress: Progress,
+  player: PlayerId,
+  number: number,
+): Progress {
+  const { state } = progress;
+  const skips =
+    modeById(state.mode).firstPlayerSkipsFirstDraw &&
+    number === 1 &&
+    player === state.turnOrder[0];
+  if (skips) {
+    return {
+      state,
+      events: [...progress.events, { type: "drawSkipped", playerId: player }],
+    };
+  }
+
+  const drawn = drawCards(state, player, 1);
   return { state: drawn.state, events: [...progress.events, ...drawn.events] };
 }
 
@@ -310,7 +336,7 @@ export function runTurnStep(
       return { ...channelTwo(progress, player, number), next: at("draw") };
 
     case "draw":
-      return { ...drawOne(progress, player), next: at("main") };
+      return { ...drawOne(progress, player, number), next: at("main") };
 
     // R316 — the Main Phase is where the turn player acts, so the queue stops.
     case "main":

@@ -37,6 +37,9 @@ export function renderEvent(event: GameEvent): string {
   switch (event.type) {
     case "cardDrawn":
       return `${event.playerId} drew ${named(event.cardId)}`;
+    // R487.7/R488.7 — going first costs you your first draw.
+    case "drawSkipped":
+      return `${event.playerId} skipped their first draw (going first)`;
     case "unitPlayed":
       return `${event.playerId} played ${event.cardId}`;
     case "runeChanneled":

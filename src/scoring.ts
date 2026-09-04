@@ -3,9 +3,18 @@ import { revealFacedown } from "./hidden.js";
 import type { GameEvent, Progress } from "./events.js";
 import type { CardId, GameState, PlayerId } from "./state.js";
 import { opponentsOf, seatOf } from "./state.js";
+import { modeById } from "./modes-of-play.js";
 
 /** R194.3 — 8 by default. Modes of play and card effects can change it. */
-export const VICTORY_SCORE = 8;
+/**
+ * R483.3 — "The point total a player or team must reach to win", which every
+ * mode defines for itself. Every sanctioned mode without teams says 8; R489's
+ * Magma Chamber says 11, which is why this is asked of the game rather than
+ * written down once.
+ */
+export function victoryScore(state: GameState): number {
+  return modeById(state.mode).victoryScore;
+}
 
 export type ScoreMethod = "conquer" | "hold";
 
@@ -42,7 +51,7 @@ export function score(
     { type: "battlefieldScored", playerId, battlefieldId, method },
   ];
 
-  const withinOneOfVictory = player.points >= VICTORY_SCORE - 1;
+  const withinOneOfVictory = player.points >= victoryScore(state) - 1;
   const scoredEverything = state.battlefieldOrder.every((id) =>
     scoredThisTurn.includes(id),
   );
@@ -103,7 +112,7 @@ export function checkForWinner(state: GameState): Progress {
       ...opponentsOf(state, playerId).map((id) => seatOf(state, id).points),
     );
 
-    if (points >= VICTORY_SCORE && points > best) {
+    if (points >= victoryScore(state) && points > best) {
       const shown = revealEveryFacedown(state);
       return {
         // R194.2 — setting the winner is the whole of this. Stopping the

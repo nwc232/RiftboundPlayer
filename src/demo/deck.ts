@@ -165,6 +165,7 @@ function emptyBoard(): GameState {
 
   return {
     turn: { player: "p1", phase: "main", number: 1 },
+    mode: "duel",
     turnOrder: ["p1", "p2"],
     players: {
       p1: {

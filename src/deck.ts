@@ -1,6 +1,8 @@
 import { enqueue, runTasks } from "./tasks.js";
 import { openTurn } from "./turn.js";
 import type { CardId, CardInstance, GameState, PlayerId } from "./state.js";
+import { modeById, modeFor } from "./modes-of-play.js";
+import type { ModeId } from "./modes-of-play.js";
 
 /**
  * R103 — what a player must bring. The Chosen Champion is counted within the
@@ -34,7 +36,9 @@ export type DeckError =
   | "duplicateBattlefieldName"
   | "unknownCard"
   /** R115.1 — a seat in the turn order that nobody brought a deck to. */
-  | "seatWithoutDeck";
+  | "seatWithoutDeck"
+  /** R483.4 — the wrong number of battlefields presented for this mode. */
+  | "wrongBattlefieldsInPlay";
 
 export const MAIN_DECK_MINIMUM = 40;
 export const RUNE_DECK_SIZE = 12;
@@ -177,6 +181,11 @@ export interface GameSetup {
    */
   turnOrder: PlayerId[];
   seats: Partial<Record<PlayerId, SeatSetup>>;
+  /**
+   * R483 — which Mode of Play. Omitted, it is the sanctioned mode that seats
+   * this many players, which is what a caller almost always means.
+   */
+  mode?: ModeId;
 }
 
 export type SetupResult =
@@ -215,6 +224,7 @@ export function startGame(setup: GameSetup): SetupResult {
   for (const card of setup.cards) cards[card.id] = card;
 
   const seatOrder = setup.turnOrder;
+  const mode = modeById(setup.mode ?? modeFor(seatOrder.length).id);
   const errors: Partial<Record<PlayerId, DeckError[]>> = {};
   for (const id of seatOrder) {
     const seat = setup.seats[id];
@@ -236,6 +246,15 @@ export function startGame(setup: GameSetup): SetupResult {
     const chosen = setup.seats[id]?.battlefield;
     return chosen === undefined ? [] : [chosen];
   });
+  // R483.4 — "Battlefield Count: Determines how many Battlefields are in play".
+  // R488.4.b is why this is checked rather than assumed: in a War the first
+  // player presents none, so four seats put three battlefields on the table.
+  if (battlefieldOrder.length !== mode.battlefields) {
+    return {
+      ok: false,
+      errors: { [seatOrder[0]!]: ["wrongBattlefieldsInPlay"] },
+    };
+  }
   const battlefields: GameState["battlefields"] = {};
   for (const id of battlefieldOrder) {
     battlefields[id] = { cardId: id, controller: null, contestedBy: null };
@@ -248,6 +267,7 @@ export function startGame(setup: GameSetup): SetupResult {
 
   const blank: GameState = {
     turn: { player: startingPlayer, phase: "main", number: 0 },
+    mode: mode.id,
     turnOrder: [...seatOrder],
     players,
     cards,
