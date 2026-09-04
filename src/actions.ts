@@ -53,7 +53,9 @@ import {
   enqueueNext,
   runTasks,
 } from "./tasks.js";
-import { passFocus as runPassFocus } from "./showdown.js";
+import { passFocus as runPassFocus,
+  closedToOutsiders,
+} from "./showdown.js";
 import { isValidPlayLocation, playedWithReactionTiming } from "./play.js";
 import { cannotPlay } from "./restrictions.js";
 import {
@@ -886,6 +888,18 @@ export function playUnitFromHand(
   if (cannotPlay(state, playerId, cardId, destination)) {
     return rejected("cannotPlay");
   }
+  // R462.2 — "Battlefields with Staged Combats or Combats in Progress are
+  // Invalid to be chosen as a location to play one or more Units by a player
+  // not involved in that Combat by any means." R462.2.a's redirect to Base is
+  // for effects that *force* the play; a player choosing one is simply
+  // refused.
+  if (
+    card.type === "unit" &&
+    destination.kind === "battlefield" &&
+    closedToOutsiders(state, destination.id, playerId)
+  ) {
+    return rejected("invalidDestination");
+  }
   if (zone.destination === undefined) {
     // R355.2 — the chosen location has to be a valid one. R355.2.a's default is
     // "the controller's Base or a Battlefield the controller controls"; anything
@@ -1101,6 +1115,15 @@ export function standardMove(
     origin.kind === "battlefield" &&
     destination.kind === "battlefield" &&
     !keywordsOf(state, cardId).includes("ganking")
+  ) {
+    return rejected("invalidDestination");
+  }
+  // R447.2.a / R449.2 — a fight that already has two sides is closed to
+  // anyone not in it, and so is a battlefield two other players are standing
+  // on. Vacuous in a Duel; the whole point of it in a Skirmish or a War.
+  if (
+    destination.kind === "battlefield" &&
+    closedToOutsiders(state, destination.id, playerId)
   ) {
     return rejected("invalidDestination");
   }

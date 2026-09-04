@@ -1,3 +1,4 @@
+import { closedToOutsiders } from "./showdown.js";
 import {
   addCosts,
   addEnergy as creditEnergy,
@@ -1632,13 +1633,23 @@ export function execute(
         const tokenId = `token-${effect.token}-${index}`;
         const card = tokenCard(effect.token, tokenId);
 
-        const location: Location =
+        const wanted: Location =
           effect.to === "sourceLocation" && context.sourceLocation !== undefined
             ? context.sourceLocation
             : effect.to === "eventLocation" &&
                 context.eventLocation !== undefined
               ? context.eventLocation
               : { kind: "base", player: context.controller };
+        // R462.2.a — "If an effect would require a Unit be played to a
+        // Battlefield with a Staged Combat or a Combat in Progress, where the
+        // controller of the played unit is not a participant, instead the Unit
+        // is played to its controller's Base." R462.2.b reassigns "here" with
+        // it, which is what returning the Base here amounts to.
+        const location: Location =
+          wanted.kind === "battlefield" &&
+          closedToOutsiders(current, wanted.id, context.controller)
+            ? { kind: "base", player: context.controller }
+            : wanted;
 
         current = {
           ...current,
@@ -1865,12 +1876,21 @@ export function execute(
         }
       }
 
-      const to: Location =
+      const mover = controllerOf(state, targetId);
+      const wanted: Location =
         chosen !== undefined
           ? { kind: "battlefield", id: chosen }
           : effect.to === "sourceLocation" && context.sourceLocation !== undefined
             ? context.sourceLocation
-            : { kind: "base", player: controllerOf(state, targetId) };
+            : { kind: "base", player: mover };
+      // R447.2.c — "If an action would require a Move that would cause a Unit
+      // to become present in a Location where it cannot move for any reason …
+      // it instead Recalls." A recall goes to the controller's Base (R455).
+      const to: Location =
+        wanted.kind === "battlefield" &&
+        closedToOutsiders(state, wanted.id, mover)
+          ? { kind: "base", player: mover }
+          : wanted;
 
       return {
         state: {

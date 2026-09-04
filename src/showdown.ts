@@ -165,6 +165,52 @@ export function stagedBattlefields(state: GameState): CardId[] {
   );
 }
 
+/**
+ * R447.2.a, R449.2 and R462.1–.2 — whether a battlefield is closed to a player
+ * who is not already there. Three rules, one question, because they all draw
+ * the same line around a fight that already has two sides.
+ *
+ * R449.2 — "Units cannot Move to a Battlefield that already has units from 2
+ * other players present by any means." Not gated on the mode: with two seats
+ * there is never a second *other* player, so it is simply never true.
+ *
+ * R447.2.a and R462.1 — "In Modes of Play with more than two players,
+ * Battlefields with Staged Combats or Combats in Progress are Invalid
+ * Destinations … by Units controlled by Players not involved in those Combats
+ * or who don't already have Units at that Battlefield." Being involved in a
+ * combat means having units there, so the two halves of that "or" name the
+ * same set, and the operative question is whether this player is already
+ * present.
+ *
+ * R462.3 is the reason all of this exists: "All choices that would result in a
+ * Combat occurring between more than two players simultaneously are invalid."
+ */
+export function closedToOutsiders(
+  state: GameState,
+  battlefieldId: CardId,
+  player: PlayerId,
+): boolean {
+  const counts = unitsAtByController(state, battlefieldId);
+  const alreadyHere = (counts.get(player) ?? 0) > 0;
+
+  // R449.2 — two *other* players, so the mover's own units don't count.
+  let others = 0;
+  for (const [controller, count] of counts) {
+    if (controller !== player && count > 0) others += 1;
+  }
+  if (others >= 2) return true;
+
+  if (state.turnOrder.length <= 2) return false;
+  if (alreadyHere) return false;
+
+  const staged = state.battlefields[battlefieldId]?.contestedBy != null;
+  const ongoing =
+    combatInProgressAt(state, battlefieldId) ||
+    state.showdown?.battlefieldId === battlefieldId;
+
+  return staged || ongoing;
+}
+
 /** A combat that has opened but not yet reached the end of R466. */
 function combatInProgressAt(state: GameState, battlefieldId: CardId): boolean {
   return state.tasks.some(
