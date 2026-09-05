@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { renderEvent } from "../event-text.js";
 import type { GameEvent } from "../events.js";
 import type { Action, RejectionReason } from "../actions.js";
@@ -6,6 +6,7 @@ import type { CardId, GameState, PlayerId } from "../state.js";
 import { eventsFor, viewOf } from "../view.js";
 import { useOnline } from "./online.js";
 import {
+  CardMenu,
   Battlefields,
   CardDetail,
   Chain,
@@ -15,6 +16,7 @@ import {
   Winner,
 } from "./components.js";
 import {
+  clickOn,
   actingPlayer,
   dispatch,
   groupMoves,
@@ -82,6 +84,10 @@ export function App() {
   /** What the pointer is over, previewed full size beside the board. */
   const [hovered, setHovered] = useState<CardId | null>(null);
   const [staged, setStaged] = useState<CardId[]>([]);
+  /** Which card's moves are open, and where on screen to put them. */
+  const [menu, setMenu] = useState<{ cardId: CardId; rect: DOMRect } | null>(
+    null,
+  );
   const [rejected, setRejected] = useState<RejectionReason | null>(null);
 
   /**
@@ -208,7 +214,7 @@ export function App() {
   const arity = promptArity(state);
 
   const onSelect = useCallback(
-    (cardId: CardId) => {
+    (cardId: CardId, anchor?: DOMRect) => {
       // Answering a decision is a click on a highlighted card. A prompt that
       // wants exactly one card answers on that click; anything else (the
       // mulligan, Stacked Deck, a Predict) collects clicks and waits for a
@@ -230,6 +236,21 @@ export function App() {
               ? [...current, cardId]
               : current,
         );
+        return;
+      }
+      // Nothing pending, so a click is about *doing* something with this
+      // card. `clickOn` sorts the moves `legalActions` already returned; the
+      // menu is a second place to click the same list, never a second opinion
+      // about what is legal.
+      setMenu(null);
+      const outcome = clickOn(moves, cardId);
+      if (outcome.kind === "play") {
+        play(outcome.move.action);
+        return;
+      }
+      if (outcome.kind === "menu" && anchor !== undefined) {
+        setMenu({ cardId, rect: anchor });
+        setSelected(cardId);
         return;
       }
       setSelected((current) => (current === cardId ? null : cardId));
@@ -255,6 +276,21 @@ export function App() {
   const blocked =
     selected === null ? null : whyNotPlayable(state, acting, selected);
 
+  // The menu is pinned to where a card *was*. Any change to the board can
+  // move it, so it closes rather than pointing at the wrong thing — including
+  // when somebody else acts in an online game.
+  useEffect(() => {
+    setMenu(null);
+  }, [state]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const pick = {
     selected,
     staged: new Set(staged),
@@ -262,6 +298,7 @@ export function App() {
     actionable,
     onSelect,
     onHover: setHovered,
+    menuFor: menu?.cardId ?? null,
   };
 
   const restart = (): void => {
@@ -543,6 +580,18 @@ export function App() {
           </div>
         )}
       </div>
+
+      {menu !== null && (
+        <CardMenu
+          moves={moves.filter((move) => move.subject === menu.cardId)}
+          at={menu.rect}
+          onPick={(move) => {
+            play(move.action);
+            setMenu(null);
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
 
       <main className="board">
         {/* Everyone else above, the viewer below. With two seats that is the

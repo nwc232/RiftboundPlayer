@@ -17,6 +17,8 @@ import {
 import { seatOf } from "../src/state.js";
 import type { GameState } from "../src/state.js";
 import { pool } from "./fixtures.js";
+import { clickOn } from "../src/ui/game.js";
+import type { Move } from "../src/ui/game.js";
 
 /**
  * The UI's own logic, tested without a DOM. Everything the browser does that
@@ -257,5 +259,56 @@ describe("card art", () => {
     }
 
     expect([...missing]).toEqual([]);
+  });
+});
+
+
+/**
+ * What a click on a card does. The whole interaction model is here, and it is
+ * worth testing without a browser because the thing that would break it is a
+ * change in the shape of the move list rather than anything visual.
+ */
+describe("clicking a card", () => {
+  const moveFor = (subject: string | undefined, label: string): Move => ({
+    action: { type: "endTurn", playerId: "p1" },
+    label,
+    subject,
+  });
+
+  /** One legal move is not a choice, so asking about it is friction. */
+  it("plays a card that has exactly one move", () => {
+    const outcome = clickOn([moveFor("rune", "exhaust for 1 energy")], "rune");
+
+    expect(outcome.kind).toBe("play");
+    if (outcome.kind !== "play") return;
+    expect(outcome.move.label).toBe("exhaust for 1 energy");
+  });
+
+  /** More than one is a real choice, asked beside the card. */
+  it("opens a menu when there is something to choose", () => {
+    const outcome = clickOn(
+      [
+        moveFor("rune", "exhaust for 1 energy"),
+        moveFor("rune", "recycle for 1 chaos power"),
+      ],
+      "rune",
+    );
+
+    expect(outcome.kind).toBe("menu");
+    if (outcome.kind !== "menu") return;
+    expect(outcome.moves).toHaveLength(2);
+  });
+
+  /** Nothing to do with it means the click was about reading it. */
+  it("just selects a card with no moves", () => {
+    expect(clickOn([moveFor("other", "x")], "rune").kind).toBe("select");
+    expect(clickOn([], "rune").kind).toBe("select");
+  });
+
+  /** Moves belonging to no card — "end turn" — are never a card's default. */
+  it("ignores moves that belong to no card", () => {
+    expect(clickOn([moveFor(undefined, "end turn")], "rune").kind).toBe(
+      "select",
+    );
   });
 });

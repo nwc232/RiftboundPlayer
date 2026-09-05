@@ -301,6 +301,32 @@ export function movesFor(state: GameState, playerId: PlayerId): Move[] {
   );
 }
 
+/**
+ * What a click on a card should do.
+ *
+ * The rule is deliberately blunt: one legal move is not a choice, so asking
+ * about it is friction; more than one is a choice, so it is asked *at the
+ * card* rather than in the list on the far side of the screen; none means the
+ * click was about looking at the card rather than using it.
+ *
+ * Kept here, out of the component, because it is the whole of the interaction
+ * model and worth testing without a browser. Note what it does not do: it
+ * never decides *whether* something is playable. The moves handed to it came
+ * from `legalActions` by way of `movesFor`, and this only sorts them.
+ */
+export type Click =
+  | { kind: "play"; move: Move }
+  | { kind: "menu"; moves: Move[] }
+  | { kind: "select" };
+
+export function clickOn(moves: Move[], cardId: CardId): Click {
+  const mine = moves.filter((move) => move.subject === cardId);
+  const only = mine[0];
+  if (mine.length === 1 && only !== undefined) return { kind: "play", move: only };
+  if (mine.length > 1) return { kind: "menu", moves: mine };
+  return { kind: "select" };
+}
+
 export interface MoveGroup {
   /** Null for moves that belong to no card — end turn, pass. */
   cardId: CardId | null;

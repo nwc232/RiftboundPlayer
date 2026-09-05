@@ -537,3 +537,43 @@ button.concede:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--muted) 40%, transparent);
   color: var(--muted);
 }
+
+/*
+ * A card's moves, opened beside the card rather than in the list on the far
+ * side of the screen. Fixed rather than nested: rows scroll and clip, and a
+ * menu its own container can cut in half is worse than no menu.
+ */
+.menu-shade {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.card-menu {
+  position: fixed;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.card-menu .menu-item {
+  text-align: left;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.card-menu .menu-item:hover {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+/* The card the open menu belongs to, so it is obvious what it acts on. */
+.card.is-open, .rune.is-open { box-shadow: 0 0 0 2px var(--warn); }

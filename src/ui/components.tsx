@@ -19,7 +19,13 @@ interface Selectable {
   staged: ReadonlySet<CardId>;
   legal: ReadonlySet<CardId>;
   actionable: ReadonlySet<CardId>;
-  onSelect: (cardId: CardId) => void;
+  /**
+   * `anchor` is where the card is on screen, so a menu of its moves can open
+   * beside it rather than 800px away in the list. Measured at the click
+   * because rows scroll and the mat reflows; a position worked out any earlier
+   * would be wrong by the time it is used.
+   */
+  onSelect: (cardId: CardId, anchor?: DOMRect) => void;
   /**
    * Pointing at a card previews it full size, which is the only way to read
    * its text: a card face at hand size is about 90px wide, and no amount of
@@ -28,6 +34,8 @@ interface Selectable {
    * screen — rather than by growing the card in the row.
    */
   onHover: (cardId: CardId | null) => void;
+  /** Which card currently has its move menu open, so it can be marked. */
+  menuFor: CardId | null;
 }
 
 /**
@@ -63,6 +71,7 @@ function Card({
     `type-${now.type}`,
     art !== undefined ? "has-art" : "",
     pick.selected === cardId || pick.staged.has(cardId) ? "is-selected" : "",
+    pick.menuFor === cardId ? "is-open" : "",
     pick.legal.has(cardId) ? "is-legal" : "",
     pick.actionable.has(cardId) ? "is-actionable" : "",
     permanent?.exhausted === true || exhausted ? "is-exhausted" : "",
@@ -82,7 +91,9 @@ function Card({
   return (
     <button
       className={classes}
-      onClick={() => pick.onSelect(cardId)}
+      onClick={(event) =>
+        pick.onSelect(cardId, event.currentTarget.getBoundingClientRect())
+      }
       onMouseEnter={() => pick.onHover(cardId)}
       onMouseLeave={() => pick.onHover(null)}
       onFocus={() => pick.onHover(cardId)}
@@ -274,11 +285,14 @@ export function PlayerPanel({
                     `rune-${rune.domain}`,
                     rune.exhausted ? "is-exhausted" : "",
                     pick.selected === runeId ? "is-selected" : "",
+                    pick.menuFor === runeId ? "is-open" : "",
                     pick.actionable.has(runeId) ? "is-actionable" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}
-                  onClick={() => pick.onSelect(runeId)}
+                  onClick={(event) =>
+                    pick.onSelect(runeId, event.currentTarget.getBoundingClientRect())
+                  }
                 >
                   {rune.domain.slice(0, 2)}
                 </button>
@@ -387,6 +401,55 @@ export function Battlefields({
 }
 
 /** R327 — the chain, newest first, because that is the order it resolves in. */
+/**
+ * The moves for one card, opened beside it.
+ *
+ * `position: fixed` against the card's measured rectangle rather than nesting
+ * inside it: rows scroll and clip, and a menu that can be cut off by its own
+ * container is worse than no menu. Everything in it comes from
+ * `legalActions` — this is a different place to click the same list, not a
+ * second opinion about what is playable.
+ */
+export function CardMenu({
+  moves,
+  at,
+  onPick,
+  onClose,
+}: {
+  moves: Move[];
+  at: DOMRect;
+  onPick: (move: Move) => void;
+  onClose: () => void;
+}) {
+  // Open to the right of the card, or to its left when that would run off the
+  // edge; below it, or above when there is no room underneath.
+  const width = 240;
+  const roomRight = window.innerWidth - at.right > width + 16;
+  const left = roomRight ? at.right + 8 : Math.max(8, at.left - width - 8);
+  const estimated = 12 + moves.length * 30;
+  const top = Math.min(at.top, Math.max(8, window.innerHeight - estimated - 8));
+
+  return (
+    <>
+      {/* A click anywhere else closes it, including on another card — which
+          then opens that card's own menu, so nothing needs two clicks. */}
+      <div className="menu-shade" onClick={onClose} />
+      <div className="card-menu" style={{ left, top, width }} role="menu">
+        {moves.map((move, index) => (
+          <button
+            key={`${move.label}-${index}`}
+            className="menu-item"
+            role="menuitem"
+            onClick={() => onPick(move)}
+          >
+            {move.label}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function Chain({ state }: { state: GameState }) {
   if (state.chain.length === 0) return null;
   return (
