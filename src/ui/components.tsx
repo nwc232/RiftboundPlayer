@@ -181,11 +181,20 @@ export function PlayerPanel({
   playerId,
   pick,
   acting,
+  near = false,
 }: {
   state: GameState;
   playerId: PlayerId;
   pick: Selectable;
   acting: boolean;
+  /**
+   * The seat at the bottom of the mat — yours. Its hand is rendered as a fan
+   * along the bottom edge instead of a row in here, so the panel keeps only
+   * what is on the board. Everyone else's panel is the same component with
+   * this off, drawn smaller: you cannot use their cards, so they need to be
+   * legible rather than reachable.
+   */
+  near?: boolean;
 }) {
   const player = seatOf(state, playerId);
   const pool = totals(player.runePool);
@@ -200,6 +209,7 @@ export function PlayerPanel({
     <section
       className={[
         "panel",
+        near ? "is-near" : "is-far",
         acting ? "is-acting" : "",
         choosable ? "is-legal" : "",
       ]
@@ -228,12 +238,18 @@ export function PlayerPanel({
       </header>
 
       {/*
+        Your own side is a strip rather than a stack: legend, champion and base
+        are one or two cards each, and stacking them spent 150px of the mat on
+        three mostly-empty rows. Everyone else keeps the stack, because their
+        panel is narrow.
+
         R107.4.c — the Champion Legend is a Game Object, and several print an
         activated ability. It was a text label, which meant no way to read what
         it does, no way to see it exhausted, and no way to click it — so a
         Legend whose ability you were meant to use looked like a Legend that
         did nothing.
       */}
+      <div className={near ? "panel-strip" : ""}>
       {player.legend !== null && (
         <Row
           label="legend"
@@ -243,14 +259,18 @@ export function PlayerPanel({
           exhausted={player.legendExhausted === true}
         />
       )}
-      <Row
-        label="hand"
-        ids={player.hand}
-        state={state}
-        pick={pick}
-        owner={playerId}
-        empty="no cards"
-      />
+      {/* Yours is the fan along the bottom; theirs stays here, because a
+          hand you cannot play out of is information rather than a control. */}
+      {!near && (
+        <Row
+          label="hand"
+          ids={player.hand}
+          state={state}
+          pick={pick}
+          owner={playerId}
+          empty="no cards"
+        />
+      )}
       <Row label="base" ids={inBase} state={state} pick={pick} empty="empty" />
       {player.champion !== null && (
         <Row
@@ -262,62 +282,133 @@ export function PlayerPanel({
         />
       )}
 
-      {/*
-        R164 — runes are individually clickable, because exhausting and
-        recycling them is how the pool gets filled. Rendering them as a tally
-        would leave a player with no way to pay for anything.
-      */}
-      <div className="row">
-        <span className="row-label">runes</span>
-        <div className="row-cards">
-          {player.runes.length === 0 ? (
-            <span className="muted">none</span>
-          ) : (
-            player.runes.map((runeId) => {
-              const rune = state.runes[runeId];
-              if (rune === undefined) return null;
-              return (
-                <button
-                  key={runeId}
-                  title={runeId}
-                  className={[
-                    "rune",
-                    `rune-${rune.domain}`,
-                    rune.exhausted ? "is-exhausted" : "",
-                    pick.selected === runeId ? "is-selected" : "",
-                    pick.menuFor === runeId ? "is-open" : "",
-                    pick.actionable.has(runeId) ? "is-actionable" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onClick={(event) =>
-                    pick.onSelect(runeId, event.currentTarget.getBoundingClientRect())
-                  }
-                >
-                  {rune.domain.slice(0, 2)}
-                </button>
-              );
-            })
-          )}
-        </div>
+      {/* Yours live in the tray beside your hand, where you use them. An
+          opponent's are information — what they can pay with — so they are a
+          line here rather than a set of controls. */}
       </div>
 
-      <div className="row">
-        <span className="row-label">pool</span>
-        <div className="row-cards">
-          {pool.energy === 0 &&
-          pool.universalPower === 0 &&
-          Object.keys(pool.power).length === 0 ? (
-            <span className="muted">empty</span>
-          ) : (
-            <span className="pool">
-              {pool.energy > 0 && `${pool.energy} energy`}
-              {Object.entries(pool.power).map(([d, n]) => ` · ${n} ${d}`)}
-              {pool.universalPower > 0 && ` · ${pool.universalPower} any`}
-            </span>
-          )}
+      {/* Yours live in the tray beside your hand, where you use them. An
+          opponent's are information — what they can pay with — so they are a
+          line here rather than a set of controls. */}
+      {!near && (
+        <div className="row">
+          <span className="row-label">runes</span>
+          <div className="row-cards">
+            <Resources state={state} playerId={playerId} pick={pick} />
+          </div>
         </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * What you pay with: your runes and what is in your pool.
+ *
+ * R164 — runes are individually clickable, because exhausting and recycling
+ * them is how the pool gets filled; a tally would leave a player unable to
+ * pay for anything. They sit beside the hand rather than in the panel because
+ * they are used on every turn, and the panel scrolls.
+ */
+export function Resources({
+  state,
+  playerId,
+  pick,
+}: {
+  state: GameState;
+  playerId: PlayerId;
+  pick: Selectable;
+}) {
+  const player = seatOf(state, playerId);
+  const pool = totals(player.runePool);
+  const empty =
+    pool.energy === 0 &&
+    pool.universalPower === 0 &&
+    Object.keys(pool.power).length === 0;
+
+  return (
+    <section className="resources" aria-label={`${playerId} resources`}>
+      <div className="rune-strip">
+        {player.runes.length === 0 ? (
+          <span className="muted">no runes</span>
+        ) : (
+          player.runes.map((runeId) => {
+            const rune = state.runes[runeId];
+            if (rune === undefined) return null;
+            return (
+              <button
+                key={runeId}
+                title={runeId}
+                className={[
+                  "rune",
+                  `rune-${rune.domain}`,
+                  rune.exhausted ? "is-exhausted" : "",
+                  pick.selected === runeId ? "is-selected" : "",
+                  pick.menuFor === runeId ? "is-open" : "",
+                  pick.actionable.has(runeId) ? "is-actionable" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={(event) =>
+                  pick.onSelect(runeId, event.currentTarget.getBoundingClientRect())
+                }
+              >
+                {rune.domain.slice(0, 2)}
+              </button>
+            );
+          })
+        )}
       </div>
+      <div className="pool-strip">
+        {empty ? (
+          <span className="muted">pool empty</span>
+        ) : (
+          <span className="pool">
+            {pool.energy > 0 && `${pool.energy} energy`}
+            {Object.entries(pool.power).map(([d, n]) => ` · ${n} ${d}`)}
+            {pool.universalPower > 0 && ` · ${pool.universalPower} any`}
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Your hand, along the bottom edge.
+ *
+ * Overlapping rather than spaced, and larger than a card anywhere else on the
+ * mat: it is the only zone you act out of constantly, and the one place where
+ * being able to read a card at a glance is worth the room. Hover lifts one
+ * clear of its neighbours, which is what the overlap costs and what makes it
+ * affordable.
+ */
+export function Hand({
+  state,
+  playerId,
+  pick,
+}: {
+  state: GameState;
+  playerId: PlayerId;
+  pick: Selectable;
+}) {
+  const player = seatOf(state, playerId);
+
+  return (
+    <section className="hand-fan" aria-label={`${playerId} hand`}>
+      {player.hand.length === 0 ? (
+        <span className="muted">no cards in hand</span>
+      ) : (
+        player.hand.map((cardId) => (
+          <Card
+            key={cardId}
+            state={state}
+            cardId={cardId}
+            pick={pick}
+            cost={costLabel(state, playerId, cardId)}
+          />
+        ))
+      )}
     </section>
   );
 }

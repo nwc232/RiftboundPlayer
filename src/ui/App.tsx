@@ -6,6 +6,8 @@ import type { CardId, GameState, PlayerId } from "../state.js";
 import { eventsFor, viewOf } from "../view.js";
 import { useOnline } from "./online.js";
 import {
+  Resources,
+  Hand,
   CardMenu,
   Battlefields,
   CardDetail,
@@ -597,6 +599,8 @@ export function App() {
         {/* Everyone else above, the viewer below. With two seats that is the
             layout it always was; with three or four the top row grows, which
             is the only thing about the board a Skirmish changes. */}
+        {/* Everything above the hand scrolls; the hand does not. */}
+        <div className="mat">
         <div className="opponents">
           {opponentsOf(state, near).map((id) => (
             <PlayerPanel
@@ -614,7 +618,15 @@ export function App() {
           playerId={near}
           pick={pick}
           acting={acting === near}
+          near
         />
+        </div>
+        {/* The three things you act with, always on screen: what you can pay
+            with, and what you can play. */}
+        <div className="tray">
+          <Resources state={state} playerId={near} pick={pick} />
+          <Hand state={state} playerId={near} pick={pick} />
+        </div>
       </main>
 
       <aside className="side">

@@ -335,9 +335,10 @@ button:disabled { opacity: 0.4; cursor: default; }
 .card.has-art {
   position: relative;
   display: block;
-  /* Sized so a full board — two hands, two bases, three battlefields — fits
-     one screen. A card game you have to scroll is a list with pictures. */
-  width: 64px;
+  /* Sized per zone rather than once: how big a card should be depends on
+     whether you act out of it. `--card-w` is set by each zone below; this is
+     the fallback for anywhere that does not. */
+  width: var(--card-w, 64px);
   /* The pool publishes portrait faces at 744x1039. */
   aspect-ratio: 744 / 1039;
   padding: 0;
@@ -577,3 +578,132 @@ button.concede:hover:not(:disabled) {
 
 /* The card the open menu belongs to, so it is obvious what it acts on. */
 .card.is-open, .rune.is-open { box-shadow: 0 0 0 2px var(--warn); }
+
+/*
+ * How big a card is, by how much you need it.
+ *
+ * Your hand is the only zone you act out of constantly, so it gets the room.
+ * A battlefield is where the game is decided, so its units are next. Everyone
+ * else's board you only need to read, so it is smallest — which is also what
+ * buys back the vertical space a third and fourth seat cost.
+ */
+.hand-fan { --card-w: 92px; }
+.battlefields { --card-w: 74px; }
+.panel.is-near { --card-w: 64px; }
+.panel.is-far { --card-w: 46px; }
+
+/*
+ * The hand, along the bottom edge. Overlapping rather than spaced: a hand of
+ * eight at full size does not fit a row, and fanning is what a hand of cards
+ * does anyway. Hover lifts one clear, which is what makes the overlap
+ * affordable.
+ */
+/*
+ * The hand is pinned: it is the zone you act out of on every turn, and a
+ * control you have to scroll to find is a control you will miss. Everything
+ * above it scrolls instead.
+ */
+.board { overflow: hidden; }
+.mat {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tray { flex: 0 0 auto; }
+
+.hand-fan {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0;
+  padding: 8px 10px 10px;
+  min-height: calc(var(--card-w) * 1039 / 744 + 18px);
+  border-top: 1px solid var(--line);
+  background: linear-gradient(to top, var(--panel-2), transparent);
+}
+.hand-fan .card { margin-left: -22px; }
+.hand-fan .card:first-child { margin-left: 0; }
+/* Lift the hovered card and everything stops overlapping it. */
+.hand-fan .card:hover,
+.hand-fan .card:focus-visible {
+  transform: translateY(-14px) scale(1.06);
+  z-index: 3;
+}
+.hand-fan .card.is-selected,
+.hand-fan .card.is-open { transform: translateY(-10px); z-index: 2; }
+
+/*
+ * The battlefields are the middle of the mat rather than a row between two
+ * panels: they are what the game is played over, and in a Skirmish knowing at
+ * a glance who is standing where is most of reading the board.
+ */
+.board .battlefields {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 190px;
+}
+.board .battlefield {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.board .bf-units {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 5px;
+  flex: 1 1 auto;
+  padding-top: 4px;
+}
+
+/* A far panel is for reading, so it is tighter everywhere. */
+.panel.is-far { padding: 5px 8px; font-size: 11px; }
+.panel.is-far .row { margin-top: 2px; }
+.panel.is-far .row-label { min-width: 44px; }
+
+/*
+ * The tray: what you pay with, then what you can play. Pinned below the mat,
+ * because between them these are every control you touch on a normal turn.
+ */
+.tray {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(to top, var(--panel-2), transparent);
+}
+.tray .hand-fan {
+  flex: 1 1 auto;
+  border-top: 0;
+  background: none;
+}
+.resources {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  min-width: 130px;
+}
+.rune-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.pool-strip { color: var(--calm); font-size: 11px; }
+
+/* Inside an opponent's panel it is a line, not a control strip. */
+.panel.is-far .resources {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  min-width: 0;
+}
+
+/* Your own legend, champion and base side by side rather than stacked. */
+.panel-strip { display: flex; align-items: flex-start; gap: 16px; }
+.panel-strip .row { margin-top: 0; flex: 0 0 auto; }
+.panel-strip .row:last-child { flex: 1 1 auto; }
