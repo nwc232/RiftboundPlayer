@@ -563,6 +563,24 @@ export function seatOf(state: GameState, playerId: PlayerId): PlayerState {
   return player;
 }
 
+/**
+ * Narrows a chosen id to a player who is actually in this game.
+ *
+ * `PlayerId` is structurally a `CardId`, which is what lets a card target a
+ * player at all (ROADMAP §6c) — so an effect that reads a target back has to
+ * ask whether it named a seat. This used to be written inline as
+ * `id !== "p1" && id !== "p2"`, which stopped being a narrowing and started
+ * being a silent two-player restriction the moment a third seat existed: a
+ * discard aimed at p3 did nothing at all, and the compiler had no way to say
+ * so, because it is a comparison rather than a type.
+ */
+export function isSeated(
+  state: GameState,
+  id: CardId | undefined,
+): id is PlayerId {
+  return state.turnOrder.some((seat) => seat === id);
+}
+
 /** R812.1.c — what this player has finalized this turn; nothing, by default. */
 export function playedBy(state: GameState, playerId: PlayerId): CardId[] {
   return state.playedThisTurn[playerId] ?? [];

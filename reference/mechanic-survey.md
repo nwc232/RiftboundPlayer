@@ -802,7 +802,14 @@ built when a card asks for it.
   the engine has, so `equipChosen` treats them as unpayable, which R821.1.c.5
   already covers: the card stays where it was. The resource-only Equip costs,
   which is every other Equipment, work.
-- **"Each player" cannot contain a question.** `forEachPlayer` runs its inner
+- ~~**"Each player" cannot contain a question.**~~ Closed. `forEachPlayer`
+  folds the players it has not reached yet into the pause's resume, so a step
+  that asks something carries the rest of the table with it instead of
+  stranding them. R303.2.a's turn order is what fixes the sequence, and four
+  cards print it as "Starting with the next player" — King's Edict, Party
+  Favors, Promising Future, Whirlwind.
+- **Superseded, kept for the reasoning:** "Each player" cannot contain a
+  question. `forEachPlayer` runs its inner
   effect once per player, and a step that stopped to ask would strand the
   players after it — the resumable `execute` returns one pause, not a queue of
   them. Nothing printed needs it: every "each player" effect in the pool is a

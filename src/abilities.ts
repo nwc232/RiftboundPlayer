@@ -22,7 +22,7 @@ import type {
 } from "./state.js";
 import { leaveChain } from "./chain.js";
 import { killUnits } from "./combat.js";
-import { opponentsOf, ownerOf, playedBy, sameLocation, seatOf, turnOrderFrom } from "./state.js";
+import { isSeated, opponentsOf, ownerOf, playedBy, sameLocation, seatOf, turnOrderFrom } from "./state.js";
 import { burnOut, drawCards } from "./draw.js";
 import { controllerOf, mightOf, restricted } from "./layers.js";
 import { tokenCard } from "./tokens.js";
@@ -292,6 +292,27 @@ export type Effect =
       /** Relative to the effect's controller. */
       who: "each" | "eachOpponent";
       each: Effect;
+    }
+  /**
+   * A continuation, not card vocabulary: what `forEachPlayer` becomes when one
+   * player's step stopped to ask something. It holds the players who have not
+   * had their turn at it yet.
+   *
+   * R303.2.a is why the order is fixed rather than simultaneous — "Turn Order
+   * is referenced to organize the sequence of actions" — and King's Edict,
+   * Party Favors, Promising Future and Whirlwind all open with "Starting with
+   * the next player", which is that sequence written on a card.
+   */
+  | {
+      op: "forEachPlayerRest";
+      each: Effect;
+      players: PlayerId[];
+      /**
+       * How many targets the *outer* effect had. Each player is appended to
+       * the list as their step runs, so resuming has to drop the last one's
+       * before appending the next.
+       */
+      baseTargets: number;
     }
   /**
    * R433 — Switcheroo's "Swap the Might of two units at the same battlefield
@@ -1131,6 +1152,66 @@ function chosenOpponent(
   return opponents.find((id) => id === chosen);
 }
 
+/**
+ * One effect, run once per player, in order — and able to stop and ask.
+ *
+ * The stopping is the whole point. `execute` returns a single pause, so an
+ * "each player" step that asked a question used to strand everyone after it;
+ * that was written up as a deviation and is what King's Edict ("each other
+ * player chooses a unit you don't control") needs closed. When a player's step
+ * pauses, the rest of the queue is folded into the resume: finish that
+ * player's effect, then carry on down the list.
+ */
+function eachInTurn(
+  state: GameState,
+  each: Effect,
+  context: EffectContext,
+  players: PlayerId[],
+  baseTargets: number,
+): EffectOutcome {
+  let current = state;
+  const events: GameEvent[] = [];
+  // R355.5 — the outer effect's own targets. Each player is appended past
+  // them, so a resumed run has to trim the previous player's off first.
+  const outer = context.targets.slice(0, baseTargets);
+
+  for (let at = 0; at < players.length; at += 1) {
+    const player = players[at]!;
+    // An answer belongs to the step that asked for it, never to a player's
+    // fresh turn at this effect. On a resumed run `seq` has already handed it
+    // to the paused step ahead of us; carrying it in here would make the next
+    // player "answer" with it and skip their own question.
+    // `exactOptionalPropertyTypes` wants it absent, not undefined.
+    const { answer: _theirs, ...clean } = context;
+    const outcome = execute(current, each, {
+      ...clean,
+      targets: [...outer, player],
+    });
+    current = outcome.state;
+    events.push(...outcome.events);
+    if (outcome.pause === undefined) continue;
+
+    const rest = players.slice(at + 1);
+    const resume: Effect =
+      rest.length === 0
+        ? outcome.pause.resume
+        : {
+            op: "seq",
+            steps: [
+              outcome.pause.resume,
+              { op: "forEachPlayerRest", each, players: rest, baseTargets },
+            ],
+          };
+    return {
+      state: current,
+      events,
+      pause: { decision: outcome.pause.decision, resume, context: outcome.pause.context },
+    };
+  }
+
+  return { state: current, events };
+}
+
 export function execute(
   state: GameState,
   effect: Effect,
@@ -1202,7 +1283,7 @@ export function execute(
         effect.targetIndex === undefined
           ? context.controller
           : context.targets[effect.targetIndex];
-      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+      if (!isSeated(state, chosen)) return { state, events: [] };
       return drawCards(state, chosen, effect.count);
     }
 
@@ -2173,7 +2254,7 @@ export function execute(
      */
     case "restrictPlayer": {
       const playerId = context.targets[effect.targetIndex];
-      if (playerId !== "p1" && playerId !== "p2") return { state, events: [] };
+      if (!isSeated(state, playerId)) return { state, events: [] };
 
       return {
         state: {
@@ -2201,7 +2282,7 @@ export function execute(
         effect.targetIndex === undefined
           ? context.controller
           : context.targets[effect.targetIndex];
-      if (looker !== "p1" && looker !== "p2") return { state, events: [] };
+      if (!isSeated(state, looker)) return { state, events: [] };
 
       return {
         state: {
@@ -2439,7 +2520,7 @@ export function execute(
         effect.targetIndex === undefined
           ? context.controller
           : context.targets[effect.targetIndex];
-      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+      if (!isSeated(state, chosen)) return { state, events: [] };
 
       const player = seatOf(state, chosen);
       const zone = effect.from === "hand" ? player.hand : player.mainDeck;
@@ -2471,7 +2552,7 @@ export function execute(
         effect.targetIndex === undefined
           ? context.controller
           : context.targets[effect.targetIndex];
-      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+      if (!isSeated(state, chosen)) return { state, events: [] };
 
       const hand = seatOf(state, chosen).hand;
       // R422.4 — "a player must Discard as many cards as possible… If
@@ -2539,7 +2620,7 @@ export function execute(
         effect.targetIndex === undefined
           ? context.controller
           : context.targets[effect.targetIndex];
-      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+      if (!isSeated(state, chosen)) return { state, events: [] };
 
       let current = state;
       const events: GameEvent[] = [];
@@ -2933,24 +3014,17 @@ export function execute(
           ? opponentsOf(state, context.controller)
           : turnOrderFrom(state, context.controller);
 
-      let current = state;
-      const events: GameEvent[] = [];
-      for (const player of players) {
-        // The chosen player is appended, so the inner effect names it by the
-        // index just past whatever the outer effect already chose.
-        const outcome = execute(current, effect.each, {
-          ...context,
-          targets: [...context.targets, player],
-        });
-        current = outcome.state;
-        events.push(...outcome.events);
-        // A step that stops to ask would strand the players after it. Nothing
-        // printed does — every "each player" effect in the pool is a draw, a
-        // reveal or a burn — so this is written up rather than built around.
-        if (outcome.pause !== undefined) break;
-      }
-      return { state: current, events };
+      return eachInTurn(state, effect.each, context, players, context.targets.length);
     }
+
+    case "forEachPlayerRest":
+      return eachInTurn(
+        state,
+        effect.each,
+        context,
+        effect.players,
+        effect.baseTargets,
+      );
 
     case "raiseVictoryScore": {
       return {
@@ -3049,7 +3123,7 @@ export function execute(
           : context.targets[effect.targetIndex];
       // A player id is the only thing this can name; anything else is a card,
       // and a card cannot score.
-      if (chosen !== "p1" && chosen !== "p2") return { state, events: [] };
+      if (!isSeated(state, chosen)) return { state, events: [] };
 
       const player = seatOf(state, chosen);
       return {

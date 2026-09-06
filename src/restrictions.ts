@@ -1,7 +1,7 @@
 import type { BoardRestriction } from "./abilities.js";
 import { holds } from "./conditions.js";
 import { controllerOf } from "./layers.js";
-import { sameLocation } from "./state.js";
+import { isSeated, sameLocation } from "./state.js";
 import type { CardId, GameState, Location, PlayerId } from "./state.js";
 
 /**
@@ -42,7 +42,7 @@ function auras(state: GameState, what: BoardRestriction["what"]): AuraSource[] {
   for (const modifier of state.modifiers) {
     if (modifier.modification.op !== "restrictPlayer") continue;
     if (modifier.modification.restriction.what !== what) continue;
-    if (modifier.targetId !== "p1" && modifier.targetId !== "p2") continue;
+    if (!isSeated(state, modifier.targetId)) continue;
     found.push({
       restriction: {
         ...modifier.modification.restriction,
