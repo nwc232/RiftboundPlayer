@@ -86,6 +86,8 @@ export function App() {
   /** What the pointer is over, previewed full size beside the board. */
   const [hovered, setHovered] = useState<CardId | null>(null);
   const [staged, setStaged] = useState<CardId[]>([]);
+  /** Setup starts open — there is nothing to look at until a game exists. */
+  const [showSetup, setShowSetup] = useState(true);
   /** Which card's moves are open, and where on screen to put them. */
   const [menu, setMenu] = useState<{ cardId: CardId; rect: DOMRect } | null>(
     null,
@@ -130,8 +132,8 @@ export function App() {
         : seat === null
           ? here.events
           : eventsFor(here.events, seat)
-      ).map((event) => renderEvent(event)),
-    [isOnline, online.events, here.events, seat],
+      ).map((event) => renderEvent(event, state.cards)),
+    [isOnline, online.events, here.events, seat, state.cards],
   );
   /**
    * Whose moves to offer.
@@ -398,6 +400,38 @@ export function App() {
           {seat === null ? `acting: ${acting}` : `you: ${acting}`}
         </span>
         <span className="spacer" />
+        {/*
+          Setup is not play. Seeds, seat selectors, deck pickers and the room
+          code are how a game is *arranged*; once one is running they are
+          clutter, and to someone who has never seen this they read as a
+          debugger rather than a card game. They fold away, open by default
+          only until the first game is under way.
+        */}
+        <button
+          className={showSetup ? "setup-toggle is-open" : "setup-toggle"}
+          aria-expanded={showSetup}
+          onClick={() => setShowSetup((open) => !open)}
+        >
+          setup {showSetup ? "▴" : "▾"}
+        </button>
+        <button
+          className="concede"
+          disabled={state.winner !== null}
+          onClick={() => {
+            const who = isOnline ? online.seat : acting;
+            if (who === null) return;
+            if (!window.confirm(`Concede as ${who}? This cannot be undone.`)) {
+              return;
+            }
+            play({ type: "concede", playerId: who });
+          }}
+        >
+          concede
+        </button>
+      </header>
+
+      {showSetup && (
+        <div className="setup-panel">
         {isOnline ? (
           <label className="decks">
             your deck
@@ -522,21 +556,8 @@ export function App() {
         </button>
         {/* R650 — legal at any time, and kept away from the move list on
             purpose: online it cannot be undone, so it asks first. */}
-        <button
-          className="concede"
-          disabled={state.winner !== null}
-          onClick={() => {
-            const who = isOnline ? online.seat : acting;
-            if (who === null) return;
-            if (!window.confirm(`Concede as ${who}? This cannot be undone.`)) {
-              return;
-            }
-            play({ type: "concede", playerId: who });
-          }}
-        >
-          concede
-        </button>
-      </header>
+        </div>
+      )}
 
       <div className="banners">
         <Winner state={state} />

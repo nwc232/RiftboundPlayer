@@ -41,8 +41,10 @@ button:disabled { opacity: 0.4; cursor: default; }
 .app {
   display: grid;
   grid-template-columns: 1fr 340px;
-  grid-template-rows: auto auto 1fr;
-  grid-template-areas: "top top" "banners banners" "board side";
+  grid-template-rows: auto auto auto 1fr;
+  /* `setup` sits directly under the bar that opens it. The row collapses to
+     nothing while the panel is closed, because it has no content. */
+  grid-template-areas: "top top" "setup setup" "banners banners" "board side";
   height: 100vh;
 }
 
@@ -707,3 +709,20 @@ button.concede:hover:not(:disabled) {
 .panel-strip { display: flex; align-items: flex-start; gap: 16px; }
 .panel-strip .row { margin-top: 0; flex: 0 0 auto; }
 .panel-strip .row:last-child { flex: 1 1 auto; }
+
+/*
+ * Setup, folded out of the way. It is how a game is arranged, not how it is
+ * played, and mixing the two put a seed field next to "concede".
+ */
+.setup-toggle { color: var(--muted); }
+.setup-toggle.is-open { border-color: var(--accent); color: var(--ink); }
+.setup-panel {
+  grid-area: setup;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}

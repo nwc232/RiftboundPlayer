@@ -103,7 +103,7 @@ function run(action: Action): void {
   state = result.state;
   log.push(...result.events);
   for (const event of result.events) {
-    console.log(`  ${renderEvent(event)}`);
+    console.log(`  ${renderEvent(event, state.cards)}`);
   }
   console.log(renderState(state));
 }
@@ -269,7 +269,7 @@ function handle(line: string): boolean {
       console.log(
         log.length === 0
           ? "\n  nothing yet\n"
-          : `\n${log.map((e, i) => `  ${i + 1}. ${renderEvent(e)}`).join("\n")}\n`,
+          : `\n${log.map((e, i) => `  ${i + 1}. ${renderEvent(e, state.cards)}`).join("\n")}\n`,
       );
       return true;
     case "reset": {
