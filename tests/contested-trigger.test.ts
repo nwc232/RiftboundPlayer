@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { applyAction } from "../src/actions.js";
 import { legalActions } from "../src/legal.js";
 import type { GameState, Location } from "../src/state.js";
+import type { Action } from "../src/actions.js";
 import { irresistibleFaefolk } from "../src/decks/rengar.js";
+import { gust } from "../src/decks/vex.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -116,5 +118,70 @@ describe("a trigger from the move that contests the battlefield", () => {
 
     expect(state.permanents["enemy"]?.location).toEqual(SOUTH);
     expect(state.showdown?.battlefieldId).toBe("bf-north");
+  });
+});
+
+/**
+ * "That battlefield" survives the source leaving the board.
+ *
+ * R359.3.f.3 — "information a trigger reads off its condition is noted when
+ * the condition is fulfilled, not when the ability resolves." Irresistible
+ * Faefolk's "that battlefield" is the one it moved *to*, and it stays that
+ * battlefield even if the Faefolk is bounced to hand before the trigger
+ * resolves.
+ *
+ * Reported from play: Gust returned the Faefolk, and the enemy unit was then
+ * moved to *its own base* — the effect fell through to a default destination
+ * when it could not work out the one it names, which is a different effect
+ * wearing the same name.
+ */
+describe("a trigger whose source leaves before it resolves", () => {
+  function midChain(): GameState {
+    const start = makeState({
+      p1: { hand: ["gust"], runePool: pool({ energy: 9, universalPower: 9 }) },
+      p2: { runePool: pool({ energy: 9, universalPower: 9 }) },
+      cards: [
+        { ...irresistibleFaefolk, id: "faefolk" },
+        unit("deckhand", { might: 2 }),
+        gust,
+      ],
+      permanents: [
+        { cardId: "faefolk", controller: "p2" },
+        { cardId: "deckhand", controller: "p1", location: SOUTH },
+      ],
+      battlefields: ["bf-north", "bf-south"],
+    });
+    let state: GameState = { ...start, turn: { ...start.turn, player: "p2" } };
+
+    const steps: Action[] = [
+      { type: "standardMove", playerId: "p2", cardId: "faefolk", destination: NORTH },
+      { type: "decide", playerId: "p2", perform: true },
+      { type: "decide", playerId: "p2", targets: ["deckhand"] },
+      { type: "passPriority", playerId: "p2" },
+      { type: "playSpell", playerId: "p1", cardId: "gust", targets: ["faefolk"] },
+    ];
+    for (const step of steps) {
+      const result = applyAction(state, step);
+      if (!result.ok) throw new Error(`${step.type} refused: ${result.reason}`);
+      state = result.state;
+    }
+    return state;
+  }
+
+  it("still means the battlefield it moved to", () => {
+    let state = midChain();
+    // Everyone passes until the chain drains: Gust resolves first (LIFO), so
+    // the Faefolk is in hand by the time its own trigger resolves.
+    for (let i = 0; i < 12 && state.chain.length > 0; i += 1) {
+      if (state.pending !== null) break;
+      const who = state.priority;
+      if (who === null) break;
+      const passed = applyAction(state, { type: "passPriority", playerId: who });
+      if (!passed.ok) break;
+      state = passed.state;
+    }
+
+    expect(state.permanents["faefolk"]).toBeUndefined();
+    expect(state.permanents["deckhand"]?.location).toEqual(NORTH);
   });
 });

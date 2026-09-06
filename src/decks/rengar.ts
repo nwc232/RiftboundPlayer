@@ -137,8 +137,10 @@ export const irresistibleFaefolk: CardInstance = {
       trigger: { on: "unitMoved", subject: "self", to: "battlefield" },
       optional: true,
       targeting: { filters: [{ type: "unit", controller: "enemy" }] },
-      // "that battlefield" is where the source now stands (R323.4's "here").
-      effect: moveUnit("sourceLocation", 0),
+      // "that battlefield" is the one it moved *to*, noted when the condition
+      // was fulfilled (R359.3.f.3) — not wherever the Faefolk is by the time
+      // the trigger resolves, which may be its owner's hand.
+      effect: moveUnit("eventLocation", 0),
     },
   ],
 };

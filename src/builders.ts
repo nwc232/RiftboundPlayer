@@ -490,7 +490,7 @@ export function recycleFromOpponentHand(
 
 /** R420 — Irresistible Faefolk's "move an enemy unit to that battlefield". */
 export function moveUnit(
-  to: "sourceLocation" | "base" = "sourceLocation",
+  to: "sourceLocation" | "eventLocation" | "base" = "sourceLocation",
   targetIndex = 0,
 ): Effect {
   return { op: "moveUnit", targetIndex, to };

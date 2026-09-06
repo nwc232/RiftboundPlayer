@@ -218,6 +218,15 @@ function locationNamedBy(event: GameEvent): Location | undefined {
   // R323.4 — a death notes where it stood, so "there" still means something
   // for an ability watching one.
   if (event.type === "unitKilled") return event.location;
+  // R359.3.f.3 — "information a trigger reads off its condition is noted when
+  // the condition is fulfilled". Irresistible Faefolk's "when I move to a
+  // battlefield, you may move an enemy unit to *that* battlefield" names the
+  // move's destination, and it means that battlefield whatever becomes of the
+  // Faefolk afterwards — bounced to hand by Gust before the trigger resolved,
+  // it used to mean nothing at all.
+  if (event.type === "unitMoved" && event.to.kind === "battlefield") {
+    return event.to;
+  }
   return undefined;
 }
 

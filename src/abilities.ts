@@ -209,7 +209,13 @@ export type Effect =
   | {
       op: "moveUnit";
       targetIndex: number;
-      to: "sourceLocation" | "base" | "chosenBattlefield";
+      /**
+       * `eventLocation` is "that battlefield" — the one the inciting event
+       * named, noted when the condition was fulfilled (R359.3.f.3). Distinct
+       * from `sourceLocation`, which is wherever the source is *now* and is
+       * therefore gone if it has left the board.
+       */
+      to: "sourceLocation" | "eventLocation" | "base" | "chosenBattlefield";
       /** Which chosen battlefield, for `chosenBattlefield`. */
       atTargetIndex?: number;
     }
@@ -1989,12 +1995,23 @@ export function execute(
       }
 
       const mover = controllerOf(state, targetId);
+      const named =
+        effect.to === "eventLocation"
+          ? context.eventLocation
+          : effect.to === "sourceLocation"
+            ? context.sourceLocation
+            : undefined;
+      // A destination the effect names but cannot resolve is not an excuse to
+      // pick a different one. "Move an enemy unit to that battlefield" once
+      // fell through to *the unit's own base* when the battlefield could not
+      // be worked out, which is a different effect wearing the same name.
+      if (chosen === undefined && effect.to !== "base" && named === undefined) {
+        return { state, events: [] };
+      }
       const wanted: Location =
         chosen !== undefined
           ? { kind: "battlefield", id: chosen }
-          : effect.to === "sourceLocation" && context.sourceLocation !== undefined
-            ? context.sourceLocation
-            : { kind: "base", player: mover };
+          : (named ?? { kind: "base", player: mover });
       // R447.2.c — "If an action would require a Move that would cause a Unit
       // to become present in a Location where it cannot move for any reason …
       // it instead Recalls." A recall goes to the controller's Base (R455).
