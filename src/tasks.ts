@@ -201,6 +201,12 @@ function runTask(state: GameState, task: Task): TaskOutcome {
     }
 
     case "openStagedShowdown": {
+      // R344 — a Showdown begins only when "the turn is in a Neutral Open
+      // State", and R460 wants "no items on the Chain". With something pending
+      // this cannot happen yet; `contestedBy` stays on the battlefield and the
+      // next cleanup raises this again once the chain is clear.
+      if (state.chain.length > 0) return { state, events: [] };
+
       const staged = stagedBattlefields(state);
       const only = staged[0];
       if (only === undefined) return { state, events: [] };
@@ -585,29 +591,32 @@ export function runTasks(
     // optional trigger nobody will ever answer.
     if (current.winner !== null) break;
 
-    // R335 — the game only proceeds to the next step once there are no
-    // outstanding tasks *and no pending chain items*. A trigger raised by one
-    // step therefore blocks the next until it has resolved.
-    if (current.chain.length > 0) {
-      // With one exception, and it is a deadlock rather than a preference.
-      // R344 opens a Showdown only "when the turn is in a Neutral Open State"
-      // and R460 wants "no items on the Chain" — so this task *cannot* run
-      // while something is pending. R334's HOT FEPR meanwhile holds the chain
-      // behind outstanding tasks. Together they stopped the game dead:
-      // Irresistible Faefolk moving onto an empty battlefield contested it and
-      // triggered at once, and its "you may" was never asked because the
-      // showdown task it was queued behind could never run.
-      //
-      // Dropping it is safe because it is not a decision, only a reminder:
-      // `contestedBy` stays on the battlefield and the next cleanup — and one
-      // follows every action — raises it again once the chain is clear.
-      if (current.tasks[0]?.kind !== "openStagedShowdown") break;
-      current = { ...current, tasks: current.tasks.slice(1) };
-      continue;
-    }
-
     const [head, ...rest] = current.tasks;
     if (head === undefined) break;
+
+    if (current.chain.length > 0) {
+      // R344 opens a Showdown only when "the turn is in a Neutral Open State"
+      // and R460 wants "no items on the Chain", so this one *cannot* run yet.
+      // Dropping it rather than waiting is what keeps the queue moving:
+      // `contestedBy` stays on the battlefield and the next cleanup raises it
+      // again once the chain is clear.
+      if (head.kind === "openStagedShowdown") {
+        current = { ...current, tasks: rest };
+        continue;
+      }
+      // R319.3 and R319.4 make a Cleanup outstanding precisely *because*
+      // something was added to or finalized on the Chain. One that could not
+      // run while the chain had items could never run at all — and R320 has
+      // the chain wait for the cleanup, so the two of them simply stopped.
+      // That is why Pridestalker, triggered by a unit played as a reaction
+      // onto an existing chain, was never asked for a target: its own cleanup
+      // sat in front of it and could not move.
+      //
+      // R335 holds for everything else — the turn, and the steps of combat,
+      // proceed only once there are no pending chain items.
+      if (head.kind !== "cleanup") break;
+    }
+
 
     // The head comes off *before* it runs, so a handler that enqueues work —
     // `park` does, when a resumed effect stops to ask a second time — is

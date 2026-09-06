@@ -246,74 +246,75 @@ describe("the reported game, start to finish", () => {
     return current;
   }
 
-  /** Everyone passes until the chain drains. */
-  function settle(state: GameState): GameState {
-    let current = state;
-    for (let i = 0; i < 16 && current.chain.length > 0; i += 1) {
-      if (current.pending !== null) break;
-      const who = current.priority;
-      if (who === null) break;
-      const passed = applyAction(current, { type: "passPriority", playerId: who });
-      if (!passed.ok) break;
-      current = passed.state;
-    }
-    return current;
-  }
+  /**
+   * The order it was actually played in, which is the whole difficulty:
+   * [Ambush] (R822.1.b) grants Reaction timing while you control units at the
+   * destination, so both units go onto the chain *on top of* Gust, while the
+   * Faefolk is still standing at the Dais to grant it.
+   */
+  const SEQUENCE: Action[] = [
+    { type: "standardMove", playerId: "p2", cardId: "faefolk", destination: DAIS },
+    { type: "decide", playerId: "p2", perform: true },
+    { type: "decide", playerId: "p2", targets: ["deckhand"] },
+    { type: "passPriority", playerId: "p2" },
+    { type: "playSpell", playerId: "p1", cardId: "gust", targets: ["faefolk"] },
+    { type: "passPriority", playerId: "p1" },
+    { type: "playUnitFromHand", playerId: "p2", cardId: "inferna", destination: DAIS },
+    { type: "decide", playerId: "p2", targets: ["inferna"] },
+    { type: "passPriority", playerId: "p2" },
+    { type: "passPriority", playerId: "p1" },
+    { type: "passPriority", playerId: "p1" },
+    { type: "playUnitFromHand", playerId: "p2", cardId: "nidalee", destination: DAIS },
+    { type: "decide", playerId: "p2", targets: ["nidalee"] },
+    { type: "passPriority", playerId: "p2" },
+    { type: "passPriority", playerId: "p1" },
+    { type: "passPriority", playerId: "p1" },
+    { type: "passPriority", playerId: "p2" },
+    { type: "passPriority", playerId: "p2" },
+    { type: "passPriority", playerId: "p1" },
+  ];
 
-  /** R383 — the legend watches every unit its controller plays, not just one. */
-  it("gives Pridestalker's +1 to each unit as it is played", () => {
-    let state = run(opening(), [
-      { type: "playUnitFromHand", playerId: "p2", cardId: "inferna" },
-      { type: "decide", playerId: "p2", targets: ["inferna"] },
+  /**
+   * R383 — a trigger added onto a chain that already has items still owes its
+   * choices. Pridestalker's was never asked, because the Cleanup R319.3 raised
+   * for the very play that triggered it sat in front of it and could not run.
+   */
+  it("asks Pridestalker for a target on a unit played as a reaction", () => {
+    const state = run(opening(), SEQUENCE.slice(0, 7));
+
+    expect(state.chain.map((item) => item.kind)).toEqual([
+      "trigger",
+      "spell",
+      "trigger",
     ]);
-    state = settle(state);
-    state = run(state, [
-      { type: "playUnitFromHand", playerId: "p2", cardId: "nidalee" },
-      { type: "decide", playerId: "p2", targets: ["nidalee"] },
-    ]);
-    state = settle(state);
+    expect(state.pending?.prompt.kind).toBe("chooseTargets");
+    expect(state.pending?.player).toBe("p2");
+  });
+
+  it("buffs both units played onto the chain", () => {
+    const state = run(opening(), SEQUENCE);
 
     // Printed 1 and 4, each a point higher for the turn.
     expect(characteristicsOf(state, "inferna").might).toBe(2);
     expect(characteristicsOf(state, "nidalee").might).toBe(5);
+    expect(state.permanents["inferna"]?.location).toEqual(DAIS);
+    expect(state.permanents["nidalee"]?.location).toEqual(DAIS);
   });
 
   /**
-   * The outcome the bugs changed. The Deckhand is dragged to the Dais rather
-   * than sent home, so when Gust removes the only unit p2 had there, it is
-   * *p1* who is left standing and takes the battlefield.
+   * And the other half: Gust removes the Faefolk before its own trigger
+   * resolves, and "that battlefield" still means the one it moved to — so the
+   * Deckhand is dragged into a showdown rather than sent home.
    */
-  it("ends with the Deckhand holding the Dais it was dragged to", () => {
-    let state = run(opening(), [
-      { type: "standardMove", playerId: "p2", cardId: "faefolk", destination: DAIS },
-      { type: "decide", playerId: "p2", perform: true },
-      { type: "decide", playerId: "p2", targets: ["deckhand"] },
-      { type: "passPriority", playerId: "p2" },
-      { type: "playSpell", playerId: "p1", cardId: "gust", targets: ["faefolk"] },
-    ]);
-    state = settle(state);
+  it("drags the Deckhand to the Dais the Faefolk named, not to its base", () => {
+    const state = run(opening(), SEQUENCE);
 
     expect(state.permanents["faefolk"]).toBeUndefined();
     expect(state.permanents["deckhand"]?.location).toEqual(DAIS);
     // R190.4.c — p1 has nothing at the Peak any more, so control lapses.
     expect(state.battlefields["targons-peak"]?.controller).toBeNull();
+    // A real standoff: 2 + 5 against 2, rather than p2 walking in.
     expect(state.showdown?.battlefieldId).toBe("emperors-dais");
-
-    // Both pass focus and the showdown closes.
-    for (let i = 0; i < 6 && state.showdown !== null; i += 1) {
-      if (state.pending !== null) break;
-      const passed = applyAction(state, {
-        type: "passFocus",
-        playerId: state.showdown.focus,
-      });
-      if (!passed.ok) break;
-      state = passed.state;
-    }
-
-    // R348.2 — one player has units there, so they establish Control, and it
-    // is a Conquer. p2 contested it and ended up with nothing on it.
-    expect(state.battlefields["emperors-dais"]?.controller).toBe("p1");
-    expect(seatOf(state, "p1").points).toBe(1);
-    expect(seatOf(state, "p2").points).toBe(0);
+    expect(state.showdown?.attacker).toBe("p2");
   });
 });
