@@ -531,3 +531,72 @@ The ordering principle throughout has been: build the mechanism when a
 real card needs it, and write down what is deliberately absent. That is
 worth keeping — most of the deviations closed so far closed as a
 side-effect of building the right mechanism, not by being chased.
+
+## 7. Finding bugs without playing the game
+
+Three real bugs were found by playing one game by hand. That is the wrong
+primary method, and this section is about why the automated harness missed
+them and what actually catches them.
+
+### Why the playthroughs could not see them
+
+The random playthroughs assert four things: every action `legalActions`
+offers is accepted, nobody gets stuck, the game finds a winner, and no prompt
+dangles at the end. All three bugs satisfied all four. A trigger that reaches
+the chain and resolves having never been asked what it wanted looks exactly
+like a turn going by — the engine was doing *less* than it should, quietly.
+
+More random games would not have helped. The assertions had no opinion about
+it.
+
+### What does catch them: statements about what a board may never look like
+
+`tests/invariants.ts`, run after every action in every playthrough:
+
+- **R337.1** — the controller of the oldest pending chain item *must* complete
+  the steps of playing it. So an item owing a choice with nobody being asked
+  is a game that can only continue by throwing that choice away. Written down,
+  this fired 48 times in 72 games and turned up two more faults on its own.
+- **R462.3** — no battlefield holds three players' units.
+- **R149.3** — no unattached gear is left standing at a battlefield.
+
+The pattern worth repeating: an invariant is cheaper and finds more than an
+extra thousand games, because it says what *wrong* looks like rather than
+hoping a game happens to end badly.
+
+### Where the harness is still blind, measured
+
+Chain depth across 10,870 actions of random play, 50 games:
+
+| depth | share |
+|---|---|
+| 0 | 67.2% |
+| 1 | 28.1% |
+| 2 | 4.4% |
+| 3 | 0.33% |
+| 4 | 0.02% |
+
+The reported game reached depth 3. Random play reaches it in one state in
+three hundred, and played a card *onto an existing chain* 80 times in 10,870
+actions — 0.7%. Every bug found so far has lived in that region, and the
+driver barely visits it.
+
+### Next, in order
+
+**a. Bias the driver toward responding.** Weight the chooser toward playing
+[Reaction] cards while a chain is up, and toward answering rather than
+passing. Aims the soak the engine already has at the region where the bugs
+are, for a few lines. The highest-value item here by some distance.
+
+**b. Ability coverage.** Report which authored abilities never fire in a full
+soak. Turns "we ran a thousand games" into "these twelve cards have never
+been exercised", which is actionable in a way a pass count is not.
+
+**c. Structural invariants.** No state field referring to a card that is not
+in `state.cards`; every permanent's location a real battlefield or a seated
+player's base. Cheap, and aimed squarely at what R652's player removal can
+damage.
+
+**d. A resolved trigger that targeted something must change something.**
+Already prototyped and currently clean; worth keeping once (a) makes the
+deeper chains common enough for it to mean anything.
