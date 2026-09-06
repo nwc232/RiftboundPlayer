@@ -195,7 +195,9 @@ describe("whole games with more than two seats", () => {
   }
 
   function play(decks: number[], seed: number): GameState {
-    const started = startGame(matchup({ decks }));
+    // R114 — the seed shuffles the decks too, so three- and four-seat games
+    // are not all replays of one deal.
+    const started = startGame(matchup({ decks, seed }));
     if (!started.ok) throw new Error(JSON.stringify(started.errors));
 
     let state = started.state;

@@ -597,24 +597,55 @@ brittle across seeds and the thing worth catching is a *collapse* — which is
 exactly what the two chain deadlocks were: fixing them took distinct triggers
 reaching resolution from 49 to 77.
 
-The number it exposed is worth stating plainly: **of 94 authored activated and
-triggered abilities, random play fires 32 — about a third.** The rest are
-reached only by the unit tests that name them. That is the honest state of
-card-level coverage, and the list is printed when the floor is missed.
+The number it exposed was **32 of 94**, about a third — and three quarters of
+that shortfall turned out to be the oracle, not the engine. See (d).
 
 **c. Structural invariants.** No permanent without a card; no location that is
 not a real battlefield or a seated player's base; turn order and seats agree.
 Aimed at what R652's Removal of a Player can damage.
 
-### Next, in order
+**d. The measurement was wrong three times over — 32 became 63.** Raising
+coverage started as "bias the driver toward cards it has not played yet", and
+that turned out to be the smallest of four problems. In order of what they
+cost:
 
-**d. Raise ability coverage from a third.** Two ways, and they are not
-alternatives: bias the driver toward cards it has not yet played, and write
-targeted tests for the ones random play structurally cannot reach.
+1. **Nothing was shuffled but the main deck (R114).** "Each player shuffles
+   their Main and Rune Decks, separately" — only the main deck was, so every
+   game channeled a deck list's runes in the order it names them: seven Chaos,
+   then five Calm, every game ever played. Which power a player could spend on
+   which turn was fixed before anyone drew a card. Reported from live play,
+   not by the harness.
+2. **A spell's effect was never counted.** Spells author their effect as an
+   `activated` ability but are played with `playSpell`, not
+   `activateAbility` — and the soak counted the action. Twenty-eight cards
+   read as never-exercised while resolving perfectly well. Counting the
+   `spellResolved` event took 39 → 64.
+3. **One battlefield of every three was never in play.** R485.5 has a player
+   bring three and *choose* one; `matchup` always presented the first, so four
+   battlefields across the five decks had never been in a game. Varying it by
+   seed took 64 → 68 (at 30 seeds).
+4. **The driver had no memory.** It now prefers a card the run has not played,
+   85% of the time — the other 15% matters, because a board that takes turns to
+   build is reached by repetition, not novelty. Worth roughly one ability.
+
+One seed applied to every seat was also one *permutation* applied to every
+seat: a mirror match dealt both players the same cards in the same order. The
+seed is now salted per seat and per deck.
+
+All three soaks — `playthrough`, `multiplayer`, `coverage` — now seed the deck
+as well as the choices. They had been running a thousand games against a
+single deal.
 
 **e. A resolved trigger that targeted something must change something.**
 Prototyped and currently clean; worth keeping once the deeper chains above are
 common enough for it to mean anything.
+
+### Next, in order
+
+**g. The 31 abilities still unfired.** With the measurement honest, the
+remainder is a real list rather than an artifact. Most are units expensive
+enough that a random player never saves for them, which argues for a driver
+that holds resources rather than spending them on the first legal thing.
 
 **f. Superseded — kept for the reasoning.** Bias the driver toward
 responding. Weight the chooser toward playing

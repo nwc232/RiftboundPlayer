@@ -4,7 +4,7 @@ import { startGame } from "../src/deck.js";
 import { legalActions } from "../src/legal.js";
 import { DECK_LISTS, instantiate, matchup } from "../src/decks/index.js";
 import type { CardId, CardInstance, GameState } from "../src/state.js";
-import { chooseAction } from "./random-play.js";
+import { chooseAction, sourceOf } from "./random-play.js";
 
 /**
  * How much of the card pool the random playthroughs actually reach.
@@ -19,6 +19,16 @@ import { chooseAction } from "./random-play.js";
  * So this is a floor, not an exact set. An exact set would be brittle across
  * seeds and would have to be edited every time a deck changes; a floor catches
  * the thing worth catching, which is a collapse.
+ *
+ * What the number counts has been wrong twice, in the direction that flatters
+ * nobody. It read 30 of 94 while three separate things held it down, none of
+ * them the engine: every game was dealt the same unshuffled decks (R114), the
+ * same battlefield was presented every time so two of every deck's three were
+ * never in play, and a spell's effect — authored as an `activated` ability but
+ * played with `playSpell` — was never counted at all. The last of those alone
+ * was twenty-eight cards resolving perfectly well and reading as dead. Being
+ * wrong about the oracle looks exactly like being wrong about the engine, so
+ * the comments below say what each line is counting and why.
  */
 function lcg(seed: number) {
   let s = seed >>> 0;
@@ -61,9 +71,20 @@ function soak(plans: number[][], seeds: number): Set<string> {
     });
   };
 
+  // What the search has already touched, by *name* rather than by id: three
+  // copies of Gust are one card to a player, and a chooser that counted them
+  // separately would happily play all three before looking at anything else.
+  // Kept across every game in the soak, so later games attack what the earlier
+  // ones left alone.
+  const played = new Set<string>();
+  const novel = (cardId: CardId): boolean => {
+    const name = REGISTRY.get(cardId)?.name;
+    return name !== undefined && !played.has(name);
+  };
+
   for (const decks of plans) {
     for (let seed = 1; seed <= seeds; seed += 1) {
-      const started = startGame(matchup({ decks }));
+      const started = startGame(matchup({ decks, seed }));
       if (!started.ok) continue;
       let state: GameState = started.state;
       const rand = lcg(seed);
@@ -74,13 +95,30 @@ function soak(plans: number[][], seeds: number): Set<string> {
         );
         const actor = owed ?? movers[Math.floor(rand() * movers.length)];
         if (actor === undefined) break;
-        const action = chooseAction(state, legalActions(state, actor), rand);
+        const action = chooseAction(
+          state,
+          legalActions(state, actor),
+          rand,
+          novel,
+        );
         if (action === undefined) break;
+        const source = sourceOf(action);
+        if (source !== undefined) {
+          const name = REGISTRY.get(source)?.name;
+          if (name !== undefined) played.add(name);
+        }
         if (action.type === "activateAbility") note(action.sourceId, "activated");
         const result = applyAction(state, action);
         if (!result.ok) break;
         for (const event of result.events) {
           if (event.type === "abilityTriggered") note(event.cardId, "triggered");
+          // A spell's effect is authored as an `activated` ability, and playing
+          // one is `playSpell` rather than `activateAbility` — so counting the
+          // action alone missed every spell in the pool. Twenty-eight cards
+          // read as never-exercised while resolving perfectly well, which is
+          // the oracle being wrong about the engine rather than the other way
+          // round. `spellResolved` is the honest signal: the effect ran.
+          if (event.type === "spellResolved") note(event.cardId, "activated");
         }
         state = result.state;
       }
@@ -95,18 +133,22 @@ describe("how much of the pool random play reaches", () => {
    * shuffle cannot trip it — but a bug that stops abilities resolving takes
    * the number down sharply, which is exactly what happened and went unnoticed.
    */
-  const FLOOR = 26;
+  const FLOOR = 55;
 
   it(`fires at least ${FLOOR} distinct authored abilities`, () => {
-    const fired = soak([[0, 1], [2, 0], [3, 4], [0, 1, 2]], 6);
+    const fired = soak([[0, 1], [2, 0], [3, 4], [0, 1, 2]], 12);
     const missing = [...AUTHORED].filter((key) => !fired.has(key)).sort();
 
-    // Printed rather than asserted: which cards go unexercised is worth
-    // knowing every run, and is the list to attack when authoring tests.
+    // The count every run, the list only when it matters. Which cards go
+    // unexercised is the list to attack when authoring tests, but it is
+    // twenty-odd lines and nobody reads it on a green run.
+    process.stdout.write(
+      `\n  ${fired.size} of ${AUTHORED.size} authored abilities fired\n`,
+    );
     if (fired.size < FLOOR) {
       process.stdout.write(
-        `\\nabilities never fired (${missing.length} of ${AUTHORED.size}):\\n` +
-          missing.map((m) => `  ${m}\\n`).join(""),
+        `  never fired (${missing.length}):\n` +
+          missing.map((key) => `    ${key}\n`).join(""),
       );
     }
 

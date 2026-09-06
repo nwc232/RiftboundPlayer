@@ -48,9 +48,11 @@ interface Outcome {
  * reaches.
  */
 function play(seed: number, maxSteps = 4000, decks?: [number, number]): Outcome {
-  const started = startGame(
-    matchup(decks === undefined ? {} : { decks }),
-  );
+  // The seed drives the deck as well as the choices. It used to drive only the
+  // choices, which meant every one of these playthroughs opened on the same
+  // unshuffled decks, the same battlefields and the same four cards — a
+  // thousand games exploring one deal. See `decks/index.ts` on R114.
+  const started = startGame(matchup({ ...(decks === undefined ? {} : { decks }), seed }));
   if (!started.ok) throw new Error(`setup failed: ${JSON.stringify(started.errors)}`);
 
   let state = started.state;

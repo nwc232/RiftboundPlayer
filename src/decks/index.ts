@@ -296,11 +296,26 @@ function shuffled(ids: CardId[], seed: number): CardId[] {
 }
 
 /**
+ * One seed, many shuffles. R114 asks for the Main and Rune Decks to be shuffled
+ * "separately", and every seat shuffles its own — so a single seed has to yield
+ * a different stream per seat and per deck rather than one permutation applied
+ * everywhere. Without the salt a mirror match deals both players the same cards
+ * in the same order, which is not a shuffle at all.
+ */
+function stream(seed: number, ...salts: number[]): number {
+  let s = seed >>> 0;
+  for (const salt of salts) {
+    s = (s ^ (salt + 0x9e3779b9 + (s << 6) + (s >>> 2))) >>> 0;
+  }
+  return s;
+}
+
+/**
  * R485.5 — each player brings three battlefields and one is used. Which one is
  * a choice; the first of each list is the default the demo and tests open on.
  *
- * `seed` shuffles both main decks. Omitting it keeps list order, which is what
- * the tests want: the same game every time.
+ * `seed` shuffles every deck. Omitting it keeps list order, which is what the
+ * tests want: the same game every time.
  */
 export function matchup(
   options: {
@@ -318,10 +333,18 @@ export function matchup(
   const mode = modeFor(picks.length);
   const turnOrder = SEATS.slice(0, picks.length);
 
-  const order = (deck: Deck): Deck =>
+  // R114 — "Each player shuffles their Main and Rune Decks, separately." The
+  // rune deck matters more than it looks: a deck list names its runes in
+  // domain blocks (`[["chaos", 7], ["calm", 5]]`), so an unshuffled rune deck
+  // channels seven Chaos and then five Calm, in that order, every single game.
+  const order = (deck: Deck, at: number): Deck =>
     options.seed === undefined
       ? deck
-      : { ...deck, mainDeck: shuffled(deck.mainDeck, options.seed) };
+      : {
+          ...deck,
+          mainDeck: shuffled(deck.mainDeck, stream(options.seed, at, 1)),
+          runeDeck: shuffled(deck.runeDeck, stream(options.seed, at, 2)),
+        };
 
   const cards: CardInstance[] = [];
   const seats: GameSetup["seats"] = {};
@@ -336,14 +359,20 @@ export function matchup(
     // Battlefields." Only a War does this, and it is why four seats put three
     // battlefields on the table rather than four.
     const presents = at > 0 || mode.firstPlayerPresentsBattlefield;
+    // R485.5 — a player brings three battlefields and *chooses* which to
+    // present. The first of the list is the default the tests open on, but a
+    // seeded setup varies it: fixing it meant two of every deck's three
+    // battlefields had never been in a game, so their abilities had never run
+    // in any playthrough, only in the tests written for them by name.
+    const bringing = seated.deck.battlefields;
+    const presented =
+      options.battlefields?.[id] ??
+      (options.seed === undefined
+        ? bringing[0]!
+        : bringing[stream(options.seed, at, 3) % bringing.length]!);
     seats[id] = {
-      deck: order(seated.deck),
-      ...(presents
-        ? {
-            battlefield:
-              options.battlefields?.[id] ?? seated.deck.battlefields[0]!,
-          }
-        : {}),
+      deck: order(seated.deck, at),
+      ...(presents ? { battlefield: presented } : {}),
     };
   });
 

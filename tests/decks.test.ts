@@ -109,3 +109,65 @@ describe("cards are plain data", () => {
     expect(copy).toEqual(ALL_CARDS);
   });
 });
+
+/**
+ * R114 — "Each player shuffles their Main and Rune Decks, separately, then
+ * places them into their respective Zones."
+ *
+ * The rune deck is the half that is easy to forget, because nothing rejects an
+ * unshuffled one: it is still twelve legal runes and the game still starts. It
+ * just channels them in the order the deck list names them, which is by domain
+ * (`[["chaos", 7], ["calm", 5]]`) — seven Chaos and then five Calm, in that
+ * order, in every game ever played. Which power a player can spend on which
+ * turn is then fixed before anyone draws a card.
+ */
+describe("R114 — setup shuffles both decks, per seat", () => {
+  /** The domain of each rune in a seat's rune deck, top first. */
+  function domains(setup: ReturnType<typeof matchup>, seat: "p1" | "p2"): string[] {
+    const byId = new Map(setup.cards.map((card) => [card.id, card]));
+    return setup.seats[seat]!.deck.runeDeck.map(
+      (id) => byId.get(id)?.domain ?? "?",
+    );
+  }
+
+  /** How many times the domain changes going down the deck, plus one. */
+  function blocks(sequence: string[]): number {
+    return sequence.filter((domain, at) => at === 0 || domain !== sequence[at - 1])
+      .length;
+  }
+
+  it("leaves an unseeded rune deck in list order, which is by domain", () => {
+    // Not the bug — this is the documented "same game every time" the tests
+    // rely on. It is here to show what the seeded case is being measured
+    // against: two domains, two blocks, nothing interleaved.
+    expect(blocks(domains(matchup(), "p1"))).toBe(2);
+  });
+
+  it("interleaves the domains of a seeded rune deck", () => {
+    // A shuffled 7/5 split lands on two blocks with probability 2/C(12,5) —
+    // about 0.25% — so a seed that produced one would be news. Every seed
+    // here has to beat it.
+    for (const seed of [1, 2, 3, 7, 99, 12345]) {
+      expect(blocks(domains(matchup({ seed }), "p1"))).toBeGreaterThan(2);
+    }
+  });
+
+  it("deals the two seats of a mirror match different orders", () => {
+    // One seed applied to every seat is one permutation applied to every seat:
+    // the same list at both chairs would draw the same cards in the same order
+    // all game. The salt is what makes it a shuffle rather than a rotation.
+    const mirror = matchup({ seed: 4, decks: [0, 0] });
+
+    const strip = (id: string) => id.slice("p1-".length);
+    expect(mirror.seats.p2!.deck.mainDeck.map(strip)).not.toEqual(
+      mirror.seats.p1!.deck.mainDeck.map(strip),
+    );
+    expect(domains(mirror, "p2")).not.toEqual(domains(mirror, "p1"));
+  });
+
+  it("stays reproducible from the seed", () => {
+    // The whole reason the shuffle lives at setup rather than in the engine:
+    // a reported game can be replayed from the seed that was printed.
+    expect(matchup({ seed: 808 }).seats).toEqual(matchup({ seed: 808 }).seats);
+  });
+});
