@@ -3,8 +3,16 @@ import { applyAction } from "../src/actions.js";
 import { legalActions } from "../src/legal.js";
 import type { GameState, Location } from "../src/state.js";
 import type { Action } from "../src/actions.js";
-import { irresistibleFaefolk } from "../src/decks/rengar.js";
-import { gust } from "../src/decks/vex.js";
+import {
+  emperorsDais,
+  inferna,
+  irresistibleFaefolk,
+  nidalee,
+  pridestalker,
+} from "../src/decks/rengar.js";
+import { gust, sneakyDeckhand, targonsPeak } from "../src/decks/vex.js";
+import { characteristicsOf } from "../src/layers.js";
+import { seatOf } from "../src/state.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -183,5 +191,129 @@ describe("a trigger whose source leaves before it resolves", () => {
 
     expect(state.permanents["faefolk"]).toBeUndefined();
     expect(state.permanents["deckhand"]?.location).toEqual(NORTH);
+  });
+});
+
+/**
+ * The whole reported game, end to end.
+ *
+ * Rengar's Pridestalker triggering on each unit played; Irresistible Faefolk
+ * moving onto an empty Emperor's Dais and dragging Sneaky Deckhand across from
+ * Targon's Peak; Gust bouncing the Faefolk before its own trigger resolved.
+ * Two separate bugs met in it, and the pair of them changed who won the
+ * battlefield — so it is worth keeping as one sequence rather than only as the
+ * two units it was taken apart into.
+ */
+describe("the reported game, start to finish", () => {
+  const DAIS: Location = { kind: "battlefield", id: "emperors-dais" };
+  const PEAK: Location = { kind: "battlefield", id: "targons-peak" };
+
+  function opening(): GameState {
+    const start = makeState({
+      p1: { hand: ["gust"], runePool: pool({ energy: 9, universalPower: 9 }) },
+      p2: {
+        hand: ["inferna", "nidalee"],
+        legend: "pridestalker",
+        runePool: pool({ energy: 20, power: { body: 5 }, universalPower: 9 }),
+      },
+      cards: [
+        pridestalker,
+        { ...irresistibleFaefolk, id: "faefolk" },
+        { ...inferna, id: "inferna" },
+        { ...nidalee, id: "nidalee" },
+        { ...sneakyDeckhand, id: "deckhand" },
+        { ...gust, id: "gust" },
+        { ...emperorsDais, id: "emperors-dais" },
+        { ...targonsPeak, id: "targons-peak" },
+      ],
+      permanents: [
+        { cardId: "deckhand", controller: "p1", location: PEAK },
+        // Played the turn before, so the Awaken step has readied it.
+        { cardId: "faefolk", controller: "p2" },
+      ],
+      battlefields: ["emperors-dais", ["targons-peak", "p1"]],
+    });
+    return { ...start, turn: { ...start.turn, player: "p2" } };
+  }
+
+  function run(state: GameState, steps: Action[]): GameState {
+    let current = state;
+    for (const step of steps) {
+      const result = applyAction(current, step);
+      if (!result.ok) throw new Error(`${step.type} refused: ${result.reason}`);
+      current = result.state;
+    }
+    return current;
+  }
+
+  /** Everyone passes until the chain drains. */
+  function settle(state: GameState): GameState {
+    let current = state;
+    for (let i = 0; i < 16 && current.chain.length > 0; i += 1) {
+      if (current.pending !== null) break;
+      const who = current.priority;
+      if (who === null) break;
+      const passed = applyAction(current, { type: "passPriority", playerId: who });
+      if (!passed.ok) break;
+      current = passed.state;
+    }
+    return current;
+  }
+
+  /** R383 — the legend watches every unit its controller plays, not just one. */
+  it("gives Pridestalker's +1 to each unit as it is played", () => {
+    let state = run(opening(), [
+      { type: "playUnitFromHand", playerId: "p2", cardId: "inferna" },
+      { type: "decide", playerId: "p2", targets: ["inferna"] },
+    ]);
+    state = settle(state);
+    state = run(state, [
+      { type: "playUnitFromHand", playerId: "p2", cardId: "nidalee" },
+      { type: "decide", playerId: "p2", targets: ["nidalee"] },
+    ]);
+    state = settle(state);
+
+    // Printed 1 and 4, each a point higher for the turn.
+    expect(characteristicsOf(state, "inferna").might).toBe(2);
+    expect(characteristicsOf(state, "nidalee").might).toBe(5);
+  });
+
+  /**
+   * The outcome the bugs changed. The Deckhand is dragged to the Dais rather
+   * than sent home, so when Gust removes the only unit p2 had there, it is
+   * *p1* who is left standing and takes the battlefield.
+   */
+  it("ends with the Deckhand holding the Dais it was dragged to", () => {
+    let state = run(opening(), [
+      { type: "standardMove", playerId: "p2", cardId: "faefolk", destination: DAIS },
+      { type: "decide", playerId: "p2", perform: true },
+      { type: "decide", playerId: "p2", targets: ["deckhand"] },
+      { type: "passPriority", playerId: "p2" },
+      { type: "playSpell", playerId: "p1", cardId: "gust", targets: ["faefolk"] },
+    ]);
+    state = settle(state);
+
+    expect(state.permanents["faefolk"]).toBeUndefined();
+    expect(state.permanents["deckhand"]?.location).toEqual(DAIS);
+    // R190.4.c — p1 has nothing at the Peak any more, so control lapses.
+    expect(state.battlefields["targons-peak"]?.controller).toBeNull();
+    expect(state.showdown?.battlefieldId).toBe("emperors-dais");
+
+    // Both pass focus and the showdown closes.
+    for (let i = 0; i < 6 && state.showdown !== null; i += 1) {
+      if (state.pending !== null) break;
+      const passed = applyAction(state, {
+        type: "passFocus",
+        playerId: state.showdown.focus,
+      });
+      if (!passed.ok) break;
+      state = passed.state;
+    }
+
+    // R348.2 — one player has units there, so they establish Control, and it
+    // is a Conquer. p2 contested it and ended up with nothing on it.
+    expect(state.battlefields["emperors-dais"]?.controller).toBe("p1");
+    expect(seatOf(state, "p1").points).toBe(1);
+    expect(seatOf(state, "p2").points).toBe(0);
   });
 });
