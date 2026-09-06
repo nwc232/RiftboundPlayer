@@ -418,7 +418,7 @@ export const emperorsDais: CardInstance = {
 export const seatOfPower: CardInstance = {
   id: "seat-of-power",
   name: "Seat of Power",
-  text: "When you conquer here, draw 1 for each other battlefield you or allies control..",
+  text: "When you conquer here, draw 1 for each other battlefield you or allies control.",
   type: "battlefield",
   cost: FREE,
   keywords: [],

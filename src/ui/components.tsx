@@ -27,18 +27,16 @@ interface Selectable {
    */
   onSelect: (cardId: CardId, anchor?: DOMRect) => void;
   /**
-   * Pointing at a card previews it full size, which is the only way to read
-   * its text: a card face at hand size is about 90px wide, and no amount of
-   * zooming in place makes printed rules text legible at that scale. Arena and
-   * Hearthstone both answer this the same way — a big preview elsewhere on the
-   * screen — rather than by growing the card in the row.
-   */
-  /**
    * `anchor` is where the card is, so a readable copy of it can open beside
    * the one you are pointing at rather than in a panel on the far side of the
    * screen. Every table-top client works this way for the same reason: at
    * hand size a card face is about 90px wide and its rules text is not
    * legible at any zoom.
+   *
+   * Not only cards: a battlefield is hovered by its header, which is the only
+   * place its printed text is readable at all — the mat shows its name and who
+   * holds it and nothing else, so an ability like Star Spring's was invisible
+   * in the UI even though the engine was applying it.
    */
   onHover: (cardId: CardId | null, anchor?: DOMRect) => void;
   /** Which card currently has its move menu open, so it can be marked. */
@@ -109,7 +107,10 @@ function Card({
         pick.onHover(cardId, event.currentTarget.getBoundingClientRect())
       }
       onBlur={() => pick.onHover(null)}
-      title={cardId}
+      // No `title`: it used to carry the internal id (`p1-gust-2`), which is
+      // a debugging aid and reads to a player as nonsense. The preview says
+      // what the card is, and a browser tooltip fighting it is worse than
+      // neither.
     >
       {art !== undefined && (
         <img className="card-art" src={art} alt="" aria-hidden="true" />
@@ -349,7 +350,19 @@ export function Resources({
             return (
               <button
                 key={runeId}
-                title={runeId}
+                // The two-letter chip has room for a domain and nothing else,
+                // so what a rune *does* — "Exhaust: Add [1]. Recycle: Add
+                // [Calm]" — was written down nowhere in the UI. Runes being
+                // what fills the pool is the one thing a new player has to
+                // work out before anything else can be played.
+                onMouseEnter={(event) =>
+                  pick.onHover(runeId, event.currentTarget.getBoundingClientRect())
+                }
+                onMouseLeave={() => pick.onHover(null)}
+                onFocus={(event) =>
+                  pick.onHover(runeId, event.currentTarget.getBoundingClientRect())
+                }
+                onBlur={() => pick.onHover(null)}
                 className={[
                   "rune",
                   `rune-${rune.domain}`,
@@ -459,10 +472,29 @@ export function Battlefields({
                 : { backgroundImage: `url(${art})` }
             }
           >
-            <header>
+            <header
+              // Anchored to the name rather than to the header, which spans
+              // the whole mat: a preview measured off that opens past the
+              // battlefield beside it instead of next to what you pointed at.
+              onMouseEnter={(event) => {
+                const name = event.currentTarget.querySelector(".bf-name");
+                pick.onHover(
+                  battlefieldId,
+                  (name ?? event.currentTarget).getBoundingClientRect(),
+                );
+              }}
+              onMouseLeave={() => pick.onHover(null)}
+            >
               <button
                 className={`bf-name ${pick.legal.has(battlefieldId) ? "is-legal" : ""}`}
                 onClick={() => pick.onSelect(battlefieldId)}
+                onFocus={(event) =>
+                  pick.onHover(
+                    battlefieldId,
+                    event.currentTarget.getBoundingClientRect(),
+                  )
+                }
+                onBlur={() => pick.onHover(null)}
               >
                 {nameOf(state, battlefieldId)}
               </button>
@@ -512,6 +544,19 @@ export function Battlefields({
  * — fixed against a measured rectangle, flipping side and clamping to the
  * viewport — so the two never fight over the same corner.
  */
+/** Who holds a battlefield, and whether anyone is contesting it (R449). */
+function holderOf(state: GameState, battlefieldId: CardId): string {
+  const battlefield = state.battlefields[battlefieldId];
+  if (battlefield === undefined) return "not in play";
+  const held =
+    battlefield.controller === null
+      ? "uncontrolled"
+      : `held by ${battlefield.controller}`;
+  return battlefield.contestedBy === null
+    ? held
+    : `${held} · contested by ${battlefield.contestedBy}`;
+}
+
 export function CardPreview({
   state,
   cardId,
@@ -549,7 +594,22 @@ export function CardPreview({
         <p className="preview-text">{printed.text}</p>
       )}
       <p className="preview-foot">
-        {costLabel(state, viewer, cardId)}
+        {/* R485.5 — a battlefield is presented, not played, and a legend is
+            placed at setup: neither has a price, so showing one reads as a
+            cost the player could pay. What a battlefield's footer is for is
+            who holds it, which is the thing being decided over it. */}
+        {now.type === "battlefield"
+          ? holderOf(state, cardId)
+          : now.type === "legend"
+            ? "legend"
+            : // A rune on the board is not in `permanents` — R161 keeps it in
+              // its own zone — so its readied state has to be read from there
+              // or the footer says nothing about the one thing that matters.
+              now.type === "rune" && state.runes[cardId] !== undefined
+              ? state.runes[cardId]!.exhausted
+                ? "exhausted"
+                : "readied"
+              : costLabel(state, viewer, cardId)}
         {permanent?.exhausted === true && " · exhausted"}
         {permanent !== undefined && permanent.damage > 0 && ` · ${permanent.damage} damage`}
       </p>
@@ -651,25 +711,54 @@ export function MoveList({
   // reach for without looking at the board, so they stay out in the open.
   // Everything else has a home on the card itself now: clicking it opens the
   // same list beside it. This is the reference copy, not the way in.
-  const anytime = groups.filter((group) => group.cardId === null);
+  const loose = groups.filter((group) => group.cardId === null);
   const byCard = groups.filter((group) => group.cardId !== null);
   const count = byCard.reduce((total, group) => total + group.moves.length, 0);
 
+  // A decision that takes several cards is enumerated by `legalActions` as
+  // every combination it would accept — R117.1's "up to two" is eleven answers
+  // from a four-card hand and twenty-nine from a seven-card one, all of them
+  // printed above "end turn". The board already answers these: click the
+  // cards, then confirm. So they are folded away rather than removed, because
+  // a prompt over cards the board does not show — R436's Predict, a Stacked
+  // Deck's three revealed cards — is answerable *only* from this list.
+  const answers = loose.flatMap((group) =>
+    group.moves.filter((move) => move.action.type === "decide"),
+  );
+  const plain = loose.flatMap((group) =>
+    group.moves.filter((move) => move.action.type !== "decide"),
+  );
+  const button = (move: Move, key: number) => (
+    <li key={key}>
+      <button className="move" onClick={() => onPlay(move)}>
+        {move.label}
+      </button>
+    </li>
+  );
+
   return (
     <div className="move-groups">
-      {anytime.map((group) => (
-        <div key="anytime" className="move-group">
-          <ul className="moves">
-            {group.moves.map((move, i) => (
-              <li key={i}>
-                <button className="move" onClick={() => onPlay(move)}>
-                  {move.label}
-                </button>
-              </li>
-            ))}
-          </ul>
+      {plain.length > 0 && (
+        <div className="move-group">
+          <ul className="moves">{plain.map(button)}</ul>
         </div>
-      ))}
+      )}
+
+      {/* Few enough to read at a glance stay open; a list of combinations
+          does not. Four is where "pick one of these" turns into "scan". */}
+      {answers.length > 0 && answers.length <= 4 && (
+        <div className="move-group">
+          <ul className="moves">{answers.map(button)}</ul>
+        </div>
+      )}
+      {answers.length > 4 && (
+        <details className="by-card">
+          <summary>{answers.length} ways to answer</summary>
+          <div className="move-group">
+            <ul className="moves">{answers.map(button)}</ul>
+          </div>
+        </details>
+      )}
 
       {count > 0 && (
         <details className="by-card">
