@@ -14,6 +14,7 @@ import type {
 import { DECK_LISTS, instantiate, matchup } from "../src/decks/index.js";
 import type { Deck } from "../src/deck.js";
 import { checkInvariants } from "./invariants.js";
+import { chooseAction } from "./random-play.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -78,14 +79,9 @@ function play(seed: number, maxSteps = 4000, decks?: [number, number]): Outcome 
       options = legalActions(state, actor === "p1" ? "p2" : "p1");
       if (options.length === 0) return { state, steps, stuck: true };
     }
-    // Bias away from ending the turn, or the games never develop.
-    // R650 lets anyone concede at any moment, so `legalActions` offers it
-    // every time. A random player who takes it ends the game on move one and
-    // exercises nothing, so this one is declined rather than weighted.
-    options = options.filter((action) => action.type !== "concede");
-    const busy = options.filter((action) => action.type !== "endTurn");
-    const pool = busy.length > 0 && rand() < 0.85 ? busy : options;
-    take(pool[Math.floor(rand() * pool.length)]!);
+    const action = chooseAction(state, options, rand);
+    if (action === undefined) return { state, steps, stuck: true };
+    take(action);
   }
 
   return { state, steps, stuck: false };

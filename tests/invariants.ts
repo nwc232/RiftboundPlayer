@@ -56,6 +56,44 @@ export function checkInvariants(state: GameState, after: Action): void {
     }
   }
 
+  /**
+   * Structural, rather than a rule: the state should never refer to something
+   * that is not there. R652's Removal of a Player is what makes this worth
+   * asserting — it takes a seat, its cards, its runes and its battlefield off
+   * the board in one go, and a single missed reference leaves a card id
+   * pointing at nothing for the rest of the game.
+   */
+  for (const [cardId, permanent] of Object.entries(state.permanents)) {
+    if (state.cards[cardId] === undefined) {
+      throw new Error(`permanent ${cardId} has no card, after ${context()}`);
+    }
+    const { location } = permanent;
+    if (location.kind === "base") {
+      if (!state.turnOrder.includes(location.player)) {
+        throw new Error(
+          `${cardId} stands at ${location.player}'s base, and ${location.player} ` +
+            `is not in this game, after ${context()}`,
+        );
+      }
+    } else if (state.battlefields[location.id] === undefined) {
+      throw new Error(
+        `${cardId} stands at ${location.id}, which is not in play, after ${context()}`,
+      );
+    }
+  }
+
+  // Every seat in the turn order has a player, and every player is seated.
+  for (const id of state.turnOrder) {
+    if (state.players[id] === undefined) {
+      throw new Error(`${id} is in the turn order with no seat, after ${context()}`);
+    }
+  }
+  for (const id of Object.keys(state.players)) {
+    if (!state.turnOrder.includes(id as (typeof state.turnOrder)[number])) {
+      throw new Error(`${id} has a seat but no turn, after ${context()}`);
+    }
+  }
+
   // R149.3 — an unattached non-Unit gear left at a battlefield is recalled in
   // the cleanup, so once the queue is quiet none should be standing there.
   if (state.tasks.length > 0 || state.chain.length > 0) return;

@@ -581,9 +581,43 @@ three hundred, and played a card *onto an existing chain* 80 times in 10,870
 actions — 0.7%. Every bug found so far has lived in that region, and the
 driver barely visits it.
 
+### Done since
+
+**a. The driver is biased toward responding.** `tests/random-play.ts` never
+declines an answer, and prefers adding to a chain that already has something
+on it. Cards played onto an existing chain went from 80 to 752 across the same
+10,809 actions — nine times as many — and depth 3 from 0.33% to 0.79% of
+states. Not a transformation: only [Reaction] and [Ambush] cards can be played
+onto a chain at all, so the deck lists set the ceiling.
+
+**b. Ability coverage is a floor, not a report.** `tests/coverage.test.ts`
+soaks four matchups and asserts a minimum number of distinct authored
+abilities actually fire. A floor rather than an exact set, because the set is
+brittle across seeds and the thing worth catching is a *collapse* — which is
+exactly what the two chain deadlocks were: fixing them took distinct triggers
+reaching resolution from 49 to 77.
+
+The number it exposed is worth stating plainly: **of 94 authored activated and
+triggered abilities, random play fires 32 — about a third.** The rest are
+reached only by the unit tests that name them. That is the honest state of
+card-level coverage, and the list is printed when the floor is missed.
+
+**c. Structural invariants.** No permanent without a card; no location that is
+not a real battlefield or a seated player's base; turn order and seats agree.
+Aimed at what R652's Removal of a Player can damage.
+
 ### Next, in order
 
-**a. Bias the driver toward responding.** Weight the chooser toward playing
+**d. Raise ability coverage from a third.** Two ways, and they are not
+alternatives: bias the driver toward cards it has not yet played, and write
+targeted tests for the ones random play structurally cannot reach.
+
+**e. A resolved trigger that targeted something must change something.**
+Prototyped and currently clean; worth keeping once the deeper chains above are
+common enough for it to mean anything.
+
+**f. Superseded — kept for the reasoning.** Bias the driver toward
+responding. Weight the chooser toward playing
 [Reaction] cards while a chain is up, and toward answering rather than
 passing. Aims the soak the engine already has at the region where the bugs
 are, for a few lines. The highest-value item here by some distance.

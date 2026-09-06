@@ -17,6 +17,7 @@ import { runTasks } from "../src/tasks.js";
 import { DUEL, SKIRMISH, WAR, modeFor } from "../src/modes-of-play.js";
 import { victoryScore } from "../src/scoring.js";
 import { checkInvariants } from "./invariants.js";
+import { chooseAction } from "./random-play.js";
 import { makeState, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -217,10 +218,10 @@ describe("whole games with more than two seats", () => {
       // R650 lets anyone concede at any moment, so `legalActions` offers it
       // every time. A random player who takes it ends the game on move one and
       // exercises nothing, so this one is declined rather than weighted.
-      options = options.filter((action) => action.type !== "concede");
-      const busy = options.filter((action) => action.type !== "endTurn");
-      const pool = busy.length > 0 && rand() < 0.85 ? busy : options;
-      const action = pool[Math.floor(rand() * pool.length)]!;
+      const action = chooseAction(state, options, rand);
+      if (action === undefined) {
+        throw new Error(`nobody can act at step ${steps}`);
+      }
 
       const result = applyAction(state, action);
       if (!result.ok) {
