@@ -170,6 +170,15 @@ export type GameEvent =
   | { type: "unitRecalled"; playerId: PlayerId; cardId: CardId }
   | { type: "returnedToHand"; playerId: PlayerId; cardId: CardId }
   | { type: "banished"; playerId: PlayerId; cardId: CardId }
+  /** R194.3.a — a card has moved the finish line. */
+  | { type: "victoryScoreRaised"; by: number }
+  /** R716 — an Equipment comes off the unit it was attached to. */
+  | {
+      type: "detached";
+      playerId: PlayerId;
+      cardId: CardId;
+      fromCardId: CardId;
+    }
   /** R434 — a card Attached to a Top-Most Card. */
   | { type: "attached"; playerId: PlayerId; cardId: CardId; to: CardId }
   | { type: "buffed"; playerId: PlayerId; cardId: CardId }

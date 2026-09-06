@@ -1,5 +1,6 @@
 import { controllerOf, mightOf } from "./layers.js";
-import { permanentsAt, playedBy, seatOf } from "./state.js";
+import { opponentsOf, permanentsAt, playedBy, seatOf } from "./state.js";
+import { victoryScore } from "./scoring.js";
 import type {
   CardId,
   CardType,
@@ -74,7 +75,14 @@ export type Condition =
    */
   | { kind: "all"; of: Condition[] }
   /** Xin Zhao, Vigilant — "if you have two or more other units in your base". */
-  | { kind: "controlsOtherUnits"; atLeast: number };
+  | { kind: "controlsOtherUnits"; atLeast: number }
+  /**
+   * R194.3 — "within X points of the Victory Score", printed on five cards as
+   * a check on how close the game is to ending. `who` is which score is being
+   * measured: Corrupted Dragon reads its controller's, Leona, Zealot and
+   * Poppy, Paragon read whether *any* opponent is that close.
+   */
+  | { kind: "nearVictory"; who: "you" | "anyOpponent"; within: number };
 
 /**
  * What a condition is asked *about*. `EffectContext` satisfies this
@@ -226,6 +234,15 @@ export function holds(
     // could Empower itself a second time.
     case "notEmpowered":
       return !holds(state, { kind: "empowered" }, context);
+
+    case "nearVictory": {
+      const target = victoryScore(state);
+      const close = (id: PlayerId): boolean =>
+        seatOf(state, id).points >= target - condition.within;
+      return condition.who === "you"
+        ? close(context.controller)
+        : opponentsOf(state, context.controller).some(close);
+    }
 
     case "legion":
       // R812.2 — one other card satisfies every Legion ability at once, which

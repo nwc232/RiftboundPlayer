@@ -9,6 +9,7 @@ import { checkForWinner, holdControlledBattlefields } from "./scoring.js";
 import { nextInTurnOrder, permanentsControlledBy, seatOf } from "./state.js";
 import type { GameState, PlayerId } from "./state.js";
 import { modeById } from "./modes-of-play.js";
+import { channelRunes } from "./channel.js";
 
 /** R314–317. Awaken through Draw run as automatic tasks; Main waits for the player. */
 export type Phase =
@@ -131,27 +132,11 @@ function channelTwo(progress: Progress, player: PlayerId, number: number): Progr
   const last = state.turnOrder[state.turnOrder.length - 1];
   const count = number === state.turnOrder.length && player === last ? 3 : 2;
 
-  for (let i = 0; i < count; i += 1) {
-    const playerState = seatOf(state, player);
-    const [runeId, ...rest] = playerState.runeDeck;
-    if (runeId === undefined) break;
-
-    const card = state.cards[runeId];
-    if (card?.domain === undefined) break;
-
-    state = {
-      ...state,
-      players: {
-        ...state.players,
-        [player]: { ...playerState, runeDeck: rest, runes: [...playerState.runes, runeId] },
-      },
-      runes: {
-        ...state.runes,
-        [runeId]: { cardId: runeId, domain: card.domain, exhausted: false },
-      },
-    };
-    events.push({ type: "runeChanneled", playerId: player, cardId: runeId });
-  }
+  // R430.4.a — the Channel Phase's two, through the same action R430.4.b
+  // gives to cards. Readied, per R430.2.a's default.
+  const channelled = channelRunes(state, player, count);
+  state = channelled.state;
+  events.push(...channelled.events);
 
   return { state, events: [...progress.events, ...events] };
 }

@@ -13,7 +13,7 @@ import { modeById } from "./modes-of-play.js";
  * written down once.
  */
 export function victoryScore(state: GameState): number {
-  return modeById(state.mode).victoryScore;
+  return modeById(state.mode).victoryScore + (state.victoryScoreBonus ?? 0);
 }
 
 export type ScoreMethod = "conquer" | "hold";

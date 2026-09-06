@@ -454,6 +454,13 @@ export interface GameState {
    */
   mode: ModeId;
   /**
+   * R194.3.a — "Some game modes or card effects may alter the Victory Score."
+   * The mode sets the number; this is what cards have added to it. Aspirant's
+   * Climb is the one that does: "Increase the points needed to win the game
+   * by 1."
+   */
+  victoryScoreBonus?: number;
+  /**
    * R115.1 — "Turn Order is established as a repeating set of the players."
    * This is the authority on who is in the game and in what sequence; the
    * `PlayerId` type only says who could be. Everything that used to iterate

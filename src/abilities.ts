@@ -44,6 +44,7 @@ import { holds } from "./conditions.js";
 import { cannotBeCountered } from "./restrictions.js";
 import type { PendingDecision } from "./decisions.js";
 import type { Condition } from "./conditions.js";
+import { channelRunes } from "./channel.js";
 
 /**
  * The vocabulary of what an effect can say. No behaviour lives here — these are
@@ -494,6 +495,36 @@ export type Effect =
    * says which opponent gains it. With one opponent it never has to ask.
    */
   | { op: "burnOutPoint" }
+  /**
+   * R194.3.a — "Some game modes or card effects may alter the Victory Score."
+   * Aspirant's Climb: "Increase the points needed to win the game by 1."
+   */
+  | { op: "raiseVictoryScore"; by: number }
+  /**
+   * R716 — the inverse of attaching. Angle Shot detaches an Equipment from a
+   * unit; Strike Down and Veiled Temple detach one they have just used. The
+   * Equipment stays on the board and R149.3's cleanup takes it home from a
+   * battlefield, because an unattached gear does not belong at one.
+   */
+  | { op: "detach"; targetIndex: number }
+  /**
+   * R430.4.b — "Players may also Channel runes when Game Effects direct them
+   * to do so." R430.5 gives the printed form: "Channel X rune(s)", optionally
+   * followed by conditions — and one of those conditions is common enough to
+   * be part of the op rather than a separate test, because nothing else can
+   * see how many arrived.
+   */
+  | {
+      op: "channel";
+      count: number;
+      /** R430.2 — "Channel 1 rune exhausted"; R430.2.a defaults to readied. */
+      exhausted?: true;
+      /**
+       * R430.3 left the player short. "Channel 2 runes exhausted. If you
+       * couldn't channel 2 runes this way, draw 1." — Catalyst of Aeons.
+       */
+      ifShort?: Effect;
+    }
   | { op: "seq"; steps: Effect[] };
 
 export type AbilityCost =
@@ -2919,6 +2950,60 @@ export function execute(
         if (outcome.pause !== undefined) break;
       }
       return { state: current, events };
+    }
+
+    case "raiseVictoryScore": {
+      return {
+        state: {
+          ...state,
+          victoryScoreBonus: (state.victoryScoreBonus ?? 0) + effect.by,
+        },
+        events: [{ type: "victoryScoreRaised", by: effect.by }],
+      };
+    }
+
+    case "detach": {
+      const targetId = context.targets[effect.targetIndex];
+      const gear = targetId === undefined ? undefined : state.permanents[targetId];
+      // Nothing to detach, or it was not attached to begin with.
+      if (targetId === undefined || gear?.attachedTo === undefined) {
+        return { state, events: [] };
+      }
+
+      const { attachedTo: host, ...loose } = gear;
+      return {
+        state: {
+          ...state,
+          permanents: { ...state.permanents, [targetId]: loose },
+        },
+        events: [
+          {
+            type: "detached",
+            playerId: gear.controller,
+            cardId: targetId,
+            fromCardId: host,
+          },
+        ],
+      };
+    }
+
+    case "channel": {
+      const done = channelRunes(
+        state,
+        context.controller,
+        effect.count,
+        effect.exhausted === true,
+      );
+      if (done.channelled >= effect.count || effect.ifShort === undefined) {
+        return { state: done.state, events: done.events };
+      }
+      // R430.3 short-changed them, so the card's own fallback runs.
+      const fallback = execute(done.state, effect.ifShort, context);
+      return {
+        state: fallback.state,
+        events: [...done.events, ...fallback.events],
+        ...(fallback.pause === undefined ? {} : { pause: fallback.pause }),
+      };
     }
 
     case "burnOutPoint": {

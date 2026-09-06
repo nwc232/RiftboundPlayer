@@ -53,6 +53,12 @@ export function renderEvent(
   switch (event.type) {
     case "cardDrawn":
       return `${event.playerId} drew ${named(event.cardId)}`;
+    // R194.3.a — a card moved the finish line.
+    case "victoryScoreRaised":
+      return `the points needed to win went up by ${event.by}`;
+    // R716 — an Equipment comes off its unit.
+    case "detached":
+      return `${named(event.cardId)} was detached from ${named(event.fromCardId)}`;
     // R149.3 — a loose gear left at a battlefield goes home.
     case "gearRecalled":
       return `${named(event.cardId)} was recalled to ${event.playerId}'s base`;

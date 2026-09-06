@@ -872,3 +872,37 @@ export function basicRune(id: string, domain: Domain): CardInstance {
     ],
   };
 }
+
+/**
+ * R430.4.b / R430.5 — "Channel X rune(s)", optionally exhausted, optionally
+ * with what to do when R430.3 leaves you short.
+ */
+export function channel(
+  count: number,
+  options: { exhausted?: true; ifShort?: Effect } = {},
+): Effect {
+  return {
+    op: "channel",
+    count,
+    ...(options.exhausted === true ? { exhausted: true as const } : {}),
+    ...(options.ifShort === undefined ? {} : { ifShort: options.ifShort }),
+  };
+}
+
+/** R194.3.a — Aspirant's Climb: "Increase the points needed to win the game". */
+export function raiseVictoryScore(by: number): Effect {
+  return { op: "raiseVictoryScore", by };
+}
+
+/** R716 — take an Equipment off the unit it is attached to. */
+export function detach(targetIndex = 0): Effect {
+  return { op: "detach", targetIndex };
+}
+
+/** R194.3 — "within X points of the Victory Score". */
+export function nearVictory(
+  who: "you" | "anyOpponent",
+  within: number,
+): Condition {
+  return { kind: "nearVictory", who, within };
+}
