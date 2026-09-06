@@ -16,6 +16,7 @@ import { drawCards } from "../src/draw.js";
 import { runTasks } from "../src/tasks.js";
 import { DUEL, SKIRMISH, WAR, modeFor } from "../src/modes-of-play.js";
 import { victoryScore } from "../src/scoring.js";
+import { checkInvariants } from "./invariants.js";
 import { makeState, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -192,49 +193,6 @@ describe("whole games with more than two seats", () => {
     return state.turn.player;
   }
 
-  /**
-   * The two board invariants worth checking after *every* action rather than
-   * at the end, because both describe a board that should never exist rather
-   * than an outcome.
-   *
-   * R462.3 — no battlefield may hold three players' units at once. Units, not
-   * permanents: R461 defines a staged combat by units and R449.2 counts them,
-   * so a gear standing there is not a third side.
-   *
-   * R149.3 — and no unattached non-Unit gear is left at a battlefield once
-   * the queue is quiet, because the cleanup recalls it.
-   */
-  function checkBoard(state: GameState, after: Action): void {
-    for (const battlefieldId of state.battlefieldOrder) {
-      const present = new Set(
-        Object.values(state.permanents)
-          .filter(
-            (permanent) =>
-              permanent.location.kind === "battlefield" &&
-              permanent.location.id === battlefieldId &&
-              state.cards[permanent.cardId]?.type === "unit",
-          )
-          .map((permanent) => permanent.controller),
-      );
-      if (present.size > 2) {
-        throw new Error(
-          `three players' units at ${battlefieldId} after ${JSON.stringify(after)}`,
-        );
-      }
-    }
-
-    if (state.tasks.length > 0 || state.chain.length > 0) return;
-    for (const [cardId, permanent] of Object.entries(state.permanents)) {
-      if (permanent.location.kind !== "battlefield") continue;
-      if (permanent.attachedTo !== undefined) continue;
-      if (state.cards[cardId]?.type !== "gear") continue;
-      throw new Error(
-        `loose gear ${cardId} left at ${permanent.location.id} after ` +
-          JSON.stringify(after),
-      );
-    }
-  }
-
   function play(decks: number[], seed: number): GameState {
     const started = startGame(matchup({ decks }));
     if (!started.ok) throw new Error(JSON.stringify(started.errors));
@@ -273,7 +231,7 @@ describe("whole games with more than two seats", () => {
       }
       state = result.state;
       steps += 1;
-      checkBoard(state, action);
+      checkInvariants(state, action);
     }
 
     return state;

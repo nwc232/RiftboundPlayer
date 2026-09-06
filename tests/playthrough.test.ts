@@ -13,6 +13,7 @@ import type {
 } from "../src/state.js";
 import { DECK_LISTS, instantiate, matchup } from "../src/decks/index.js";
 import type { Deck } from "../src/deck.js";
+import { checkInvariants } from "./invariants.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
 const NORTH: Location = { kind: "battlefield", id: "bf-north" };
@@ -65,6 +66,9 @@ function play(seed: number, maxSteps = 4000, decks?: [number, number]): Outcome 
     }
     state = result.state;
     steps += 1;
+    // The statements about what a board may never look like — see
+    // `invariants.ts` for why the assertions above are not enough.
+    checkInvariants(state, action);
   };
 
   while (state.winner === null && steps < maxSteps) {

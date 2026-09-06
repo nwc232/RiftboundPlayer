@@ -1,6 +1,7 @@
 import { execute, modeOf, shiftTargets } from "./abilities.js";
 import type { AbilityCost, Effect, EffectContext } from "./abilities.js";
 import { FREE, spend } from "./cost.js";
+import type { ChainItem } from "./chain.js";
 import {
   additionalCostsOf,
   choicePoolFor,
@@ -276,8 +277,18 @@ function resumeTasks(
  * decision its controller still owes, if any, for the newest item on the chain.
  */
 function nextDecision(state: GameState): PendingDecision | null {
-  const chainIndex = state.chain.length - 1;
-  const item = state.chain[chainIndex];
+  // R337.1 — "the controller of the *oldest* Pending Chain Item must complete
+  // the steps of Playing that Pending Item", and R337.1.b: "Chain Items are
+  // Finalized in the order they were appended to the Chain."
+  //
+  // This used to read the newest, which is the same item whenever a player
+  // adds one by hand, because everything under it is already finalized. It is
+  // *not* the same when several triggers arrive together — R383.3.d has one
+  // player order them onto the chain at once — and the older ones were then
+  // never asked for their targets at all. A unit played under Pit Rookie and
+  // Pridestalker triggered both, and only the newer of the two got a choice.
+  const chainIndex = state.chain.findIndex((entry) => owesDecision(entry));
+  const item = chainIndex === -1 ? undefined : state.chain[chainIndex];
   if (item === undefined || item.kind !== "trigger") return null;
 
   const { ability } = item;
@@ -331,6 +342,20 @@ function nextDecision(state: GameState): PendingDecision | null {
   }
 
   return null;
+}
+
+/**
+ * Whether a chain item still owes its controller a choice before it can be
+ * finalized. The same three questions `nextDecision` asks, in the same order,
+ * so that "which item is next" and "what does it want" cannot disagree.
+ */
+export function owesDecision(item: ChainItem): boolean {
+  if (item.kind !== "trigger") return false;
+  const { ability } = item;
+  if (ability.optional === true && !item.optionalResolved) return true;
+  if (ability.modes !== undefined && item.mode === undefined) return true;
+  const filters = modeOf(ability, item.mode ?? 0).targeting?.filters ?? [];
+  return filters.length > item.targets.length;
 }
 
 /**
@@ -472,9 +497,19 @@ function awaitDecisions(result: ActionResult): ActionResult {
   // game is over, so `legalActions` offers nothing back.
   if (result.state.winner !== null) return result;
 
-  // R320.1 — a task-raised decision outranks anything on the chain, because the
-  // queue has to drain before a chain item may be finalized at all.
-  if (result.state.tasks.length > 0) return result;
+  // R320.1 — a task-raised decision outranks anything on the chain, because
+  // the queue has to drain before a chain item may be finalized at all.
+  //
+  // Only while there *is* no chain, though. `runTasks` has already run
+  // everything it could by the time this is reached, so a task still queued
+  // alongside a pending chain item is one R335 is holding back until that item
+  // resolves — the turn's next step, or a step of combat. Letting it stop the
+  // item from being finalized left both waiting on each other, and the only
+  // way out was passing priority to resolve a trigger that had never been
+  // asked what it wanted.
+  if (result.state.tasks.length > 0 && result.state.chain.length === 0) {
+    return result;
+  }
 
   let current = result.state;
   const extra: GameEvent[] = [];
