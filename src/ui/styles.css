@@ -726,3 +726,59 @@ button.concede:hover:not(:disabled) {
   border-bottom: 1px solid var(--line);
   background: var(--panel-2);
 }
+
+/*
+ * The card you are pointing at, big enough to read. Fixed against the card's
+ * own rectangle, and `pointer-events: none` so it can never sit between the
+ * pointer and the thing that opened it.
+ */
+.card-preview {
+  position: fixed;
+  z-index: 39;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-2);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+}
+.card-preview img {
+  width: 100%;
+  border-radius: 6px;
+  display: block;
+}
+.preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.preview-might { color: var(--warn); font-weight: 700; }
+.preview-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+.preview-foot { margin: 0; font-size: 11px; color: var(--muted); }
+
+/*
+ * The per-card moves, folded away. Clicking a card opens the same list beside
+ * it, so this is the reference copy rather than the way in — and out of the
+ * way, the log has room to be read.
+ */
+.by-card > summary {
+  cursor: pointer;
+  padding: 4px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  list-style: none;
+}
+.by-card > summary::before { content: "\25b8 "; }
+.by-card[open] > summary::before { content: "\25be "; }
+.by-card > summary:hover { color: var(--ink); }
+.by-card .move-group { margin-top: 4px; }

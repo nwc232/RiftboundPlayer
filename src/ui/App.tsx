@@ -6,11 +6,11 @@ import type { CardId, GameState, PlayerId } from "../state.js";
 import { eventsFor, viewOf } from "../view.js";
 import { useOnline } from "./online.js";
 import {
+  CardPreview,
   Resources,
   Hand,
   CardMenu,
   Battlefields,
-  CardDetail,
   Chain,
   MoveList,
   PlayerPanel,
@@ -84,7 +84,10 @@ export function App() {
   ]);
   const [selected, setSelected] = useState<CardId | null>(null);
   /** What the pointer is over, previewed full size beside the board. */
-  const [hovered, setHovered] = useState<CardId | null>(null);
+  /** What the pointer is over, and where it is, for the readable preview. */
+  const [hovered, setHovered] = useState<{ cardId: CardId; rect?: DOMRect } | null>(
+    null,
+  );
   const [staged, setStaged] = useState<CardId[]>([]);
   /** Setup starts open — there is nothing to look at until a game exists. */
   const [showSetup, setShowSetup] = useState(true);
@@ -154,7 +157,6 @@ export function App() {
   const near = acting;
   // Pointing at a card wins over the selection, so you can read anything on
   // the board without losing what you were about to play.
-  const showing = hovered ?? selected;
   const refusal = explain(isOnline ? online.rejected : rejected);
   const moves = useMemo(() => movesFor(state, acting), [state, acting]);
 
@@ -301,7 +303,12 @@ export function App() {
     legal,
     actionable,
     onSelect,
-    onHover: setHovered,
+    onHover: (cardId: CardId | null, anchor?: DOMRect) =>
+      setHovered(
+        cardId === null
+          ? null
+          : { cardId, ...(anchor === undefined ? {} : { rect: anchor }) },
+      ),
     menuFor: menu?.cardId ?? null,
   };
 
@@ -604,6 +611,15 @@ export function App() {
         )}
       </div>
 
+      {hovered?.rect !== undefined && menu === null && (
+        <CardPreview
+          state={state}
+          cardId={hovered.cardId}
+          at={hovered.rect}
+          viewer={acting}
+        />
+      )}
+
       {menu !== null && (
         <CardMenu
           moves={moves.filter((move) => move.subject === menu.cardId)}
@@ -653,24 +669,10 @@ export function App() {
       <aside className="side">
         <Chain state={state} />
         <section className="actions">
-          <h3>
-            {showing === null
-              ? `${acting} — everything you can do`
-              : `${acting} — ${state.cards[showing]?.name ?? showing}`}
-          </h3>
-          {/* Pointing at a card wins over the selection, so you can read
-              anything on the board without losing what you were about to
-              play. */}
-          {showing !== null && (
-            <>
-              <CardDetail state={state} cardId={showing} viewer={acting} />
-              {selected !== null && (
-                <button className="clear" onClick={() => setSelected(null)}>
-                  show every move
-                </button>
-              )}
-            </>
-          )}
+          {/* The card you are pointing at is rendered beside the card
+              itself now, so repeating it here would be the same picture
+              twice, half a screen apart. */}
+          <h3>{acting} — what you can do</h3>
           {blocked !== null && <p className="blocked">{blocked}</p>}
           <MoveList
             groups={groups}

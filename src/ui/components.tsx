@@ -33,7 +33,14 @@ interface Selectable {
    * Hearthstone both answer this the same way — a big preview elsewhere on the
    * screen — rather than by growing the card in the row.
    */
-  onHover: (cardId: CardId | null) => void;
+  /**
+   * `anchor` is where the card is, so a readable copy of it can open beside
+   * the one you are pointing at rather than in a panel on the far side of the
+   * screen. Every table-top client works this way for the same reason: at
+   * hand size a card face is about 90px wide and its rules text is not
+   * legible at any zoom.
+   */
+  onHover: (cardId: CardId | null, anchor?: DOMRect) => void;
   /** Which card currently has its move menu open, so it can be marked. */
   menuFor: CardId | null;
 }
@@ -94,9 +101,13 @@ function Card({
       onClick={(event) =>
         pick.onSelect(cardId, event.currentTarget.getBoundingClientRect())
       }
-      onMouseEnter={() => pick.onHover(cardId)}
+      onMouseEnter={(event) =>
+        pick.onHover(cardId, event.currentTarget.getBoundingClientRect())
+      }
       onMouseLeave={() => pick.onHover(null)}
-      onFocus={() => pick.onHover(cardId)}
+      onFocus={(event) =>
+        pick.onHover(cardId, event.currentTarget.getBoundingClientRect())
+      }
       onBlur={() => pick.onHover(null)}
       title={cardId}
     >
@@ -493,6 +504,60 @@ export function Battlefields({
 
 /** R327 — the chain, newest first, because that is the order it resolves in. */
 /**
+ * The card you are pointing at, big enough to read.
+ *
+ * Opens beside the card rather than in the side panel, because looking away
+ * from the board to read what you are pointing at is the thing that makes a
+ * card game feel like a spreadsheet. Positioned the same way the move menu is
+ * — fixed against a measured rectangle, flipping side and clamping to the
+ * viewport — so the two never fight over the same corner.
+ */
+export function CardPreview({
+  state,
+  cardId,
+  at,
+  viewer,
+}: {
+  state: GameState;
+  cardId: CardId;
+  at: DOMRect;
+  viewer: PlayerId;
+}) {
+  const now = characteristicsOf(state, cardId);
+  const printed = state.cards[cardId];
+  const art = artFor(now.name);
+  const permanent = state.permanents[cardId];
+
+  const width = 250;
+  const roomRight = window.innerWidth - at.right > width + 20;
+  const left = roomRight ? at.right + 12 : Math.max(8, at.left - width - 12);
+  // Tall enough for the face plus a few lines of text, clamped into view.
+  const tall = Math.round(width * (1039 / 744)) + 120;
+  const top = Math.min(
+    Math.max(8, at.top - 40),
+    Math.max(8, window.innerHeight - tall - 8),
+  );
+
+  return (
+    <div className="card-preview" style={{ left, top, width }}>
+      {art !== undefined && <img src={art} alt="" aria-hidden="true" />}
+      <div className="preview-head">
+        <strong>{now.name}</strong>
+        {now.type === "unit" && <span className="preview-might">{now.might}</span>}
+      </div>
+      {printed?.text !== undefined && (
+        <p className="preview-text">{printed.text}</p>
+      )}
+      <p className="preview-foot">
+        {costLabel(state, viewer, cardId)}
+        {permanent?.exhausted === true && " · exhausted"}
+        {permanent !== undefined && permanent.damage > 0 && ` · ${permanent.damage} damage`}
+      </p>
+    </div>
+  );
+}
+
+/**
  * The moves for one card, opened beside it.
  *
  * `position: fixed` against the card's measured rectangle rather than nesting
@@ -581,9 +646,38 @@ export function MoveList({
   if (groups.length === 0) {
     return <p className="muted">nothing legal right now.</p>;
   }
+
+  // The moves that belong to no card — end turn, pass — are the ones you
+  // reach for without looking at the board, so they stay out in the open.
+  // Everything else has a home on the card itself now: clicking it opens the
+  // same list beside it. This is the reference copy, not the way in.
+  const anytime = groups.filter((group) => group.cardId === null);
+  const byCard = groups.filter((group) => group.cardId !== null);
+  const count = byCard.reduce((total, group) => total + group.moves.length, 0);
+
   return (
     <div className="move-groups">
-      {groups.map((group) => (
+      {anytime.map((group) => (
+        <div key="anytime" className="move-group">
+          <ul className="moves">
+            {group.moves.map((move, i) => (
+              <li key={i}>
+                <button className="move" onClick={() => onPlay(move)}>
+                  {move.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+
+      {count > 0 && (
+        <details className="by-card">
+          <summary>
+            {count} move{count === 1 ? "" : "s"} on {byCard.length} card
+            {byCard.length === 1 ? "" : "s"}
+          </summary>
+          {byCard.map((group) => (
         <div
           key={group.cardId ?? "anytime"}
           className={`move-group ${
@@ -606,81 +700,10 @@ export function MoveList({
             ))}
           </ul>
         </div>
-      ))}
+          ))}
+        </details>
+      )}
     </div>
-  );
-}
-
-/**
- * The selected card, as printed. The engine runs the `abilities` data, never
- * this text — showing both is what lets a mismatch between them be noticed.
- */
-export function CardDetail({
-  state,
-  cardId,
-  viewer,
-}: {
-  state: GameState;
-  cardId: CardId;
-  viewer: PlayerId;
-}) {
-  const now = characteristicsOf(state, cardId);
-  const printed = state.cards[cardId];
-  const permanent = state.permanents[cardId];
-  const cost = costLabel(state, viewer, cardId);
-
-  const status = [
-    permanent?.exhausted === true ? "exhausted" : "",
-    permanent?.stunned === true ? "stunned" : "",
-    permanent?.buffed === true ? "buffed" : "",
-    permanent?.designation ?? "",
-    permanent?.damage !== undefined && permanent.damage > 0
-      ? `${permanent.damage} damage`
-      : "",
-  ].filter(Boolean);
-
-  // The printed card, when the pool published art for it. Looked up by name
-  // because ids here are authored by hand; a token or a card with no entry
-  // falls through to the text below, which is the whole card either way.
-  const art = artFor(now.name);
-
-  return (
-    <section className="detail">
-      <h4>{now.name}</h4>
-      {art !== undefined && (
-        <img
-          className="detail-art"
-          src={art}
-          // The engine's own words rather than the publisher's, so what a
-          // screen reader hears is what the game is actually playing — a card
-          // that has become a copy reads as what it copied.
-          alt={`${now.name}. ${printed?.text ?? ""}`}
-          // Not lazy: this is the one image on the panel and it is the thing
-          // the click was for. Deferring it means the card you just asked to
-          // look at arrives last.
-          fetchPriority="high"
-        />
-      )}
-      <div className="detail-meta">
-        <span>{now.type}</span>
-        {cost !== undefined && <span>{cost}</span>}
-        {now.type === "unit" && (
-          <span>
-            {now.might} Might
-            {printed?.might !== undefined && printed.might !== now.might && (
-              <em> (printed {printed.might})</em>
-            )}
-          </span>
-        )}
-        {now.keywords.length > 0 && <span>{now.keywords.join(" · ")}</span>}
-        {status.length > 0 && (
-          <span className="detail-status">{status.join(" · ")}</span>
-        )}
-      </div>
-      {printed?.text !== undefined && (
-        <p className="detail-text">{printed.text}</p>
-      )}
-    </section>
   );
 }
 
