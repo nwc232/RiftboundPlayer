@@ -588,7 +588,23 @@ export function runTasks(
     // R335 — the game only proceeds to the next step once there are no
     // outstanding tasks *and no pending chain items*. A trigger raised by one
     // step therefore blocks the next until it has resolved.
-    if (current.chain.length > 0) break;
+    if (current.chain.length > 0) {
+      // With one exception, and it is a deadlock rather than a preference.
+      // R344 opens a Showdown only "when the turn is in a Neutral Open State"
+      // and R460 wants "no items on the Chain" — so this task *cannot* run
+      // while something is pending. R334's HOT FEPR meanwhile holds the chain
+      // behind outstanding tasks. Together they stopped the game dead:
+      // Irresistible Faefolk moving onto an empty battlefield contested it and
+      // triggered at once, and its "you may" was never asked because the
+      // showdown task it was queued behind could never run.
+      //
+      // Dropping it is safe because it is not a decision, only a reminder:
+      // `contestedBy` stays on the battlefield and the next cleanup — and one
+      // follows every action — raises it again once the chain is clear.
+      if (current.tasks[0]?.kind !== "openStagedShowdown") break;
+      current = { ...current, tasks: current.tasks.slice(1) };
+      continue;
+    }
 
     const [head, ...rest] = current.tasks;
     if (head === undefined) break;

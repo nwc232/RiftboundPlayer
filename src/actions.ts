@@ -714,13 +714,24 @@ export function decide(
 
   if (prompt.kind === "confirmOptional") {
     // R383.3.a.2 — declining removes it from the chain; it never triggered.
+    //
+    // Through the cleanup, not straight to `awaitDecisions`: removing the item
+    // can empty the chain, and R323.8 stages a showdown at a contested
+    // battlefield *during a cleanup*. Declining used to skip that, so a unit
+    // that contested a battlefield and declined its own trigger left the
+    // battlefield Contested with no showdown and nothing to open one.
     if (choice.perform === false) {
-      return awaitDecisions({
+      return thenCleanup({
         ok: true,
         state: {
           ...state,
           chain: state.chain.filter((_, i) => i !== prompt.chainIndex),
           priorityPasses: 0,
+          // The question has been answered. `awaitDecisions` used to recompute
+          // this on the way out, which only worked because nothing was queued
+          // behind it; with a cleanup to run, a stale `pending` stops the
+          // queue dead before it starts.
+          pending: null,
         },
         events: [
           {
