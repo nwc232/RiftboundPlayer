@@ -142,6 +142,34 @@ export function checkInvariants(
   }
 
   /**
+   * R321 — an effect that stopped mid-resolution to ask something parks the
+   * rest of itself on the queue, and the game is then waiting on that answer.
+   * So once an action has finished, a parked effect still owing one and nobody
+   * being asked is a game that has quietly moved on without it.
+   *
+   * Two separate faults produced exactly that state, both of them invisible
+   * from every other assertion here. `runTasks` refused to touch anything but
+   * a Cleanup while the chain was up, so it never asked; and `awaitDecisions`
+   * cleared `pending` whenever no *chain item* owed a choice, which erased the
+   * question the queue had just put on the table. Between them Hard Bargain's
+   * "counter a spell unless its controller pays [2]" asked nothing, priority
+   * went on passing, and the spell it was countering resolved and dealt its
+   * damage — the opponent was finally asked whether to pay for it once the
+   * chain was already empty.
+   */
+  if (state.pending === null && state.winner === null) {
+    const waiting = state.tasks.find(
+      (task) => task.kind === "resumeEffect" && task.answer === undefined,
+    );
+    if (waiting !== undefined) {
+      throw new Error(
+        `a resumed effect is waiting for an answer nobody is being asked ` +
+          `for, after ${context()}`,
+      );
+    }
+  }
+
+  /**
    * R337.1 — "the controller of the *oldest* Pending Chain Item must complete
    * the steps of Playing that Pending Item", and R337.1.b: "Chain Items are
    * Finalized in the order they were appended to the Chain."

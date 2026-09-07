@@ -5,6 +5,7 @@ import { legalActions } from "../src/legal.js";
 import { DECK_LISTS, instantiate, matchup } from "../src/decks/index.js";
 import type { CardId, CardInstance, GameState } from "../src/state.js";
 import { chooseAction, sourceOf } from "./random-play.js";
+import { TARGETED } from "./targeted-abilities.js";
 
 /**
  * How much of the card pool the random playthroughs actually reach.
@@ -153,5 +154,24 @@ describe("how much of the pool random play reaches", () => {
     }
 
     expect(fired.size).toBeGreaterThanOrEqual(FLOOR);
+  }, 120_000);
+
+  /**
+   * The other half of the account. A floor says the soak has not collapsed; it
+   * says nothing about the abilities it never reaches at all, and "77 of 94"
+   * is not a state to take to a play test. `unreached.test.ts` builds the
+   * board each of the rest needs, and `TARGETED` is what it actually fired —
+   * checked from that end too, so it cannot become a list of good intentions.
+   *
+   * Between the two, every authored ability is exercised somewhere. A new card
+   * that neither random play reaches nor a test names fails here, which is the
+   * point: it is a card nothing has ever run.
+   */
+  it("leaves no authored ability unexercised, here or in a targeted test", () => {
+    const fired = soak([[0, 1], [2, 0], [3, 4], [0, 1, 2]], 12);
+    const covered = new Set([...fired, ...TARGETED]);
+    const missing = [...AUTHORED].filter((key) => !covered.has(key)).sort();
+
+    expect(missing).toEqual([]);
   }, 120_000);
 });

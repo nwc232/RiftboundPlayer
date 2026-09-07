@@ -6,6 +6,7 @@ import type { CardInstance, GameState, Location } from "../src/state.js";
 import {
   akaliSilent,
   fallingStar,
+  stellacornHerder,
   jhinMurderousArtist,
   perfectExecution,
   thwonk,
@@ -26,6 +27,7 @@ import {
 } from "../src/decks/rengar.js";
 import { astralHeron, khazix, vilemaw } from "../src/decks/vex.js";
 import { makeState, pool, unit } from "./fixtures.js";
+import { TARGETED } from "./targeted-abilities.js";
 
 /**
  * The abilities a random playthrough cannot reach, put in the situation each
@@ -57,14 +59,42 @@ function fired(events: GameEvent[]): string[] {
     .map((event) => (event as { cardId: string }).cardId);
 }
 
+/**
+ * What this file has actually exercised, in `coverage.test.ts`'s key format.
+ *
+ * Derived from the events rather than declared, because a list of what a test
+ * file *means* to cover drifts from what it does the first time a card is
+ * edited. The last test in the file compares this against `TARGETED`, which is
+ * what `coverage.test.ts` reads to decide that an ability the soak never
+ * reaches is nonetheless exercised somewhere.
+ */
+const EXERCISED = new Set<string>();
+const UNDER_TEST = new Map<string, CardInstance>();
+
+function record(events: GameEvent[]): void {
+  for (const event of events) {
+    if (event.type !== "abilityTriggered" && event.type !== "spellResolved") {
+      continue;
+    }
+    const card = UNDER_TEST.get(event.cardId);
+    if (card === undefined) continue;
+    const kind = event.type === "abilityTriggered" ? "triggered" : "activated";
+    card.abilities.forEach((ability, index) => {
+      if (ability.kind === kind) EXERCISED.add(`${card.name}#${index}`);
+    });
+  }
+}
+
 function take(state: GameState, action: Action): { state: GameState; events: GameEvent[] } {
   const result = applyAction(state, action);
   if (!result.ok) throw new Error(`refused: ${result.reason}`);
+  record(result.events);
   return { state: result.state, events: result.events };
 }
 
 /** The card under test, stamped with a short id so the assertions read. */
 function as(card: CardInstance, id: string): CardInstance {
+  UNDER_TEST.set(id, card);
   return { ...card, id };
 }
 
@@ -115,6 +145,17 @@ describe("triggers on movement", () => {
   /** Jhin — "[Ganking] … When I move, [Add] [1][A]." R810.1.b's exception. */
   it("fires Jhin ganking from one battlefield to another", () => {
     expect(fired(moved(jhinMurderousArtist, SOUTH))).toContain("subject");
+  });
+
+  /**
+   * Stellacorn Herder — "When I move, draw 1." Reached by random play in some
+   * runs and not others, which is the worst kind of coverage: it is here so
+   * the ledger does not depend on which side of that line a soak lands.
+   */
+  it("fires Stellacorn Herder on any move", () => {
+    expect(
+      fired(moved(stellacornHerder, { kind: "base", player: "p1" })),
+    ).toContain("subject");
   });
 });
 
@@ -498,21 +539,156 @@ describe("a spell answering a spell", () => {
     expect(answered.state.chain[1]?.kind === "spell" && answered.state.chain[1].cardId).toBe(
       "answer",
     );
+
+    // R340.1 — "The newest Finalized Chain Item resolves." So the answer
+    // resolves first and the threat is still under it, which is the whole
+    // reason a counterspell works at all. The only card in the pool that asks
+    // the *opponent* a question mid-resolution: "unless its controller pays
+    // [2]", declined here.
+    let current = answered.state;
+    const events = [...answered.events];
+    for (let guard = 0; guard < 12 && current.chain.length > 0; guard += 1) {
+      if (current.pending !== null) {
+        const step = take(current, {
+          type: "decide",
+          playerId: current.pending.player,
+          targets: [],
+          ...(current.pending.prompt.kind === "payOrDecline"
+            ? {}
+            : { perform: false }),
+        });
+        current = step.state;
+        events.push(...step.events);
+        continue;
+      }
+      if (current.priority === null) break;
+      const step = take(current, {
+        type: "passPriority",
+        playerId: current.priority,
+      });
+      current = step.state;
+      events.push(...step.events);
+    }
+
+    expect(events.map((event) => event.type)).toContain("spellResolved");
+    // R358 — the target leaves the chain countered, so it never resolves and
+    // never deals its damage. `spellCountered` carries the player who did the
+    // countering here and the spell's owner in `concede.ts`; the card is the
+    // part that means one thing in both places.
+    expect(
+      events
+        .filter((event) => event.type === "spellCountered")
+        .map((event) => (event as { cardId: string }).cardId),
+    ).toEqual(["threat"]);
+    expect(events.map((event) => event.type)).not.toContain("damageDealt");
+    expect(current.chain).toHaveLength(0);
   });
 });
 
-describe("still unreached, and why", () => {
+describe("triggers that need more turn than one action", () => {
   /**
-   * What is left, and the board each would need. Named rather than remembered:
-   * Vilemaw's "when I hold" wants the Score Step of a turn where it already
-   * controls the battlefield; Astral Heron's "your first card each turn" wants
-   * a turn boundary; Ferrous Forerunner's [Deathknell] wants the unit killed.
-   * All three are reachable — they want a longer fixture than one action, and
-   * they are the next three to write.
+   * Astral Heron — "When you play your first card each turn, if I'm at a
+   * battlefield, your next card costs [2][A][A] less." Two gates on one
+   * trigger: R383.3.e's once-per-turn and R383.2.a.1's "if I'm at a
+   * battlefield", which follows the condition and so gates the trigger rather
+   * than the effect.
    */
-  it("names them", () => {
-    expect([vilemaw.name, astralHeron.name, ferrousForerunner.name]).toHaveLength(
-      3,
-    );
+  it("fires Astral Heron on the turn's first card", () => {
+    const state = makeState({
+      p1: { hand: ["cheap"], runePool: RICH },
+      cards: [as(astralHeron, "subject"), unit("cheap", { might: 1 })],
+      permanents: [{ cardId: "subject", controller: "p1", location: NORTH }],
+      battlefields: [["bf-north", "p1"], "bf-south"],
+    });
+
+    const { events } = take(state, {
+      type: "playUnitFromHand",
+      playerId: "p1",
+      cardId: "cheap",
+      destination: { kind: "base", player: "p1" },
+    });
+
+    expect(fired(events)).toContain("subject");
+  });
+
+  /**
+   * Vilemaw — "When I hold, draw 1." R471's Score Step, which only arrives at
+   * the end of a turn, so the whole of the ending phase has to run.
+   */
+  it("fires Vilemaw when its battlefield is held", () => {
+    const base = makeState({
+      p1: { runePool: RICH, mainDeck: ["deck1", "deck2"] },
+      p2: { runePool: RICH },
+      cards: [as(vilemaw, "subject"), unit("deck1"), unit("deck2")],
+      permanents: [{ cardId: "subject", controller: "p1", location: NORTH }],
+      battlefields: [["bf-north", "p1"], "bf-south"],
+    });
+    const state: GameState = {
+      ...base,
+      turn: { player: "p2", phase: "main", number: 2 },
+    };
+
+    const { events } = take(state, { type: "endTurn", playerId: "p2" });
+
+    expect(events.map((event) => event.type)).toContain("battlefieldScored");
+    expect(fired(events)).toContain("subject");
+  });
+
+  /**
+   * Ferrous Forerunner — "[Deathknell] — Play two 3 [M] Mech unit tokens to
+   * your base." R323.4's death attributes: the trigger has to survive its own
+   * source leaving the board, which is the seam it shares with every "when I
+   * die" ability in the pool.
+   */
+  it("fires Ferrous Forerunner's Deathknell when it loses a combat", () => {
+    let current = makeState({
+      p1: { runePool: RICH, mainDeck: ["deck1"] },
+      p2: { runePool: RICH, mainDeck: ["deck2"] },
+      cards: [
+        as(ferrousForerunner, "subject"),
+        unit("bruiser", { might: 9 }),
+        unit("deck1"),
+        unit("deck2"),
+      ],
+      permanents: [
+        { cardId: "subject", controller: "p1", location: NORTH },
+        { cardId: "bruiser", controller: "p2" },
+      ],
+      battlefields: [["bf-north", "p1"], "bf-south"],
+    });
+    current = { ...current, turn: { ...current.turn, player: "p2" } };
+
+    const moved = take(current, {
+      type: "standardMove",
+      playerId: "p2",
+      cardId: "bruiser",
+      destination: NORTH,
+    });
+    current = moved.state;
+    const events = [...moved.events];
+    for (let guard = 0; guard < 12 && current.showdown !== null; guard += 1) {
+      const step = take(current, {
+        type: "passFocus",
+        playerId: current.showdown.focus,
+      });
+      current = step.state;
+      events.push(...step.events);
+    }
+
+    expect(events.map((event) => event.type)).toContain("unitKilled");
+    expect(fired(events)).toContain("subject");
+  });
+});
+
+/**
+ * The ledger. `coverage.test.ts` measures what random play reaches and this
+ * file covers the rest, so neither alone answers "is every authored ability
+ * exercised anywhere". This is the join between them, and it is checked from
+ * both ends: here, that the list matches what this file actually fired; there,
+ * that the soak and the list together leave nothing out.
+ */
+describe("what this file covers", () => {
+  it("matches the ledger the coverage soak reads", () => {
+    expect([...EXERCISED].sort()).toEqual([...TARGETED].sort());
   });
 });

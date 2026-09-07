@@ -703,13 +703,43 @@ naming the same object for two filters; and R337.4 gives priority to the
 controller of the newest chain item, so an opponent cannot answer a spell until
 it is passed to them.
 
+**j. Every authored ability is now exercised somewhere — and three more chain
+bugs.** The soak reaches 76 of 94; `unreached.test.ts` builds the board for the
+other 18, and `tests/targeted-abilities.ts` is the ledger joining them.
+Checked from both ends: the test file asserts the list matches what it actually
+fired (derived from the events, not declared, so it cannot become a list of
+good intentions), and the soak asserts the two together leave nothing out. A
+new card that neither random play reaches nor a test names fails there, which
+is the point — it is a card nothing has ever run.
+
+Writing the counterspell test found the same fault in three places. All three
+let the chain move while an effect that stopped mid-resolution was still owed
+an answer:
+
+1. **`runTasks` refused everything but a Cleanup while the chain was up.** The
+   guard was written for R319.3's cleanup deadlock and was too narrow: a
+   `resumeEffect` is not new work but the unfinished tail of the item that just
+   resolved, and R334.2.a completes it before continuing.
+2. **`awaitDecisions` cleared `pending` whenever no *chain item* owed a
+   choice**, erasing the question the queue had just put on the table. Only a
+   question about a chain item is its to withdraw.
+3. **Accepting a "you may" went straight back to the chain**, skipping the
+   queue entirely — R334's HOT before FEPR.
+
+Between them, Hard Bargain's "counter a spell unless its controller pays [2]"
+asked nothing, priority went on passing, and the spell it was countering
+resolved and dealt its damage. The opponent was finally asked whether to pay
+for it once the chain was already empty.
+
+The invariant that states it — *a parked effect owing an answer, with nobody
+being asked* — fails 24 times against a revert of (2).
+
 ### Next, in order
 
-**g. The 17 abilities still unfired.** Three are named in `unreached.test.ts`
-with the board each would need — Vilemaw's "when I hold" wants a Score Step,
-Astral Heron's "first card each turn" a turn boundary, Ferrous Forerunner's
-[Deathknell] the unit killed. All reachable; all want a longer fixture than one
-action.
+**g. The soak still only reaches 76 of 94 by itself.** Not a correctness gap
+any more, but the targeted tests exercise one board each while random play
+exercises the combinations, and the difference is where the last three bugs
+came from.
 
 **f. Superseded — kept for the reasoning.** Bias the driver toward
 responding. Weight the chooser toward playing

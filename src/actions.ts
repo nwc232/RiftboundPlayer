@@ -552,6 +552,16 @@ function awaitDecisions(result: ActionResult): ActionResult {
   }
 
   if (pending === null) {
+    // Only a question about a *chain item* is this function's to withdraw.
+    // The queue raises its own — R321's "an effect that stopped to ask
+    // mid-resolution" — and `runTasks` has already put one on the table by the
+    // time this is reached. Clearing it unconditionally erased it: Hard
+    // Bargain's "unless its controller pays [2]" was asked and silently
+    // unasked in the same action, priority went on passing, and the spell it
+    // was countering resolved and dealt its damage. The opponent was finally
+    // asked whether to pay for it once the chain was already empty.
+    const standing = result.state.pending;
+    if (standing !== null && !aboutAChainItem(standing)) return result;
     return { ...result, state: { ...result.state, pending: null } };
   }
 
@@ -567,6 +577,18 @@ function awaitDecisions(result: ActionResult): ActionResult {
       },
     ],
   };
+}
+
+/**
+ * Whether a question is about a chain item rather than about the queue. The
+ * three that are carry the item they are for; everything else was raised by a
+ * task, and belongs to whatever suspended.
+ */
+function aboutAChainItem(pending: PendingDecision): boolean {
+  const { kind } = pending.prompt;
+  return (
+    kind === "confirmOptional" || kind === "chooseMode" || kind === "chooseTargets"
+  );
 }
 
 /** R355.8 / R383.3.a — resolve the outstanding choice. */
@@ -791,18 +813,22 @@ export function decide(
       });
     }
 
-    return awaitDecisions({
-      ok: true,
-      state: {
-        ...state,
-        chain: state.chain.map((entry, i) =>
-          i === prompt.chainIndex && entry.kind === "trigger"
-            ? { ...entry, optionalResolved: true }
-            : entry,
-        ),
-      },
-      events: [],
+    // Through the queue, not straight to `awaitDecisions`: R334's HOT comes
+    // before FEPR, and an effect that stopped mid-resolution to ask something
+    // is sitting there parked. Answering *this* question and going straight
+    // back to the chain left that one unasked, so the next thing offered was
+    // passing priority — which resolves the item under it while a question it
+    // owes is still outstanding.
+    const worked = runTasks({
+      ...state,
+      chain: state.chain.map((entry, i) =>
+        i === prompt.chainIndex && entry.kind === "trigger"
+          ? { ...entry, optionalResolved: true }
+          : entry,
+      ),
+      pending: null,
     });
+    return afterTasks(worked.state, worked.events);
   }
 
   // One answer per prompt, appended in the order the card asks for them.

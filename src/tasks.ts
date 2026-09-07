@@ -638,9 +638,20 @@ export function runTasks(
       // onto an existing chain, was never asked for a target: its own cleanup
       // sat in front of it and could not move.
       //
+      // A `resumeEffect` is here for a different reason: it is not new work
+      // but the unfinished tail of the item that just resolved. R334.2.a —
+      // "During the FEPR process, new Tasks may be incurred. Complete the
+      // current step of the process and then pause and complete the necessary
+      // Tasks before continuing." Excluding it meant Hard Bargain's "counter a
+      // spell unless its controller pays [2]" parked its question, `runTasks`
+      // declined to ask it because the chain was not empty, and priority went
+      // on passing — so the spell it was countering resolved and dealt its
+      // damage, and the opponent was finally asked whether to pay for it once
+      // the chain was already empty.
+      //
       // R335 holds for everything else — the turn, and the steps of combat,
       // proceed only once there are no pending chain items.
-      if (head.kind !== "cleanup") break;
+      if (head.kind !== "cleanup" && head.kind !== "resumeEffect") break;
     }
 
 
