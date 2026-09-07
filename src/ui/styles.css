@@ -48,7 +48,13 @@ button:disabled { opacity: 0.4; cursor: default; }
   height: 100vh;
 }
 
+/* Above the mulligan veil (30), because the veil covers the board and the
+   board is not what the header is for: "play online", "new game" and "undo"
+   are exactly what a player reaches for at the opening hand, and the first
+   version of the overlay swallowed all three. */
 .top {
+  position: relative;
+  z-index: 31;
   grid-area: top;
   display: flex;
   align-items: center;
@@ -725,6 +731,8 @@ button.concede:hover:not(:disabled) {
 .setup-toggle { color: var(--muted); }
 .setup-toggle.is-open { border-color: var(--accent); color: var(--ink); }
 .setup-panel {
+  position: relative;
+  z-index: 31;
   grid-area: setup;
   display: flex;
   flex-wrap: wrap;
@@ -801,6 +809,8 @@ button.concede:hover:not(:disabled) {
 .mulligan-veil {
   position: fixed;
   inset: 0;
+  /* The header and setup bar sit above this and stay usable; the veil is
+     over the *board*, which is the part there is nothing to do with yet. */
   z-index: 30;
   display: flex;
   align-items: center;
@@ -849,4 +859,19 @@ button.concede:hover:not(:disabled) {
 .mulligan-actions .primary {
   border-color: var(--accent);
   color: var(--ink);
+}
+
+/* Answered, waiting on the rest of the table. R117's order still decides when
+   each is performed; this is the only place the wait shows. */
+.mulligan-waiting {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  padding: 14px 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--muted);
 }

@@ -3,7 +3,7 @@ import { concede } from "../concede.js";
 import type { Action } from "../actions.js";
 import type { GameEvent } from "../events.js";
 import { newGame } from "../ui/game.js";
-import type { GameState, PlayerId } from "../state.js";
+import type { CardId, GameState, PlayerId } from "../state.js";
 import { eventsFor, viewOf } from "../view.js";
 import { modeFor, seatsFor } from "../modes-of-play.js";
 import type { RoomId, ServerMessage } from "./protocol.js";
@@ -59,12 +59,29 @@ export interface Room {
   seats: Partial<Record<PlayerId, Seat>>;
   /** Absent until every seat is filled and the game has been dealt. */
   game: { state: GameState; events: GameEvent[] } | undefined;
+  /**
+   * R117 mulligans answered before their turn in the order came round.
+   *
+   * **A deliberate deviation, and only in the waiting.** R117 says "In turn
+   * order, players perform their Mulligan", and the engine does exactly that:
+   * one task per seat, answered one at a time. But nothing about one player's
+   * mulligan is visible to another — each sets aside from their own hand,
+   * draws from their own deck and recycles to their own deck — so the order is
+   * unobservable, and making three people watch each other take it in turns
+   * before the game starts buys nothing.
+   *
+   * So the answers are collected as they arrive and applied in R117's order
+   * the moment each seat's task reaches the head. The engine is untouched and
+   * the sequence in the log is the one the rules describe; what goes away is
+   * the queueing.
+   */
+  earlyMulligans: Partial<Record<PlayerId, CardId[]>>;
 }
 
 export function emptyRoom(id: RoomId, players = 2): Room {
   // An unsanctioned player count has no mode, so it cannot be played at all.
   modeFor(players);
-  return { id, players, seats: {}, game: undefined };
+  return { id, players, seats: {}, game: undefined, earlyMulligans: {} };
 }
 
 /** Every seat this room's mode uses, in turn order. */
@@ -222,19 +239,92 @@ export function act(room: Room, seat: PlayerId, action: Action): ActOutcome {
   if (room.game === undefined) return { ok: false, reason: "noGame" };
   if (action.playerId !== seat) return { ok: false, reason: "notYourSeat" };
 
+  // R117 — a mulligan answered before its turn in the order is held rather
+  // than refused. See `Room.earlyMulligans`: the engine still performs them in
+  // turn order, and this only stops everyone watching each other do it.
+  if (owesMulligan(room.game.state, seat) && !beingAsked(room.game.state, seat)) {
+    if (action.type !== "decide") return { ok: false, reason: "decisionPending" };
+    return {
+      ok: true,
+      room: {
+        ...room,
+        earlyMulligans: {
+          ...room.earlyMulligans,
+          [seat]: action.targets ?? [],
+        },
+      },
+    };
+  }
+
   const result = applyAction(room.game.state, action);
   if (!result.ok) return { ok: false, reason: result.reason };
 
   return {
     ok: true,
-    room: {
+    room: drainMulligans({
       ...room,
       game: {
         state: result.state,
         events: [...room.game.events, ...result.events],
       },
-    },
+    }),
   };
+}
+
+/** R117 — this seat's mulligan is still on the queue, answered or not. */
+export function owesMulligan(state: GameState, seat: PlayerId): boolean {
+  return state.tasks.some(
+    (task) => task.kind === "mulligan" && task.player === seat,
+  );
+}
+
+/** …and the game is waiting on *them* for it right now. */
+function beingAsked(state: GameState, seat: PlayerId): boolean {
+  return (
+    state.pending?.prompt.kind === "mulligan" && state.pending.player === seat
+  );
+}
+
+/**
+ * Plays out every held mulligan whose turn has now come, in R117's order.
+ *
+ * A loop rather than one step: with all four answers in, the first one applied
+ * hands the prompt straight to the second, and the game should not wait for a
+ * socket message to notice.
+ */
+function drainMulligans(room: Room): Room {
+  let current = room;
+  for (let guard = 0; guard < 8; guard += 1) {
+    const state = current.game?.state;
+    if (state === undefined) break;
+    const asked = state.pending;
+    if (asked?.prompt.kind !== "mulligan") break;
+    const held = current.earlyMulligans[asked.player];
+    if (held === undefined) break;
+
+    const result = applyAction(state, {
+      type: "decide",
+      playerId: asked.player,
+      targets: held,
+    });
+    const { [asked.player]: _used, ...rest } = current.earlyMulligans;
+    // A held answer that is no longer legal — a card that is somehow not in
+    // the hand any more — is dropped rather than retried, and that seat is
+    // asked again the ordinary way.
+    current = {
+      ...current,
+      earlyMulligans: rest,
+      ...(result.ok
+        ? {
+            game: {
+              state: result.state,
+              events: [...current.game!.events, ...result.events],
+            },
+          }
+        : {}),
+    };
+  }
+  return current;
 }
 
 /** Deals again, keeping every seat and their decks. */
@@ -242,7 +332,11 @@ export function restart(room: Room, seed: number): Room {
   if (awaySeats(room).length > 0) return room;
   const decks = tableDecks(room);
   if (decks === undefined) return room;
-  return { ...room, game: { state: newGame(seed, decks), events: [] } };
+  return {
+    ...room,
+    earlyMulligans: {},
+    game: { state: newGame(seed, decks), events: [] },
+  };
 }
 
 /**

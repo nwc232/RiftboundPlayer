@@ -26,12 +26,13 @@ import {
   movesFor,
   DECKS,
   newGame,
+  owesMulligan,
   promptArity,
   whyNotPlayable,
 } from "./game.js";
 import type { Move } from "./game.js";
 import { MODES } from "../modes-of-play.js";
-import { SEATS, opponentsOf } from "../state.js";
+import { SEATS, opponentsOf, seatOf } from "../state.js";
 import { explain } from "./rejections.js";
 
 interface Snapshot {
@@ -92,6 +93,13 @@ export function App() {
   const [staged, setStaged] = useState<CardId[]>([]);
   /** The mulligan overlay, set aside for a moment to look at the board. */
   const [peeking, setPeeking] = useState(false);
+  /**
+   * Seats whose mulligan this client has already sent. Online the answer is
+   * held by the server until R117's order reaches that seat, so the task stays
+   * on the queue after it was submitted and the overlay would otherwise sit
+   * there asking a question already answered.
+   */
+  const [sentMulligan, setSentMulligan] = useState<CardId[]>([]);
   /** Setup starts open — there is nothing to look at until a game exists. */
   const [showSetup, setShowSetup] = useState(true);
   /** Which card's moves are open, and where on screen to put them. */
@@ -645,27 +653,39 @@ export function App() {
           with a board nothing has happened on yet. Only the viewer's own: in
           a shared game the others are answering theirs, and in hotseat the
           prompt moves to whoever is being asked. */}
-      {state.pending?.prompt.kind === "mulligan" &&
-        state.pending.player === near &&
+      {owesMulligan(state, near) &&
+        !sentMulligan.includes(near) &&
         !peeking && (
           <Mulligan
             state={state}
             playerId={near}
             staged={staged}
-            max={state.pending.prompt.max}
+            // R117.1's "up to two", capped by a hand that could be smaller.
+            // Read from the prompt when it is this seat's turn and worked out
+            // the same way when it is not, because the overlay opens before
+            // the prompt does.
+            max={
+              state.pending?.prompt.kind === "mulligan" &&
+              state.pending.player === near
+                ? state.pending.prompt.max
+                : Math.min(2, seatOf(state, near).hand.length)
+            }
             pick={pick}
             onConfirm={() => {
-              play({
-                type: "decide",
-                playerId: state.pending!.player,
-                targets: staged,
-              });
+              play({ type: "decide", playerId: near, targets: staged });
+              setSentMulligan((sent) => [...sent, near]);
+              setStaged([]);
               setPeeking(false);
             }}
             onClear={() => setStaged([])}
             onPeek={() => setPeeking(true)}
           />
         )}
+      {/* Answered, and the others have not. R117's order still decides when it
+          is performed; this is the only place that shows through. */}
+      {owesMulligan(state, near) && sentMulligan.includes(near) && (
+        <div className="mulligan-waiting">waiting for the other players</div>
+      )}
       {hovered?.rect !== undefined && menu === null && (
         <CardPreview
           state={state}

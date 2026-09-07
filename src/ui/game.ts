@@ -57,6 +57,23 @@ export function newGame(seed: number, decks: number[] = [0, 1]): GameState {
   return started.state;
 }
 
+/**
+ * R117 — this seat's Mulligan is still on the queue, whoever is being asked
+ * right now.
+ *
+ * The engine performs them in turn order, and online that used to mean three
+ * people watching each other take it in turns before the game began. Nothing
+ * about one player's mulligan is visible to another, so the *asking* can all
+ * happen at once even though the answering does not: the client shows its own
+ * as soon as it is owed, and the server holds the answer until R117's order
+ * reaches it. See `Room.earlyMulligans`.
+ */
+export function owesMulligan(state: GameState, playerId: PlayerId): boolean {
+  return state.tasks.some(
+    (task) => task.kind === "mulligan" && task.player === playerId,
+  );
+}
+
 export function nameOf(state: GameState, cardId: CardId): string {
   return characteristicsOf(state, cardId).name;
 }

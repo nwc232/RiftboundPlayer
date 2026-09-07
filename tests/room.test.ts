@@ -15,8 +15,10 @@ import {
   seatFor,
   GRACE_MS,
 } from "../src/server/room.js";
+import type { Room } from "../src/server/room.js";
 import { HIDDEN_CARD } from "../src/view.js";
 import { seatOf } from "../src/state.js";
+import type { PlayerId } from "../src/state.js";
 
 /**
  * A room, without a socket. Everything worth checking about playing over a
@@ -292,5 +294,96 @@ describe("dropping out", () => {
     const before = room.game?.state;
 
     expect(restart(room, 99).game?.state).toBe(before);
+  });
+});
+
+/**
+ * R117 — "In turn order, players perform their Mulligan."
+ *
+ * The engine does exactly that, one task per seat. What this adds is that
+ * nobody has to *wait* their turn to answer: nothing about one player's
+ * mulligan is visible to another — each sets aside from their own hand, draws
+ * from their own deck, and recycles to their own deck — so the order is
+ * unobservable and making three people watch each other take turns before the
+ * game starts buys nothing. The answers are held and applied in R117's order.
+ */
+describe("R117 — mulligans answered out of order", () => {
+  const table = (players: number) => {
+    let room = emptyRoom("abc", players);
+    seatsOf(room).forEach((seat, at) => {
+      room = join(room, seat, at % 5, 1, `tok-${seat}`);
+    });
+    return room;
+  };
+
+  const answer = (room: Room, seat: PlayerId, targets: string[] = []) => {
+    const outcome = act(room, seat, { type: "decide", playerId: seat, targets });
+    if (!outcome.ok) throw new Error(`refused: ${outcome.reason}`);
+    return outcome.room;
+  };
+
+  it("holds an answer from a seat whose turn has not come", () => {
+    const room = table(3);
+    // p1 is the one being asked; p3's answer is early by two.
+    expect(room.game?.state.pending?.player).toBe("p1");
+
+    const after = answer(room, "p3");
+
+    expect(after.earlyMulligans.p3).toEqual([]);
+    // Nothing has happened to the game: R117's order is untouched.
+    expect(after.game?.state.pending?.player).toBe("p1");
+  });
+
+  it("performs them all in turn order once the first is answered", () => {
+    let room = table(3);
+    room = answer(room, "p3");
+    room = answer(room, "p2");
+
+    // The one the game was actually waiting on. Answering it should carry
+    // straight through the two already held rather than stopping between them.
+    room = answer(room, "p1");
+
+    expect(room.game?.state.pending).toBeNull();
+    expect(room.earlyMulligans).toEqual({});
+    const order = room
+      .game!.events.filter((event) => event.type === "mulliganed")
+      .map((event) => event.playerId);
+    expect(order).toEqual(["p1", "p2", "p3"]);
+  });
+
+  it("keeps each seat's own choice with that seat", () => {
+    let room = table(2);
+    const theirs = room.game!.state.players.p2!.hand.slice(0, 2);
+
+    room = answer(room, "p2", theirs);
+    room = answer(room, "p1", []);
+
+    // R117.3 — the ones set aside go to the bottom of *their* deck, and
+    // R117.2 draws that many back. At least four rather than exactly four:
+    // the last mulligan answered lets the turn proceed, and R316's Draw Phase
+    // hands the first player a fifth before this is read.
+    const p2 = seatOf(room.game!.state, "p2");
+    expect(p2.hand.length).toBeGreaterThanOrEqual(4);
+    expect(theirs.every((id) => !p2.hand.includes(id))).toBe(true);
+    expect(p2.mainDeck.slice(-2)).toEqual(theirs);
+    // p1 kept theirs, so nothing of p1's went to the bottom of p1's deck.
+    const p1 = seatOf(room.game!.state, "p1");
+    expect(p1.hand.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("refuses anything but a mulligan answer from a seat still owing one", () => {
+    const room = table(3);
+
+    expect(act(room, "p3", { type: "endTurn", playerId: "p3" })).toEqual({
+      ok: false,
+      reason: "decisionPending",
+    });
+  });
+
+  it("clears held answers when the room deals again", () => {
+    let room = table(3);
+    room = answer(room, "p3");
+
+    expect(restart(room, 42).earlyMulligans).toEqual({});
   });
 });

@@ -887,3 +887,15 @@ built when a card asks for it.
   teammate's objects (R489.8.e), the scoring disqualification (R489.8.b), the
   adjusted Final Point (R489.8.g.1). Deferred by decision rather than by
   difficulty. ROADMAP §6e has the list.
+
+- **Mulligans are *asked* all at once, and still performed in turn order.**
+  R117 is "In turn order, players perform their Mulligan", and the engine does
+  exactly that: one task per seat, one at a time, and the log reads p1 then p2
+  then p3. What changed is only the waiting. Nothing about one player's
+  mulligan is visible to another — each sets aside from their own hand, draws
+  from their own deck and recycles to their own deck — so the order is
+  unobservable, and making three people watch each other take turns before the
+  game has started buys nothing. The server holds an answer that arrives early
+  (`Room.earlyMulligans`) and applies it the moment R117's order reaches that
+  seat. The engine is untouched: `pending` is still a single decision, which is
+  why this lives in the room rather than in `GameState`.

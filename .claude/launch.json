@@ -4,8 +4,20 @@
     {
       "name": "riftbound-ui",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "ui"],
+      "runtimeArgs": [
+        "run",
+        "ui"
+      ],
       "port": 5173
+    },
+    {
+      "name": "riftbound-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "server"
+      ],
+      "port": 8787
     }
   ]
 }
