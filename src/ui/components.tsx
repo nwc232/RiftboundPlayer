@@ -534,6 +534,66 @@ export function Battlefields({
   );
 }
 
+/**
+ * The opening hand, big enough to actually decide over.
+ *
+ * R117's Mulligan is the first thing anyone does and the only decision made
+ * before there is a board to read — so the board is not what should be on
+ * screen for it. At hand size the four cards are 92px wide and the choice is
+ * being made off card names; at this size it is being made off the cards.
+ *
+ * The board is a click away rather than gone: a player who wants to see which
+ * battlefields are in play before deciding what to keep is asking a fair
+ * question, and R485.5 has them presented before the mulligan.
+ */
+export function Mulligan({
+  state,
+  playerId,
+  staged,
+  max,
+  pick,
+  onConfirm,
+  onClear,
+  onPeek,
+}: {
+  state: GameState;
+  playerId: PlayerId;
+  staged: readonly CardId[];
+  max: number;
+  pick: Selectable;
+  onConfirm: () => void;
+  onClear: () => void;
+  onPeek: () => void;
+}) {
+  const set = staged.length;
+  return (
+    <div className="mulligan-veil">
+      <div className="mulligan-panel">
+        <h2>your opening hand</h2>
+        <p className="mulligan-said">
+          {/* R117.1–117.3 in one sentence, because "mulligan" means something
+              different in every card game and this one is unusual: you keep
+              the hand and swap up to two of it, rather than redrawing. */}
+          Set aside up to {max}. You draw that many back, and the ones you set
+          aside go to the bottom of your deck.
+        </p>
+
+        <Hand state={state} playerId={playerId} pick={pick} />
+
+        <div className="mulligan-actions">
+          <button className="primary" onClick={onConfirm}>
+            {set === 0
+              ? "keep all four"
+              : `set aside ${set} and draw ${set === 1 ? "1" : set}`}
+          </button>
+          {set > 0 && <button onClick={onClear}>clear</button>}
+          <button onClick={onPeek}>look at the board</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** R327 — the chain, newest first, because that is the order it resolves in. */
 /**
  * The card you are pointing at, big enough to read.

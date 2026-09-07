@@ -790,3 +790,63 @@ button.concede:hover:not(:disabled) {
 .by-card[open] > summary::before { content: "\25be "; }
 .by-card > summary:hover { color: var(--ink); }
 .by-card .move-group { margin-top: 4px; }
+
+/*
+ * R117's Mulligan, over the board rather than beside it.
+ *
+ * Below `.card-preview` (39) on purpose: hovering a card in the opening hand
+ * should still open it full size, and a veil above the preview would hide the
+ * one thing the veil exists to make readable.
+ */
+.mulligan-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 11, 16, 0.86);
+  backdrop-filter: blur(3px);
+}
+.mulligan-panel {
+  --card-w: 190px;
+  max-width: min(96vw, 1000px);
+  padding: 18px 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  text-align: center;
+}
+.mulligan-panel h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+.mulligan-said {
+  margin: 0 0 6px;
+  color: var(--muted);
+  max-width: 46em;
+}
+/* Spread rather than fanned: four cards being chosen between want to be four
+   cards, not a hand held at an angle. */
+.mulligan-panel .hand-fan {
+  border-top: none;
+  background: none;
+  gap: 10px;
+  padding: 6px 0 14px;
+}
+.mulligan-panel .hand-fan .card { margin-left: 0; }
+.mulligan-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+}
+.mulligan-actions .primary {
+  border-color: var(--accent);
+  color: var(--ink);
+}

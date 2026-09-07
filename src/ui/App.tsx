@@ -7,6 +7,7 @@ import { eventsFor, viewOf } from "../view.js";
 import { useOnline } from "./online.js";
 import {
   CardPreview,
+  Mulligan,
   Resources,
   Hand,
   CardMenu,
@@ -89,6 +90,8 @@ export function App() {
     null,
   );
   const [staged, setStaged] = useState<CardId[]>([]);
+  /** The mulligan overlay, set aside for a moment to look at the board. */
+  const [peeking, setPeeking] = useState(false);
   /** Setup starts open — there is nothing to look at until a game exists. */
   const [showSetup, setShowSetup] = useState(true);
   /** Which card's moves are open, and where on screen to put them. */
@@ -611,6 +614,12 @@ export function App() {
             {staged.length > 0 && (
               <button onClick={() => setStaged([])}>clear</button>
             )}
+            {/* Peeking is a look, not a decision, so the way back sits with
+                the other mulligan controls rather than floating over the hand
+                it exists to get you back to. */}
+            {peeking && (
+              <button onClick={() => setPeeking(false)}>back to your hand</button>
+            )}
           </div>
         )}
         {/* Online the refusal comes back from the server, and it is the
@@ -631,6 +640,32 @@ export function App() {
         )}
       </div>
 
+      {/* R117 — the first decision of the game, and the only one made before
+          there is a board to read. It takes the screen rather than sharing it
+          with a board nothing has happened on yet. Only the viewer's own: in
+          a shared game the others are answering theirs, and in hotseat the
+          prompt moves to whoever is being asked. */}
+      {state.pending?.prompt.kind === "mulligan" &&
+        state.pending.player === near &&
+        !peeking && (
+          <Mulligan
+            state={state}
+            playerId={near}
+            staged={staged}
+            max={state.pending.prompt.max}
+            pick={pick}
+            onConfirm={() => {
+              play({
+                type: "decide",
+                playerId: state.pending!.player,
+                targets: staged,
+              });
+              setPeeking(false);
+            }}
+            onClear={() => setStaged([])}
+            onPeek={() => setPeeking(true)}
+          />
+        )}
       {hovered?.rect !== undefined && menu === null && (
         <CardPreview
           state={state}
