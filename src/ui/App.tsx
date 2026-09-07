@@ -128,16 +128,36 @@ export function App() {
   // R107 — the log through the same eyes as the board. `viewOf` closes the
   // state half and `eventsFor` closes the other: an opponent's draw arrives as
   // "a card", because the identity never reaches this client at all.
-  const log = useMemo(
-    () =>
-      (isOnline
-        ? online.events
-        : seat === null
-          ? here.events
-          : eventsFor(here.events, seat)
-      ).map((event) => renderEvent(event, state.cards)),
-    [isOnline, online.events, here.events, seat, state.cards],
-  );
+  const log = useMemo(() => {
+    const events = isOnline
+      ? online.events
+      : seat === null
+        ? here.events
+        : eventsFor(here.events, seat);
+
+    // A phase that nothing happened in is a line saying so. Five of the six
+    // phases are usually empty, so by turn five the log was thirty lines of
+    // "awaken phase / beginning phase / channel phase" with the two things a
+    // player wanted to see buried among them. A phase heading followed
+    // immediately by another heading had nothing under it, and is dropped;
+    // the ones that kept something keep it.
+    return events
+      .filter((event, at) => {
+        if (event.type !== "phaseBegan") return true;
+        const next = events[at + 1];
+        return (
+          next !== undefined &&
+          next.type !== "phaseBegan" &&
+          next.type !== "turnBegan"
+        );
+      })
+      .map((event) => ({
+        line: renderEvent(event, state.cards),
+        // Headings, dimmed: they are structure rather than news, and a player
+        // scanning for what happened should not have to read past them.
+        heading: event.type === "phaseBegan" || event.type === "turnBegan",
+      }));
+  }, [isOnline, online.events, here.events, seat, state.cards]);
   /**
    * Whose moves to offer.
    *
@@ -684,8 +704,10 @@ export function App() {
         <section className="log">
           <h3>log</h3>
           <ol>
-            {log.slice(-40).map((line, i) => (
-              <li key={i}>{line}</li>
+            {log.slice(-40).map((entry, i) => (
+              <li key={i} className={entry.heading ? "is-heading" : ""}>
+                {entry.line}
+              </li>
             ))}
           </ol>
         </section>

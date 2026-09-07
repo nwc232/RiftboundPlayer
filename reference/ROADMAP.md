@@ -734,6 +734,20 @@ for it once the chain was already empty.
 The invariant that states it — *a parked effect owing an answer, with nobody
 being asked* — fails 24 times against a revert of (2).
 
+**k. A wide soak, and the last bug it found.** `npm run soak` — 520 games over
+thirteen deck pairings including every three- and four-seat combination,
+174,000 actions, every invariant on. Kept out of `npm test` at three minutes.
+
+It found one thing the narrow soaks could not: `banishThenPlay` — "banish a
+friendly unit, then its owner plays it to any battlefield" — takes its
+destination as a chosen target, and nothing stopped that choice being a
+battlefield two *other* players were already standing on. R462.2.a's remedy is
+to play the unit to its controller's Base instead, which the token and move
+effects already did and this one path did not. Once in 520 games, in a
+three-seat game, and impossible in a Duel where there is no third side to be.
+
+Re-run after the fix: **520 games, 174,175 actions, 0 unfinished, 0 problems.**
+
 ### Next, in order
 
 **g. The soak still only reaches 76 of 94 by itself.** Not a correctness gap

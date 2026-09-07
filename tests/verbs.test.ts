@@ -227,6 +227,48 @@ describe("banish then play", () => {
     expect(after.events.map((e) => e.type)).toEqual(["banished", "unitPlayed"]);
   });
 
+  /**
+   * R462.2.a — "If an effect would require a Unit be played to a Battlefield
+   * with a Staged Combat or a Combat in Progress, where the controller of the
+   * played unit is not a participant, instead the Unit is played to its
+   * controller's Base." R449.2 is the other half: two *other* players standing
+   * there closes it, whether or not anyone is fighting.
+   *
+   * This one takes its destination as a chosen target — "plays it to any
+   * battlefield" — and nothing stopped that choice being a fight two other
+   * people were already having. Vacuous in a Duel, where there is no third
+   * side to be; found by a soak of 520 games, once, in a three-seat game.
+   */
+  it("sends it to its owner's base when the battlefield is closed to them", () => {
+    const state = makeState({
+      p3: {},
+      cards: [
+        unit("hero", { might: 3 }),
+        unit("theirs", { might: 3 }),
+        unit("others", { might: 3 }),
+      ],
+      permanents: [
+        { cardId: "hero", controller: "p1", exhausted: true },
+        { cardId: "theirs", controller: "p2", location: SOUTH },
+        { cardId: "others", controller: "p3", location: SOUTH },
+      ],
+      battlefields: ["bf-north", "bf-south"],
+    });
+
+    const after = execute(
+      state,
+      banishThenPlay(),
+      context(["hero", "bf-south"]),
+    );
+
+    expect(after.state.permanents.hero?.location).toEqual({
+      kind: "base",
+      player: "p1",
+    });
+    // Still a play: R383.4.a's "when you play" abilities fire off it either way.
+    expect(after.events.map((e) => e.type)).toEqual(["banished", "unitPlayed"]);
+  });
+
   /** R186.1 — a token put into a non-board zone ceases to exist. */
   it("a token banished this way does not come back", () => {
     const state = makeState({

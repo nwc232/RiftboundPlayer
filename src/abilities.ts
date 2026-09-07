@@ -3231,7 +3231,21 @@ export function execute(
         };
       }
 
-      const destination: Location = { kind: "battlefield", id: battlefieldId };
+      // R462.2.a — "If an effect would require a Unit be played to a
+      // Battlefield with a Staged Combat or a Combat in Progress, where the
+      // controller of the played unit is not a participant, instead the Unit
+      // is played to its controller's Base", and R449.2 closes a battlefield
+      // two *other* players already stand on. The same redirect the token and
+      // move effects already make, and this was the one play path without it:
+      // "banish a friendly unit, then its owner plays it to any battlefield"
+      // takes the battlefield as a chosen target, and nothing stopped that
+      // choice being a fight two other people were already having. Found by a
+      // soak of 520 games — once, in a three-seat game, and unreachable in a
+      // Duel where there is no third side to be.
+      const destination: Location =
+        closedToOutsiders(state, battlefieldId, owner)
+          ? { kind: "base", player: owner }
+          : { kind: "battlefield", id: battlefieldId };
       return {
         state: {
           ...state,

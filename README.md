@@ -39,6 +39,18 @@ See `/reference` for provenance notes.
 
 `npm run demo` opens a REPL over the engine. Type `help` for commands.
 
+### Before handing it to someone else
+
+```
+npm run soak
+```
+
+520 games across every deck pairing and every seat count, forty seeds each,
+with every invariant checked after every action — about three minutes. It is
+outside `npm test` because that is the wrong price for every run and the right
+price before a play test. The one bug it has found so far was reachable only
+with three players at the table.
+
 ## Playing someone else
 
 `npm run server` builds the front-end and serves it alongside a WebSocket on

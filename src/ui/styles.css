@@ -188,7 +188,15 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 .chain ol, .log ol { margin: 0; padding-left: 18px; }
 .chain li { margin-bottom: 3px; }
-.log li { color: var(--muted); margin-bottom: 2px; }
+/* What happened reads first; the turn and phase headings under it are
+   structure, not news. Everything used to be one muted grey, which made a
+   thirty-line log of mostly phase announcements impossible to scan. */
+.log li { color: var(--ink); margin-bottom: 2px; }
+.log li.is-heading {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 6px;
+}
 
 .move-groups { display: flex; flex-direction: column; gap: 10px; }
 .move-group { border-left: 2px solid var(--line); padding-left: 8px; }

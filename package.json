@@ -8,6 +8,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "soak": "vitest run --config vitest.soak.config.ts",
     "demo": "tsx src/demo/cli.ts",
     "ui": "vite",
     "ui:build": "vite build",
