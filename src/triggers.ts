@@ -56,6 +56,15 @@ export type TriggerCondition =
    * is its own moment, distinct from the designations it hands out.
    */
   | { on: "combatStarted"; subject: "here" }
+  /**
+   * R344 — a Showdown opening, which is *earlier* than the combat it may
+   * become: R459's combat starts only once the focus has gone round and the
+   * showdown closes. Diana, Lunari says "when a showdown begins here" and
+   * Threshold of the Gray says "when combat starts here", and the two are
+   * different moments on the same battlefield — a card played in response to
+   * the showdown resolves before the combat exists.
+   */
+  | { on: "showdownOpened"; subject: "here" }
   | { on: "permanentKilled"; subject: TriggerSubject }
   /**
    * R827.2.a — becoming Empowered "is an event other Game Effects and
@@ -330,8 +339,23 @@ function matches(
           condition.designation === event.designation)
       );
     case "combatStarted":
+      // "Here" is the battlefield itself when the source *is* one, and the
+      // battlefield it stands at when the source is a unit — the same reading
+      // `battlefieldScored` and `combatWon` already take. Matching only the
+      // first meant a unit could never carry this trigger at all: Diana,
+      // Lunari's ability had no path to the chain, and nothing said so,
+      // because the pool's other user of it is a battlefield.
       return (
-        event.type === "combatOpened" && event.battlefieldId === sourceId
+        event.type === "combatOpened" &&
+        (event.battlefieldId === sourceId ||
+          atBattlefield(state, sourceId, event.battlefieldId))
+      );
+
+    case "showdownOpened":
+      return (
+        event.type === "showdownOpened" &&
+        (event.battlefieldId === sourceId ||
+          atBattlefield(state, sourceId, event.battlefieldId))
       );
 
     case "combatWon":

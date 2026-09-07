@@ -673,10 +673,43 @@ placed nowhere is refused rather than accepted. The invariant that states it —
 because R383.3.a's decline removes its chain item and the next item then asks
 the identical question about what is now index 0.
 
+**i. Targeted tests for what the soak cannot reach — and two more bugs.**
+`tests/unreached.test.ts` builds the situation each unreachable ability names
+and drives it through `applyAction`, because an ability whose effect is perfect
+and whose trigger never reaches the chain is exactly as broken as one with no
+effect, and only the first kind passes an `execute`-level unit test. Seventeen
+of them, including the shapes the soak reaches only by luck: a combat carried
+from the contesting move through to damage, an optional additional cost paid,
+and a spell played onto a chain that already holds one.
+
+What it found:
+
+- **`combatStarted` only matched a battlefield.** "Here" means the battlefield
+  itself when the source *is* one and the battlefield it stands at when the
+  source is a unit — the reading `battlefieldScored` and `combatWon` already
+  take. Matching only the first meant **Diana, Lunari's ability had no path to
+  the chain at all**, and nothing said so, because the pool's only other user
+  of the trigger is a battlefield card. Fixing it raised soak coverage on its
+  own, 75 → 77.
+- **Diana was authored against the wrong moment.** Her text says "when a
+  showdown begins here"; she was triggering on R459's combat opening, a whole
+  focus round later — which is what Threshold of the Gray actually says.
+  R344's showdown is now its own trigger condition.
+
+Three fixture mistakes are written into that file rather than quietly
+corrected, because each looked like an engine bug first: R810.1.b only lets a
+unit move battlefield-to-battlefield with [Ganking]; R355.8 refuses an answer
+naming the same object for two filters; and R337.4 gives priority to the
+controller of the newest chain item, so an opponent cannot answer a spell until
+it is passed to them.
+
 ### Next, in order
 
-**g. The 19 abilities still unfired.** Targeted tests rather than a better
-driver: what is left is mostly cards a 12-rune, 8-point game cannot pay for.
+**g. The 17 abilities still unfired.** Three are named in `unreached.test.ts`
+with the board each would need — Vilemaw's "when I hold" wants a Score Step,
+Astral Heron's "first card each turn" a turn boundary, Ferrous Forerunner's
+[Deathknell] the unit killed. All reachable; all want a longer fixture than one
+action.
 
 **f. Superseded — kept for the reasoning.** Bias the driver toward
 responding. Weight the chooser toward playing

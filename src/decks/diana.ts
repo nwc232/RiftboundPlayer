@@ -70,7 +70,10 @@ export const dianaLunari: CardInstance = {
   abilities: [
     {
       kind: "triggered",
-      trigger: { on: "combatStarted", subject: "here" },
+      // "When a showdown begins here" — R344's moment, not R459's. It was
+      // authored as `combatStarted`, which is a whole focus round later and
+      // is what Threshold of the Gray actually says.
+      trigger: { on: "showdownOpened", subject: "here" },
       optional: true,
       // R383.3.b — "you may pay [1]" at the front of the effect is the
       // ability's base cost, paid to finalize.
