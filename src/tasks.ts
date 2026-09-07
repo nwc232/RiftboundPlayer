@@ -546,14 +546,40 @@ export function park(outcome: EffectOutcome): Progress {
   };
 }
 
-/** Records the answer the queue was waiting on, so the effect can finish. */
+/**
+ * Records the answer the queue was waiting on, so the effect can finish.
+ *
+ * The answer goes to the first `resumeEffect` still *asking* — the one
+ * `runTasks` would suspend on next, walking from the head — rather than to
+ * whatever happens to be at position zero. `park` puts a paused effect at the
+ * front without setting `pending`, so between parking and being asked, other
+ * outstanding work can legitimately be queued in front of it (R319.6: a
+ * cleanup incited by something more recent is handled first). When that
+ * happened, the answer landed on the cleanup, which ignored it, and the same
+ * prompt came back unchanged forever: one soak game spent 59,808 `decide`
+ * actions on turn 13 answering the same Predict, and the engine accepted every
+ * one of them.
+ *
+ * Returns `undefined` when there is nothing to answer, so the caller can
+ * refuse rather than accept a move that changes nothing. A refusal is a
+ * failure anyone will notice; silently accepting one is a game that never
+ * ends.
+ */
 export function applyResumeAnswer(
   state: GameState,
   answer: CardId[],
-): GameState {
-  const [head, ...rest] = state.tasks;
-  if (head === undefined || head.kind !== "resumeEffect") return state;
-  return { ...state, pending: null, tasks: [{ ...head, answer }, ...rest] };
+): GameState | undefined {
+  const at = state.tasks.findIndex(
+    (task) => task.kind === "resumeEffect" && task.answer === undefined,
+  );
+  if (at === -1) return undefined;
+  return {
+    ...state,
+    pending: null,
+    tasks: state.tasks.map((task, index) =>
+      index === at ? { ...task, answer } : task,
+    ),
+  };
 }
 
 export function enqueue(state: GameState, ...tasks: Task[]): GameState {

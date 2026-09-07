@@ -640,12 +640,43 @@ single deal.
 Prototyped and currently clean; worth keeping once the deeper chains above are
 common enough for it to mean anything.
 
+**f2. The driver could not afford anything — 63 → 75.** The "expensive units"
+guess in (g) was right about the symptom and wrong about the cause. Nothing
+costing more than 3 was ever *offered* to the driver, and the largest pool it
+assembled across four thousand games was 7.
+
+R164.2 gives a rune two abilities and R416 puts no ready requirement on the
+second: index 0 exhausts it for Energy and leaves it standing, index 1
+**recycles** it back to the Rune Deck. Treated as one pool, recycling is the
+most available action in the game — offered to every player at every moment —
+and a uniform chooser took it that often. Traced over one game: 33 runes
+channeled, 33 recycled, the board oscillating between nought and two for
+eighteen turns. Holding recycles back everywhere (not only in the branch that
+banks) was worth twelve abilities.
+
+Some of the rest are genuinely out of reach: Vilemaw costs 8 Energy and 2
+Calm Power, which is ten runes in one turn, and games end at 8 points long
+before that. Those want targeted tests, not a better driver.
+
+**h. A dropped answer, found by the widened soak.** One game spent 59,808
+`decide` actions on turn 13 answering the same Predict. `park` puts a paused
+effect at the front of the queue *without* setting `pending`, so between
+parking and being asked, other outstanding work is legitimately queued in
+front of it (R319.6). `applyResumeAnswer` delivered the answer to whatever sat
+at position zero — a cleanup — which ignored it, and `applyAction` returned
+ok. Every existing assertion held: nobody was stuck, nothing illegal was
+offered, no decision was stranded.
+
+The answer now goes to the first task still asking, and an answer that can be
+placed nowhere is refused rather than accepted. The invariant that states it —
+*an accepted answer changed something* — is compared against the whole board,
+because R383.3.a's decline removes its chain item and the next item then asks
+the identical question about what is now index 0.
+
 ### Next, in order
 
-**g. The 31 abilities still unfired.** With the measurement honest, the
-remainder is a real list rather than an artifact. Most are units expensive
-enough that a random player never saves for them, which argues for a driver
-that holds resources rather than spending them on the first legal thing.
+**g. The 19 abilities still unfired.** Targeted tests rather than a better
+driver: what is left is mostly cards a 12-rune, 8-point game cannot pay for.
 
 **f. Superseded — kept for the reasoning.** Bias the driver toward
 responding. Weight the chooser toward playing

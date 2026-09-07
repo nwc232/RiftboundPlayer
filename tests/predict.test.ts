@@ -8,6 +8,7 @@ import { applyAction } from "../src/actions.js";
 import { seatOf } from "../src/state.js";
 import type { GameState } from "../src/state.js";
 import type { Action } from "../src/actions.js";
+import type { PendingDecision } from "../src/decisions.js";
 import { makeState, pool, unit } from "./fixtures.js";
 
 const context = (): EffectContext => ({
@@ -226,12 +227,37 @@ describe("playing a [Vision] permanent", () => {
  * to be one `applyAction` accepts — and every answer a player has must appear.
  */
 describe("enumerating a predict", () => {
-  function pendingPredict(legal: string[]): GameState {
-    const base = deckBoard(legal);
+  /**
+   * A prompt is never on the table by itself: a Predict is raised by an effect
+   * that paused mid-resolution and parked what was left of itself on the
+   * queue, and the answer is delivered back to *that task*. Setting `pending`
+   * alone builds a board the engine cannot produce, and one where answering
+   * has nowhere to land — which is now a refusal rather than a prompt that
+   * comes back unchanged for ever.
+   */
+  function asking(
+    base: GameState,
+    prompt: Extract<
+      PendingDecision["prompt"],
+      { kind: "predict" | "orderPredicted" }
+    >,
+  ): GameState {
     return {
       ...base,
-      pending: { player: "p1", prompt: { kind: "predict", legal } },
+      pending: { player: "p1", prompt },
+      tasks: [
+        {
+          kind: "resumeEffect",
+          effect: { op: "takePredicted", revealed: [...prompt.legal] },
+          context: { controller: "p1", sourceId: "src", targets: [] },
+          decision: { player: "p1", prompt },
+        },
+      ],
     };
+  }
+
+  function pendingPredict(legal: string[]): GameState {
+    return asking(deckBoard(legal), { kind: "predict", legal });
   }
 
   it("offers every subset, the empty one included", () => {
@@ -252,14 +278,10 @@ describe("enumerating a predict", () => {
    * same shape of prompt for R372's damage ordering left the CLI stuck.
    */
   it("offers whole orders, not single cards", () => {
-    const base = deckBoard(["a", "b"]);
-    const state: GameState = {
-      ...base,
-      pending: {
-        player: "p1",
-        prompt: { kind: "orderPredicted", legal: ["a", "b"] },
-      },
-    };
+    const state = asking(deckBoard(["a", "b"]), {
+      kind: "orderPredicted",
+      legal: ["a", "b"],
+    });
 
     const answers = legalActions(state, "p1").map((action) =>
       action.type === "decide" ? (action.targets ?? []) : null,

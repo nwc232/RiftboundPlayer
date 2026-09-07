@@ -225,6 +225,7 @@ describe("whole games with more than two seats", () => {
         throw new Error(`nobody can act at step ${steps}`);
       }
 
+      const before = state;
       const result = applyAction(state, action);
       if (!result.ok) {
         throw new Error(
@@ -234,7 +235,7 @@ describe("whole games with more than two seats", () => {
       }
       state = result.state;
       steps += 1;
-      checkInvariants(state, action);
+      checkInvariants(state, action, before);
     }
 
     return state;

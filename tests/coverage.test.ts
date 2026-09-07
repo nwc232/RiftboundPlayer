@@ -133,7 +133,7 @@ describe("how much of the pool random play reaches", () => {
    * shuffle cannot trip it — but a bug that stops abilities resolving takes
    * the number down sharply, which is exactly what happened and went unnoticed.
    */
-  const FLOOR = 55;
+  const FLOOR = 68;
 
   it(`fires at least ${FLOOR} distinct authored abilities`, () => {
     const fired = soak([[0, 1], [2, 0], [3, 4], [0, 1, 2]], 12);

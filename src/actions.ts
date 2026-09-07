@@ -651,6 +651,9 @@ export function decide(
       head?.kind === "combatDamage"
         ? applyDamageOrder(state, prompt.subject, chosen)
         : applyResumeAnswer(state, chosen);
+    // Nothing was waiting on it. See `applyResumeAnswer`: accepting an answer
+    // that lands nowhere leaves the same prompt on the table for ever.
+    if (answered === undefined) return rejected("noDecision");
     const worked = runTasks(answered);
     return afterTasks(worked.state, worked.events);
   }
@@ -663,7 +666,9 @@ export function decide(
       return rejected("invalidTarget");
     }
     if (new Set(chosen).size !== chosen.length) return rejected("invalidTarget");
-    const worked = runTasks(applyResumeAnswer(state, chosen));
+    const answered = applyResumeAnswer(state, chosen);
+    if (answered === undefined) return rejected("noDecision");
+    const worked = runTasks(answered);
     return afterTasks(worked.state, worked.events);
   }
 
@@ -679,7 +684,9 @@ export function decide(
     ) {
       return rejected("invalidTarget");
     }
-    const worked = runTasks(applyResumeAnswer(state, chosen));
+    const answered = applyResumeAnswer(state, chosen);
+    if (answered === undefined) return rejected("noDecision");
+    const worked = runTasks(answered);
     return afterTasks(worked.state, worked.events);
   }
 
@@ -716,7 +723,9 @@ export function decide(
     if (opponent === undefined || !prompt.legal.includes(opponent as PlayerId)) {
       return rejected("invalidTarget");
     }
-    const worked = runTasks(applyResumeAnswer(state, chosen));
+    const answered = applyResumeAnswer(state, chosen);
+    if (answered === undefined) return rejected("noDecision");
+    const worked = runTasks(answered);
     return afterTasks(worked.state, worked.events);
   }
 
@@ -728,7 +737,9 @@ export function decide(
     if (!chosen.every((id) => prompt.legal.includes(id))) {
       return rejected("invalidTarget");
     }
-    const worked = runTasks(applyResumeAnswer(state, chosen));
+    const answered = applyResumeAnswer(state, chosen);
+    if (answered === undefined) return rejected("noDecision");
+    const worked = runTasks(answered);
     return afterTasks(worked.state, worked.events);
   }
 
@@ -740,7 +751,9 @@ export function decide(
     if (!chosen.every((id) => prompt.legal.includes(id))) {
       return rejected("invalidTarget");
     }
-    const worked = runTasks(applyResumeAnswer(state, chosen));
+    const answered = applyResumeAnswer(state, chosen);
+    if (answered === undefined) return rejected("noDecision");
+    const worked = runTasks(answered);
     return afterTasks(worked.state, worked.events);
   }
 

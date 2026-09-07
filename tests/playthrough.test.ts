@@ -60,6 +60,7 @@ function play(seed: number, maxSteps = 4000, decks?: [number, number]): Outcome 
   let steps = 0;
 
   const take = (action: Action): void => {
+    const before = state;
     const result = applyAction(state, action);
     if (!result.ok) {
       throw new Error(
@@ -71,7 +72,7 @@ function play(seed: number, maxSteps = 4000, decks?: [number, number]): Outcome 
     steps += 1;
     // The statements about what a board may never look like — see
     // `invariants.ts` for why the assertions above are not enough.
-    checkInvariants(state, action);
+    checkInvariants(state, action, before);
   };
 
   while (state.winner === null && steps < maxSteps) {

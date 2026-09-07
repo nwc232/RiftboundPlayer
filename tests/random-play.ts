@@ -49,13 +49,62 @@ export function chooseAction(
   // R650 lets anyone concede at any moment, so `legalActions` offers it every
   // time. A random player who takes it ends the game on move one and
   // exercises nothing, so this one is declined rather than weighted.
-  const live = options.filter((action) => action.type !== "concede");
-  if (live.length === 0) return undefined;
+  const all = options.filter((action) => action.type !== "concede");
+  if (all.length === 0) return undefined;
+
+  // R416.1.b — recycling a rune sends the card back to the Rune Deck, and
+  // R164.2's recycle has no ready requirement, so it is offered to every
+  // player at every moment of every turn. Left in the general pool it is the
+  // single most available action in the game, and a uniform chooser takes it
+  // that often: traced over one game, forty-seven of forty-seven recycles came
+  // from nothing but a spare click, and the board oscillated between nought
+  // and two runes for the whole eighteen turns. Channeled 33, recycled 33.
+  //
+  // So it is held back everywhere rather than only in the branch below — being
+  // careful in one place and careless in three is the same as being careless.
+  // It is still taken, because it is the only source of Power of a named
+  // domain and half the pool's costs demand some.
+  const isRecycle = (action: Action): boolean =>
+    action.type === "activateAbility" &&
+    action.abilityIndex === 1 &&
+    state.runes[action.sourceId] !== undefined;
+  const thrifty = rand() < 0.94;
+  const spending = thrifty ? all.filter((action) => !isRecycle(action)) : all;
+  const live = spending.length > 0 ? spending : all;
 
   // Answering is never declined: a decision on the table is the only thing
   // that can happen, and it is usually the interesting half of a trigger.
   const answers = live.filter((action) => action.type === "decide");
   if (answers.length > 0) return pick(answers, rand);
+
+  // R161.1 — a rune's whole job is filling the pool, and the pool is what
+  // makes an expensive card playable at all. Left to itself the chooser spends
+  // its pool on the first legal thing every turn and never banks: of the
+  // thirty-one abilities that still never fired, twenty-one belonged to cards
+  // that reached a hand and were never once *offered*, the expensive ones
+  // because nothing had paid for them. So the turn player fills up first.
+  //
+  // Only the turn player, and only in an Open State. Everyone else keeps their
+  // runes readied, which is what pays for a [Reaction] on somebody else's turn
+  // — draining them would quietly cost the chain depth the bias above exists
+  // to build.
+  if (state.chain.length === 0 && state.turn.player === actingIn(live)) {
+    const runes = live.filter(
+      (action) =>
+        action.type === "activateAbility" &&
+        state.runes[action.sourceId] !== undefined,
+    );
+    // Index 0 is the exhaust — R164.2's "Add [1]", which leaves the rune
+    // standing. The largest pool the driver ever assembled across four
+    // thousand games was 7, and nothing costing more than 3 was ever
+    // *offered* to it; twenty-one of the abilities that never fired belong to
+    // cards nobody had paid for.
+    const exhaust = runes.filter(
+      (action) => action.type === "activateAbility" && action.abilityIndex === 0,
+    );
+    if (exhaust.length > 0 && rand() < 0.7) return pick(exhaust, rand);
+
+  }
 
   // With something already on the chain, prefer adding to it. This is the
   // whole point: `Faefolk → Gust → Pridestalker` is the shape that broke
@@ -97,6 +146,11 @@ function unseen(
     return cardId !== undefined && novel(cardId);
   });
   return fresh.length > 0 ? fresh : from;
+}
+
+/** Whose options these are. Every action carries the player taking it. */
+function actingIn(options: Action[]): string | undefined {
+  return options[0]?.playerId;
 }
 
 function pick<T>(from: T[], rand: () => number): T {
