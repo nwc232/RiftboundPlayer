@@ -8,7 +8,6 @@ import { useOnline } from "./online.js";
 import {
   CardPreview,
   Mulligan,
-  Resources,
   Hand,
   CardMenu,
   Battlefields,
@@ -814,10 +813,10 @@ export function App() {
           near
         />
         </div>
-        {/* The three things you act with, always on screen: what you can pay
-            with, and what you can play. */}
+        {/* R107.1.c puts a player's runes in their Base, so they live on the
+            mat beside it now rather than in this tray. What is left here is
+            the hand, along the bottom edge where it is on a table. */}
         <div className="tray">
-          <Resources state={state} playerId={near} pick={pick} />
           <Hand state={state} playerId={near} pick={pick} />
         </div>
       </main>

@@ -472,14 +472,25 @@ button:disabled { opacity: 0.4; cursor: default; }
      box and it *tiled* — which is where the second and third copies of the
      rules text were coming from. At full width the visible strip is the top
      third of the card, which is the illustration. */
-  /* Centred, not anchored to the top. A battlefield card is printed for a
-     shared table: its rules text appears twice, once each way up, so players
-     on either side can read it. Cropping to the top of the image showed the
-     opponent's half — which is why the mat kept wearing a band of mirrored,
-     upside-down text. The illustration is the middle. */
-  background-size: 150% auto;
-  background-position: center center;
-  background-repeat: no-repeat;
+
+}
+/*
+ * The card's art, blurred. A battlefield card is landscape (1039x744, where
+ * every other card is 744x1039) and printed for a shared table, so its rules
+ * text runs along both long edges — once upside down for the player opposite.
+ * A mat is never the card's shape, so any crop that isolates the art at two
+ * battlefields catches the text at three. Blurring settles it at every size.
+ */
+.bf-art {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  background-size: cover;
+  background-position: center;
+  /* Scaled past the edges so the blur has something to bleed from. */
+  transform: scale(1.08);
+  filter: blur(7px) brightness(0.78) saturate(1.25);
 }
 .battlefield::before {
   content: "";
@@ -490,8 +501,8 @@ button:disabled { opacity: 0.4; cursor: default; }
   /* Dark enough for the units and the control state to read cleanly, light
      enough that you can tell which battlefield you are looking at. */
   background: linear-gradient(
-    rgba(12, 14, 22, 0.72),
-    rgba(12, 14, 22, 0.88)
+    rgba(12, 14, 22, 0.45),
+    rgba(12, 14, 22, 0.72)
   );
 }
 .battlefield header { position: relative; }
@@ -623,7 +634,6 @@ button.concede:hover:not(:disabled) {
  */
 .hand-fan { --card-w: 92px; }
 .battlefields { --card-w: 74px; }
-.board .battlefield > .card { --card-w: 104px; }
 .panel.is-near { --card-w: 64px; }
 .panel.is-far { --card-w: 46px; }
 
@@ -690,19 +700,16 @@ button.concede:hover:not(:disabled) {
   grid-auto-columns: 1fr;
   gap: 10px;
   flex: 1 1 auto;
-  min-height: 250px;
+  min-height: 210px;
 }
 .board .battlefield {
-  /* The battlefield card down the left, its name and its units to the right
-     of it. A single column stacked them and left the units nowhere to go. */
   display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas: "face head" "face units";
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "head" "units";
   align-content: start;
-  gap: 4px 10px;
+  gap: 4px;
   min-height: 0;
 }
-.board .battlefield > .card { grid-area: face; align-self: start; }
 .board .battlefield > header { grid-area: head; margin-bottom: 0; }
 .board .bf-units {
   grid-area: units;
@@ -978,4 +985,92 @@ button.concede:hover:not(:disabled) {
   .card-might.is-changed,
   .chain li { animation: none; }
   .battlefield { transition: none; }
+}
+
+/*
+ * The playmat.
+ *
+ * R106 defines the play area as logical zones, but a table arranges them: who
+ * you are on the left, the board in the middle, what you draw from and
+ * discard to on the right, and your hand along the edge in front of you. The
+ * panel used to render only what *existed*, so an empty Base was the word
+ * "empty" and the Rune Deck was not on screen at all — a mat prints its zones
+ * so the empty ones still read as somewhere a card goes.
+ */
+.mat-grid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px 12px;
+  align-items: start;
+}
+.mat-identity,
+.mat-piles { display: flex; gap: 8px; align-items: flex-start; }
+/* Base and runes side by side rather than stacked: R107.1.c has the runes
+   residing *in* the Base, and stacking them made every mat two card-heights
+   tall — two of those plus the battlefields and a hand did not fit a laptop.
+   One row each is also what a mat looks like. */
+.mat-middle { display: flex; gap: 8px; min-width: 0; }
+.mat-middle > .zone { flex: 1 1 0; min-width: 0; }
+
+.zone {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.zone-label {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.zone-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: flex-start;
+  /* An empty zone is still a space, so it keeps a card's footprint and a
+     dotted outline rather than collapsing to nothing. */
+  min-height: calc(var(--card-w) * 1039 / 744);
+  min-width: var(--card-w);
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 3px;
+}
+.zone.is-wide .zone-body { min-width: 0; }
+.is-far .zone-body { padding: 2px; }
+.is-far .zone-label { font-size: 9px; }
+.zone.is-wide { flex: 1 1 auto; min-width: 0; }
+
+/* The Main and Rune Decks: R107.2/R108.5.d make both orders secret from
+   everyone, their owner included, so there is nothing to show but the count. */
+.pile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 1039 / 744);
+  border-radius: 5px;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--panel-2),
+    var(--panel-2) 5px,
+    var(--panel) 5px,
+    var(--panel) 10px
+  );
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+/* The runes zone holds the strip and the pool readout side by side. */
+.zone .resources { flex-direction: row; align-items: center; gap: 10px; }
+
+/* A laptop is 800px tall and two playmats, three battlefields and a hand do
+   not fit one at the sizes a desktop gets. The battlefields give up the room
+   because they are the zone with slack in it — the mats are card-sized and
+   cannot shrink without becoming unreadable. */
+@media (max-height: 860px) {
+  .board .battlefields { min-height: 168px; }
+  .zone-body { padding: 2px; }
+  .mat-grid { gap: 6px 10px; }
 }

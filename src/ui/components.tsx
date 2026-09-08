@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { totals } from "../cost.js";
 import { victoryScore } from "../scoring.js";
 import { artFor } from "./card-art.js";
@@ -193,9 +194,54 @@ function Row({
 }
 
 /**
- * A player's side of the board. Both are rendered identically and from the
- * same data, so making one of them "theirs" later is a filter on what is
- * passed in rather than a different component.
+ * One space on the mat, labelled, whether or not anything is in it.
+ *
+ * A playmat prints its zones so the empty ones still read as somewhere a card
+ * goes. That is the whole difference between a mat and a list: the panel used
+ * to render only what existed, so a base with nothing in it was the word
+ * "empty" and the Rune Deck was not on screen at all.
+ */
+function Zone({
+  label,
+  children,
+  wide = false,
+}: {
+  label: string;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div className={`zone ${wide ? "is-wide" : ""}`}>
+      <span className="zone-label">{label}</span>
+      <div className="zone-body">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * A face-down pile: the Main Deck (R108.4) and the Rune Deck (R108.5).
+ *
+ * R107.2/R108.5.d — the order of both is Secret Information from everyone,
+ * their owner included, so there is nothing to show but how many are left.
+ * They were a tally in the panel header before, which put "deck 35" in the
+ * same breath as the score and gave neither a place on the board.
+ */
+function Pile({ count }: { count: number }) {
+  return (
+    <div className="pile" aria-label={`${count} cards`}>
+      <span>{count}</span>
+    </div>
+  );
+}
+
+/**
+ * A player's side of the board — a playmat, with a space for each zone the
+ * rules give them: R107.4's Legend Zone, R108.3's Champion Zone, R107.1's
+ * Base (which R107.1.c is also where their Runes reside), R108.4's Main Deck,
+ * R108.5's Rune Deck, and R108.2's Trash.
+ *
+ * Both seats render from this same component, so making one of them "theirs"
+ * stays a filter on what is passed in rather than a different component.
  */
 export function PlayerPanel({
   state,
@@ -218,7 +264,6 @@ export function PlayerPanel({
   near?: boolean;
 }) {
   const player = seatOf(state, playerId);
-  const pool = totals(player.runePool);
   const base: Location = { kind: "base", player: playerId };
   const inBase = unitsAt(state, base).map((permanent) => permanent.cardId);
 
@@ -252,36 +297,88 @@ export function PlayerPanel({
             {player.points}
             <em>/{victoryScore(state)}</em>
           </span>
+          {/* The deck and the trash have spaces on the mat now, so counting
+              them here as well put "deck 35" in the same breath as the score
+              and gave neither a place on the board. */}
           {player.xp > 0 && <span className="tally">{player.xp} XP</span>}
-          <span className="tally">deck {player.mainDeck.length}</span>
-          <span className="tally">trash {player.trash.length}</span>
         </div>
       </header>
 
       {/*
-        Your own side is a strip rather than a stack: legend, champion and base
-        are one or two cards each, and stacking them spent 150px of the mat on
-        three mostly-empty rows. Everyone else keeps the stack, because their
-        panel is narrow.
+        The mat. Every zone the rules give a player has a printed space here,
+        occupied or not — R107.4's Legend, R108.3's Champion, R107.1's Base,
+        R108.5's Rune Deck, R108.4's Main Deck and R108.2's Trash — laid out
+        the way they sit in front of you: who you are on the left, the board
+        in the middle, what you draw from and discard to on the right.
 
-        R107.4.c — the Champion Legend is a Game Object, and several print an
-        activated ability. It was a text label, which meant no way to read what
-        it does, no way to see it exhausted, and no way to click it — so a
-        Legend whose ability you were meant to use looked like a Legend that
-        did nothing.
+        R107.4.c — the Champion Legend is a Game Object and several print an
+        activated ability. It was a text label once, which meant no way to
+        read it, no way to see it exhausted and no way to click it.
       */}
-      <div className={near ? "panel-strip" : ""}>
-      {player.legend !== null && (
-        <Row
-          label="legend"
-          ids={[player.legend]}
-          state={state}
-          pick={pick}
-          exhausted={player.legendExhausted === true}
-        />
-      )}
-      {/* Yours is the fan along the bottom; theirs stays here, because a
-          hand you cannot play out of is information rather than a control. */}
+      <div className="mat-grid">
+        <div className="mat-identity">
+          <Zone label="legend">
+            {player.legend === null ? null : (
+              <Card
+                state={state}
+                cardId={player.legend}
+                pick={pick}
+                exhausted={player.legendExhausted === true}
+              />
+            )}
+          </Zone>
+          <Zone label="champion">
+            {player.champion === null ? null : (
+              <Card
+                state={state}
+                cardId={player.champion}
+                pick={pick}
+                cost={costLabel(state, playerId, player.champion)}
+              />
+            )}
+          </Zone>
+        </div>
+
+        <div className="mat-middle">
+          <Zone label="base" wide>
+            {inBase.map((id) => (
+              <Card key={id} state={state} cardId={id} pick={pick} />
+            ))}
+          </Zone>
+          {/* R107.1.c — "Permanents and Runes controlled by a player reside in
+              that player's Base", so the runes belong beside it rather than
+              in a tray at the other end of the screen. */}
+          <Zone label="runes" wide>
+            <Resources state={state} playerId={playerId} pick={pick} />
+          </Zone>
+        </div>
+
+        <div className="mat-piles">
+          <Zone label="rune deck">
+            <Pile count={player.runeDeck.length} />
+          </Zone>
+          <Zone label="deck">
+            <Pile count={player.mainDeck.length} />
+          </Zone>
+          {/* R108.2.d — a Trash is Public Information, so the top of it is
+              shown rather than counted: what somebody has spent is half of
+              reading their board. */}
+          <Zone label="trash">
+            {player.trash.length === 0 ? null : (
+              <Card
+                state={state}
+                cardId={player.trash[player.trash.length - 1]!}
+                sub={player.trash.length > 1 ? `+${player.trash.length - 1}` : undefined}
+                pick={pick}
+              />
+            )}
+          </Zone>
+        </div>
+      </div>
+
+      {/* Yours is the fan along the bottom edge; theirs stays on the mat,
+          because a hand you cannot play out of is information rather than a
+          control. */}
       {!near && (
         <Row
           label="hand"
@@ -292,33 +389,7 @@ export function PlayerPanel({
           empty="no cards"
         />
       )}
-      <Row label="base" ids={inBase} state={state} pick={pick} empty="empty" />
-      {player.champion !== null && (
-        <Row
-          label="champion"
-          ids={[player.champion]}
-          state={state}
-          pick={pick}
-          owner={playerId}
-        />
-      )}
 
-      {/* Yours live in the tray beside your hand, where you use them. An
-          opponent's are information — what they can pay with — so they are a
-          line here rather than a set of controls. */}
-      </div>
-
-      {/* Yours live in the tray beside your hand, where you use them. An
-          opponent's are information — what they can pay with — so they are a
-          line here rather than a set of controls. */}
-      {!near && (
-        <div className="row">
-          <span className="row-label">runes</span>
-          <div className="row-cards">
-            <Resources state={state} playerId={playerId} pick={pick} />
-          </div>
-        </div>
-      )}
     </section>
   );
 }
@@ -474,33 +545,29 @@ export function Battlefields({
             className={`battlefield ${inCombat ? "is-showdown" : ""} ${
               contested !== null ? "is-contested" : ""
             } ${battlefield?.controller != null ? "is-held" : ""}`}
-            // The card's *art*, not the whole card. `cover` scaled the entire
-            // face — printed name and rules text included — so every mat wore
-            // a second garbled copy of its own text under the units. Blown up
-            // and anchored near the top, only the illustration shows.
-            style={
-              artFor(nameOf(state, battlefieldId)) === undefined
-                ? undefined
-                : {
-                    backgroundImage: `url(${artFor(nameOf(state, battlefieldId))})`,
-                  }
-            }
           >
-            {/* The battlefield's own card, on the mat rather than only behind
-                it. R107.2.b makes each battlefield a Location, and on a table
-                that location *is* a card lying there with units placed around
-                it — a washed background reads as decoration, and the printed
-                text on it was invisible until you knew to hover the name. */}
-            <Card
-              state={state}
-              cardId={battlefieldId}
-              sub={
-                battlefield?.controller === null || battlefield === undefined
-                  ? undefined
-                  : `held by ${battlefield.controller}`
-              }
-              pick={pick}
-            />
+            {/* The card's art, blurred into atmosphere rather than cropped to
+                it. A battlefield card is landscape and printed for a shared
+                table — a bar of upside-down rules text along the top for the
+                player opposite, art through the middle, name plate and the
+                upright text below — and a mat is never the same shape as the
+                card, so any crop that isolates the art at one battlefield
+                count catches the text at another. Blurred, none of that is
+                readable and what is left is the colour of the place. */}
+            {artFor(nameOf(state, battlefieldId)) !== undefined && (
+              <div
+                className="bf-art"
+                style={{
+                  backgroundImage: `url(${artFor(nameOf(state, battlefieldId))})`,
+                }}
+              />
+            )}
+            {/* No separate card face on the mat: a battlefield card is
+                *landscape* (1039x744, where every other card is 744x1039), so
+                rendering it in a portrait card box squashed it. The mat is the
+                card — its art is the mat's background, its name is the header,
+                and its printed text is a hover away. R107.2.b makes each
+                battlefield a Location, and this is that location. */}
             <header
               // Anchored to the name rather than to the header, which spans
               // the whole mat: a preview measured off that opens past the
