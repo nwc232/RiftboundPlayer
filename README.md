@@ -1,28 +1,76 @@
 # Riftbound Engine
 
-A rules-enforced engine for the Riftbound TCG (Riot Games), with a
-React front-end over it.
-Solo portfolio project. TypeScript on Node, test-driven.
+[![CI](https://github.com/nwc232/RiftboundPlayer/actions/workflows/ci.yml/badge.svg)](https://github.com/nwc232/RiftboundPlayer/actions/workflows/ci.yml)
 
-## Scope
+A rules-enforced engine for the Riftbound TCG (Riot Games), with a React
+front-end over it — two to four players, on one screen or over a socket.
 
-Engine first, and it stays the point: pure, immutable, rules-enforced, with
-the Core Rules cited throughout. A React front-end runs over the same
-`applyAction` without the engine knowing about it.
+![The board mid-showdown](docs/board.png)
 
-Five real constructed decks are authored and playable end to end.
+The engine decides what is legal; the interface only ever shows you what the
+engine already agreed to. `legalActions` enumerates candidate moves and
+validates each one through `applyAction` — the same code path that performs
+them — so the move list and the rules cannot drift apart.
 
-Four of the Core Rules' sanctioned Modes of Play are built: 1v1 Duel (R485),
-1v1 Match (R486, best of three or five with battlefields rotating between
-games), FFA3 Skirmish (R487) and FFA4 War (R488) — two, three or four
-players, online or on one screen. 2v2 Magma Chamber (R489) is deferred; it
-needs teams, and `reference/ROADMAP.md` §6e says what that costs.
+- **935 cards** in the pool, **100 authored** across five constructed decks
+- **167 distinct rules** from the Core Rules cited in the source, across
+  priority, the resolution chain, combat and multiplayer turn order
+- **1,300+ tests**, including a soak harness that plays whole games and checks
+  invariants after every action
+- Four sanctioned Modes of Play: 1v1 Duel (R485), 1v1 Match (R486), FFA3
+  Skirmish (R487), FFA4 War (R488)
 
-## Data source
+## The one hard constraint
 
-Card data is sourced from community-published projects, not Riot's
-official API (whose developer terms prohibit gameplay-simulation use).
-See `/reference` for provenance notes.
+Card data comes from community-published projects, **never Riot's official
+API** — Riot's developer terms treat gameplay simulation as a prohibited use
+of an API key. See `reference/CARD-DATA-SOURCE.md` for provenance.
+
+## How it is built
+
+**A pure, immutable state machine.** `applyAction(state, action)` returns
+`{ ok, state, events }` and nothing else — no mutation, no I/O, no clock. The
+core imports nothing from Node, so the same source runs in a browser
+unchanged; that is what lets the whole game work with no server at all.
+
+**Abilities are data, not functions.** One interpreter turns them into state
+changes, so `GameState` stays JSON-serializable — which is what makes network
+sync, per-player views and deterministic replay possible at all. A test
+round-trips every authored card through JSON to keep it true.
+
+**Hidden information is enforced at the boundary, not in the renderer.** The
+server sends each seat `viewOf(state, seat)` and `eventsFor(events, seat)`, so
+a client cannot display what it was never sent. An opponent's draw arrives as
+"a card".
+
+**A game is a seed plus a list of actions.** Because the engine is
+deterministic, that pair reproduces any game exactly — which turns "something
+looked wrong and I could not see what happened" into a case that can be
+re-run, stepped through and asserted about.
+
+## How the bugs get found
+
+Volume of tests is not the interesting part; four rounds of measurement said
+so. What works here is stating what a board may **never** look like, and
+checking it after every action of a randomised playthrough:
+
+- *An item owing a choice with nobody being asked for it.*
+- *An accepted answer that changed nothing.*
+- *A card without reaction timing joining a chain that already exists.*
+- *A parked effect owed an answer while the chain moves on.*
+
+Each of those caught a real bug that every existing assertion had passed
+through — including two mutual deadlocks between rules, and one dropped
+decision that left a game answering the same prompt **59,808 times** while
+nothing was stuck, nothing illegal was offered, and no test failed.
+
+**The invariants are themselves tested.** Each one was validated by
+reintroducing the bug it was written to catch and confirming it fails — an
+oracle nobody has checked is a comfort, not a test.
+
+The random driver is steered rather than uniform: it prefers building chains
+over draining them, and prefers cards it has not exercised yet. Both biases
+came from measuring where it was *not* going.
 
 ## Scripts
 
@@ -95,9 +143,6 @@ screen.
 
 Not currently used — the tunnel above is the setup in practice. Kept because
 the constraints below are real for any host, not just this one.
-
-The `Dockerfile` builds the front-end and runs the server; any host that takes
-a container will do. `fly.toml` is set up for Fly.io:
 
 The `Dockerfile` builds the front-end and runs the server; any host that takes
 a container will do. `fly.toml` is set up for Fly.io:

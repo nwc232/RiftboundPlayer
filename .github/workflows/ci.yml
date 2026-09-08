@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Sundays, 04:00 UTC — the long soak only.
+    - cron: "0 4 * * 0"
+
+jobs:
+  check:
+    name: typecheck, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  # The wide soak is 520 games and about three minutes, which is the wrong
+  # price for every push and the right price once a week. It plays every deck
+  # pairing at every seat count with every invariant checked after every
+  # action; the one bug it has found so far was reachable only with three
+  # players at the table.
+  soak:
+    name: long soak
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run soak
