@@ -119,6 +119,10 @@ function Card({
       <span className="card-name">{now.name}</span>
       {might !== undefined && (
         <span
+          // The value is the key, so a Might that changes is a *new* element
+          // and its animation plays. Without it React keeps the old span and
+          // only the text changes, which is the thing that was easy to miss.
+          key={`might-${might}`}
           className={`card-might ${printed !== undefined && printed !== might ? "is-changed" : ""}`}
         >
           {might}
@@ -127,7 +131,11 @@ function Card({
       {cost !== undefined && <span className="card-cost">{cost}</span>}
       {sub !== undefined && <span className="card-sub">{sub}</span>}
       {permanent !== undefined && permanent.damage > 0 && (
-        <span className="card-damage" title={`${permanent.damage} damage`}>
+        <span
+          key={`damage-${permanent.damage}`}
+          className="card-damage"
+          title={`${permanent.damage} damage`}
+        >
           {permanent.damage}
         </span>
       )}
@@ -466,7 +474,7 @@ export function Battlefields({
             key={battlefieldId}
             className={`battlefield ${inCombat ? "is-showdown" : ""} ${
               contested !== null ? "is-contested" : ""
-            }`}
+            } ${battlefield?.controller != null ? "is-held" : ""}`}
             style={
               art === undefined
                 ? undefined

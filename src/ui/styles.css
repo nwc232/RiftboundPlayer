@@ -899,3 +899,53 @@ button.concede:hover:not(:disabled) {
   text-transform: none;
   letter-spacing: 0;
 }
+
+/*
+ * Motion on change.
+ *
+ * The board told you what was true and never that it had *become* true: a unit
+ * arriving at a battlefield, three damage landing on it and its Might dropping
+ * all looked the same as a board that had always been that way. Every one of
+ * these is keyed off something React already remounts or transitions — no
+ * animation library, and no change to how the app renders.
+ */
+@keyframes rb-arrive {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes rb-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+/* A card mounts when it changes zone — React keys them by id, so a unit that
+   moves unmounts from one list and mounts in the next, and this plays exactly
+   then. A re-render for any other reason keeps the same element and does not. */
+.bf-units .card,
+.panel .card,
+.bf-facedown .card { animation: rb-arrive 180ms ease-out; }
+
+/* Damage and Might carry their value in their key, so the badge is a new
+   element each time the number changes and the animation retriggers. The card
+   jolts with it: the number alone is easy to miss on a board of eight units. */
+.card-damage { animation: rb-pop 260ms ease-out; }
+.card-might.is-changed { animation: rb-pop 260ms ease-out; }
+
+/* Control of a battlefield is the thing the game is about, so it is the one
+   change worth a whole-element transition rather than a flourish on a badge. */
+.battlefield {
+  transition: border-color 320ms ease, box-shadow 320ms ease;
+}
+.battlefield.is-held { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.chain li { animation: rb-arrive 160ms ease-out; }
+
+/* Anyone who has asked not to be moved is not moved. */
+@media (prefers-reduced-motion: reduce) {
+  .bf-units .card,
+  .panel .card,
+  .bf-facedown .card,
+  .card-damage,
+  .card-might.is-changed,
+  .chain li { animation: none; }
+  .battlefield { transition: none; }
+}
