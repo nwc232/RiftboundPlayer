@@ -467,7 +467,6 @@ export function Battlefields({
         // The battlefield's own printed face, laid under its contents rather
         // than beside them — a battlefield is the space the units stand in,
         // so it reads as the mat rather than as another card in a row.
-        const art = artFor(battlefieldLabel(state, battlefieldId));
 
         return (
           <div
@@ -475,12 +474,33 @@ export function Battlefields({
             className={`battlefield ${inCombat ? "is-showdown" : ""} ${
               contested !== null ? "is-contested" : ""
             } ${battlefield?.controller != null ? "is-held" : ""}`}
+            // The card's *art*, not the whole card. `cover` scaled the entire
+            // face — printed name and rules text included — so every mat wore
+            // a second garbled copy of its own text under the units. Blown up
+            // and anchored near the top, only the illustration shows.
             style={
-              art === undefined
+              artFor(nameOf(state, battlefieldId)) === undefined
                 ? undefined
-                : { backgroundImage: `url(${art})` }
+                : {
+                    backgroundImage: `url(${artFor(nameOf(state, battlefieldId))})`,
+                  }
             }
           >
+            {/* The battlefield's own card, on the mat rather than only behind
+                it. R107.2.b makes each battlefield a Location, and on a table
+                that location *is* a card lying there with units placed around
+                it — a washed background reads as decoration, and the printed
+                text on it was invisible until you knew to hover the name. */}
+            <Card
+              state={state}
+              cardId={battlefieldId}
+              sub={
+                battlefield?.controller === null || battlefield === undefined
+                  ? undefined
+                  : `held by ${battlefield.controller}`
+              }
+              pick={pick}
+            />
             <header
               // Anchored to the name rather than to the header, which spans
               // the whole mat: a preview measured off that opens past the

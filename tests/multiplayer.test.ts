@@ -259,42 +259,68 @@ describe("whole games with more than two seats", () => {
     }
   }
 
-  it.each(trios)("R487 — three seats, decks %i/%i/%i", (a, b, c) => {
-    for (let seed = 1; seed <= 3; seed += 1) {
-      const state = play([a, b, c], seed);
+  /**
+   * Three whole games each, and a three- or four-seat game is long: the driver
+   * banks its runes now rather than spending on the first legal thing, which
+   * is what let it afford anything above cost 3 and roughly doubled how many
+   * actions a game takes. These sat right on vitest's 5s default and failed
+   * about one run in three — a flaky suite before a play test is worse than a
+   * slow one, so the budget says what the work actually needs.
+   */
+  const WHOLE_GAMES_MS = 30_000;
+
+  it.each(trios)(
+    "R487 — three seats, decks %i/%i/%i",
+    (a, b, c) => {
+      for (let seed = 1; seed <= 3; seed += 1) {
+        const state = play([a, b, c], seed);
+        expect(state.winner).not.toBeNull();
+        expect(state.pending).toBeNull();
+      }
+    },
+    WHOLE_GAMES_MS,
+  );
+
+  it.each(quartets)(
+    "R488 — four seats, decks %i/%i/%i/%i",
+    (a, b, c, d) => {
+      for (let seed = 1; seed <= 3; seed += 1) {
+        const state = play([a, b, c, d], seed);
+        expect(state.winner).not.toBeNull();
+        expect(state.turnOrder).toHaveLength(4);
+      }
+    },
+    WHOLE_GAMES_MS,
+  );
+
+  it.each(seeds)(
+    "R487 — three seats, seed %i",
+    (seed) => {
+      const state = play([0, 1, 2], seed);
+
       expect(state.winner).not.toBeNull();
       expect(state.pending).toBeNull();
-    }
-  });
+      // R194.2 — the winner has the score *and* more than anyone else.
+      const points = seatOf(state, state.winner!).points;
+      expect(points).toBeGreaterThanOrEqual(8);
+      for (const other of opponentsOf(state, state.winner!)) {
+        expect(points).toBeGreaterThan(seatOf(state, other).points);
+      }
+    },
+    WHOLE_GAMES_MS,
+  );
 
-  it.each(quartets)("R488 — four seats, decks %i/%i/%i/%i", (a, b, c, d) => {
-    for (let seed = 1; seed <= 3; seed += 1) {
-      const state = play([a, b, c, d], seed);
+  it.each(seeds)(
+    "R488 — four seats, seed %i",
+    (seed) => {
+      const state = play([0, 1, 2, 3], seed);
+
       expect(state.winner).not.toBeNull();
-      expect(state.turnOrder).toHaveLength(4);
-    }
-  });
-
-  it.each(seeds)("R487 — three seats, seed %i", (seed) => {
-    const state = play([0, 1, 2], seed);
-
-    expect(state.winner).not.toBeNull();
-    expect(state.pending).toBeNull();
-    // R194.2 — the winner has the score *and* more than anyone else.
-    const points = seatOf(state, state.winner!).points;
-    expect(points).toBeGreaterThanOrEqual(8);
-    for (const other of opponentsOf(state, state.winner!)) {
-      expect(points).toBeGreaterThan(seatOf(state, other).points);
-    }
-  });
-
-  it.each(seeds)("R488 — four seats, seed %i", (seed) => {
-    const state = play([0, 1, 2, 3], seed);
-
-    expect(state.winner).not.toBeNull();
-    expect(state.pending).toBeNull();
-    expect(state.turnOrder).toEqual(["p1", "p2", "p3", "p4"]);
-  });
+      expect(state.pending).toBeNull();
+      expect(state.turnOrder).toEqual(["p1", "p2", "p3", "p4"]);
+    },
+    WHOLE_GAMES_MS,
+  );
 
   /**
    * R431.2.c stops being automatic with more than one opponent: "Chooses an

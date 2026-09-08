@@ -40,7 +40,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 .app {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr 288px;
   grid-template-rows: auto auto auto 1fr;
   /* `setup` sits directly under the bar that opens it. The row collapses to
      nothing while the panel is closed, because it has no content. */
@@ -466,9 +466,20 @@ button:disabled { opacity: 0.4; cursor: default; }
  */
 .battlefield {
   position: relative;
-  background-size: cover;
-  background-position: center;
   isolation: isolate;
+  /* Full width, anchored to the top, no repeat: a battlefield mat is wider
+     than a card is tall, so `auto` sizing left the image narrower than the
+     box and it *tiled* — which is where the second and third copies of the
+     rules text were coming from. At full width the visible strip is the top
+     third of the card, which is the illustration. */
+  /* Centred, not anchored to the top. A battlefield card is printed for a
+     shared table: its rules text appears twice, once each way up, so players
+     on either side can read it. Cropping to the top of the image showed the
+     opponent's half — which is why the mat kept wearing a band of mirrored,
+     upside-down text. The illustration is the middle. */
+  background-size: 150% auto;
+  background-position: center center;
+  background-repeat: no-repeat;
 }
 .battlefield::before {
   content: "";
@@ -612,6 +623,7 @@ button.concede:hover:not(:disabled) {
  */
 .hand-fan { --card-w: 92px; }
 .battlefields { --card-w: 74px; }
+.board .battlefield > .card { --card-w: 104px; }
 .panel.is-near { --card-w: 64px; }
 .panel.is-far { --card-w: 46px; }
 
@@ -663,27 +675,45 @@ button.concede:hover:not(:disabled) {
  * panels: they are what the game is played over, and in a Skirmish knowing at
  * a glance who is standing where is most of reading the board.
  */
+/*
+ * The battlefields are the table, not a strip across the middle of it.
+ *
+ * R107.2 makes the Battlefield Zone the one shared part of the board and each
+ * battlefield a Location units stand at — which is where the game is decided,
+ * and it had a 190px band while a column of text took a quarter of the width.
+ * They get the room now: the card lies on the mat with its units around it,
+ * the way it does on a table.
+ */
 .board .battlefields {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  gap: 8px;
+  gap: 10px;
   flex: 1 1 auto;
-  min-height: 190px;
+  min-height: 250px;
 }
 .board .battlefield {
-  display: flex;
-  flex-direction: column;
+  /* The battlefield card down the left, its name and its units to the right
+     of it. A single column stacked them and left the units nowhere to go. */
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "face head" "face units";
+  align-content: start;
+  gap: 4px 10px;
   min-height: 0;
 }
+.board .battlefield > .card { grid-area: face; align-self: start; }
+.board .battlefield > header { grid-area: head; margin-bottom: 0; }
 .board .bf-units {
+  grid-area: units;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 5px;
-  flex: 1 1 auto;
   padding-top: 4px;
 }
+/* The facedown zone belongs with the units standing there, not under them. */
+.board .bf-facedown { grid-area: units; align-self: end; justify-self: end; }
 
 /* A far panel is for reading, so it is tighter everywhere. */
 .panel.is-far { padding: 5px 8px; font-size: 11px; }
