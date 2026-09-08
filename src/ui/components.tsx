@@ -249,6 +249,7 @@ export function PlayerPanel({
   pick,
   acting,
   near = false,
+  mat,
 }: {
   state: GameState;
   playerId: PlayerId;
@@ -262,6 +263,16 @@ export function PlayerPanel({
    * legible rather than reachable.
    */
   near?: boolean;
+  /**
+   * A playmat image behind the zones — purely decorative, and the reason the
+   * zones are drawn as outlines over a surface rather than as boxes: there was
+   * somewhere for one to go without moving anything.
+   *
+   * The printed zones on a real mat will not line up with these, because these
+   * are placed by a grid that reflows with the seat count. It is a surface, not
+   * a template.
+   */
+  mat?: string | undefined;
 }) {
   const player = seatOf(state, playerId);
   const base: Location = { kind: "base", player: playerId };
@@ -278,9 +289,15 @@ export function PlayerPanel({
         near ? "is-near" : "is-far",
         acting ? "is-acting" : "",
         choosable ? "is-legal" : "",
+        mat === undefined || mat === "" ? "" : "has-mat",
       ]
         .filter(Boolean)
         .join(" ")}
+      style={
+        mat === undefined || mat === ""
+          ? undefined
+          : { backgroundImage: `url(${mat})` }
+      }
     >
       <header className="panel-head">
         <h2>
@@ -427,38 +444,24 @@ export function Resources({
           player.runes.map((runeId) => {
             const rune = state.runes[runeId];
             if (rune === undefined) return null;
+            // A rune is a card (R161.1), so it is drawn as one. It was a
+            // two-letter chip, which had room for a domain and nothing else:
+            // what a rune *does* — R164.2's "Exhaust: Add [1]. Recycle: Add
+            // [Calm]" — was the one thing a new player has to work out before
+            // anything else can be played, and the board never showed it.
+            //
+            // R107.1.d makes runes in a Base Public Information, so this is
+            // the same card at both seats. Its exhausted state is passed in
+            // rather than read off a permanent: R161.2 keeps a rune in its own
+            // zone, so `state.permanents` knows nothing about it.
             return (
-              <button
+              <Card
                 key={runeId}
-                // The two-letter chip has room for a domain and nothing else,
-                // so what a rune *does* — "Exhaust: Add [1]. Recycle: Add
-                // [Calm]" — was written down nowhere in the UI. Runes being
-                // what fills the pool is the one thing a new player has to
-                // work out before anything else can be played.
-                onMouseEnter={(event) =>
-                  pick.onHover(runeId, event.currentTarget.getBoundingClientRect())
-                }
-                onMouseLeave={() => pick.onHover(null)}
-                onFocus={(event) =>
-                  pick.onHover(runeId, event.currentTarget.getBoundingClientRect())
-                }
-                onBlur={() => pick.onHover(null)}
-                className={[
-                  "rune",
-                  `rune-${rune.domain}`,
-                  rune.exhausted ? "is-exhausted" : "",
-                  pick.selected === runeId ? "is-selected" : "",
-                  pick.menuFor === runeId ? "is-open" : "",
-                  pick.actionable.has(runeId) ? "is-actionable" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onClick={(event) =>
-                  pick.onSelect(runeId, event.currentTarget.getBoundingClientRect())
-                }
-              >
-                {rune.domain.slice(0, 2)}
-              </button>
+                state={state}
+                cardId={runeId}
+                pick={pick}
+                exhausted={rune.exhausted}
+              />
             );
           })
         )}

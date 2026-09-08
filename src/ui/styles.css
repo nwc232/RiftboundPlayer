@@ -152,26 +152,9 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 .pip { color: var(--good); }
 
-.rune {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  color: var(--muted);
-}
-.rune.is-exhausted { opacity: 0.35; }
-.rune.is-actionable { border-color: var(--warn); box-shadow: 0 0 0 1px rgba(224, 175, 104, 0.35); }
-.rune.is-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.rune-chaos { color: var(--chaos); }
-.rune-calm { color: var(--calm); }
-.rune-body { color: var(--body); }
-.rune-fury { color: var(--fury); }
-.rune-mind { color: var(--mind); }
-.rune-order { color: var(--order); }
+/* Runes are cards now (R161.1), drawn by `Card` like everything else, so the
+   two-letter chip's own styling is gone with it. What is left is the strip
+   they sit in — see `.rune-strip`. */
 .pool { color: var(--good); margin-left: 8px; }
 
 .battlefields { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -486,11 +469,22 @@ button:disabled { opacity: 0.4; cursor: default; }
   inset: 0;
   z-index: -2;
   border-radius: inherit;
-  background-size: cover;
-  background-position: center;
-  /* Scaled past the edges so the blur has something to bleed from. */
-  transform: scale(1.08);
-  filter: blur(7px) brightness(0.78) saturate(1.25);
+  /*
+   * Sized by *height*, not width — which is what makes the crop stable.
+   * `cover` sizes to whichever edge needs it, so the visible band changed
+   * with the number of battlefields on the table and any crop tuned for two
+   * caught the card's text at three. Anchoring the height means the same
+   * slice of the card shows however wide the mat is; the width simply
+   * overflows and is centred.
+   *
+   * 215% puts a little under half the card in the mat, and 30% of the
+   * vertical overflow starts that window below the upside-down text bar and
+   * ends it above the name plate. That band is the illustration.
+   */
+  background-size: auto 215%;
+  background-position: center 42%;
+  background-repeat: no-repeat;
+  filter: brightness(0.72) saturate(1.15);
 }
 .battlefield::before {
   content: "";
@@ -622,7 +616,7 @@ button.concede:hover:not(:disabled) {
 }
 
 /* The card the open menu belongs to, so it is obvious what it acts on. */
-.card.is-open, .rune.is-open { box-shadow: 0 0 0 2px var(--warn); }
+.card.is-open { box-shadow: 0 0 0 2px var(--warn); }
 
 /*
  * How big a card is, by how much you need it.
@@ -751,7 +745,14 @@ button.concede:hover:not(:disabled) {
   padding: 8px 10px;
   min-width: 130px;
 }
-.rune-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+/* Runes overlap the way a row of them does on a mat: twelve at full width
+   would push everything else off the board, and they are read as a count of
+   colours far more often than they are read one at a time. */
+.rune-strip { display: flex; flex-wrap: wrap; gap: 0; }
+.rune-strip .card { margin-left: -14px; }
+.rune-strip .card:first-child { margin-left: 0; }
+.rune-strip .card:hover,
+.rune-strip .card:focus-visible { z-index: 3; }
 .pool-strip { color: var(--calm); font-size: 11px; }
 
 /* Inside an opponent's panel it is a line, not a control strip. */
@@ -1074,3 +1075,29 @@ button.concede:hover:not(:disabled) {
   .zone-body { padding: 2px; }
   .mat-grid { gap: 6px 10px; }
 }
+
+/*
+ * A playmat behind your own zones. Decoration only — R107 has nothing to say
+ * about what the surface under a player's zones looks like, so this never
+ * touches the game state and is never sent anywhere: the opponent's screen is
+ * the opponent's business.
+ *
+ * The zones were already outlines rather than filled boxes, which is why there
+ * was somewhere for this to go without moving anything. A scrim keeps the
+ * cards readable over a busy image.
+ */
+.panel.has-mat {
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  isolation: isolate;
+}
+.panel.has-mat::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(12, 14, 22, 0.62);
+}
+.playmat-url { width: 120px; }

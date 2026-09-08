@@ -114,6 +114,14 @@ export function App() {
   /** The mulligan overlay, set aside for a moment to look at the board. */
   const [peeking, setPeeking] = useState(false);
   /**
+   * A playmat image for your own seat. In `localStorage` rather than in the
+   * game: it is a look, it is nobody else's business, and it should still be
+   * there after a reload.
+   */
+  const [playmat, setPlaymat] = useState(
+    () => window.localStorage.getItem("riftbound:playmat") ?? "",
+  );
+  /**
    * Seats whose mulligan this client has already sent. Online the answer is
    * held by the server until R117's order reaches that seat, so the task stays
    * on the queue after it was submitted and the overlay would otherwise sit
@@ -641,6 +649,26 @@ export function App() {
             onChange={(event) => setSeed(Number(event.target.value))}
           />
         </label>
+        {/* Decoration, and only yours: R107 says nothing about what the mat
+            under a player's zones looks like. Kept out of the game state and
+            out of anything the server sends — the opponent's screen is the
+            opponent's business. */}
+        <label className="seed">
+          playmat
+          <input
+            type="url"
+            className="playmat-url"
+            placeholder="image url"
+            value={playmat}
+            onChange={(event) => {
+              setPlaymat(event.target.value);
+              window.localStorage.setItem(
+                "riftbound:playmat",
+                event.target.value,
+              );
+            }}
+          />
+        </label>
         {/* The pickers describe the *next* game, and mostly that is obvious.
             It is not obvious at all when the seat count is one of them: four
             deck pickers over a two-player board is a screen contradicting
@@ -811,6 +839,7 @@ export function App() {
           pick={pick}
           acting={acting === near}
           near
+          mat={playmat}
         />
         </div>
         {/* R107.1.c puts a player's runes in their Base, so they live on the
