@@ -84,6 +84,17 @@ export function App() {
   const [history, setHistory] = useState<Snapshot[]>(() => [
     { state: newGame(seed), events: [] },
   ]);
+  /**
+   * What the running local game was dealt with, so the pickers above can say
+   * when they no longer describe it.
+   *
+   * They never touched the running game and never should — a seat count is not
+   * something a game in progress can change, and re-dealing because somebody
+   * opened a dropdown would throw away a game. But saying nothing was worse:
+   * choosing "FFA4 (War)" put four deck pickers on screen over a two-player
+   * board with two battlefields, and nothing anywhere said why.
+   */
+  const [dealt, setDealt] = useState<number[]>([0, 1]);
   const [selected, setSelected] = useState<CardId | null>(null);
   /** What the pointer is over, previewed full size beside the board. */
   /** What the pointer is over, and where it is, for the readable preview. */
@@ -348,9 +359,13 @@ export function App() {
       online.restart();
     } else {
       setHistory([{ state: newGame(seed, decks), events: [] }]);
+      setDealt(decks);
     }
     setSelected(null);
     setRejected(null);
+    setStaged([]);
+    setSentMulligan([]);
+    setPeeking(false);
   };
 
   /**
@@ -579,7 +594,25 @@ export function App() {
             onChange={(event) => setSeed(Number(event.target.value))}
           />
         </label>
-        <button onClick={restart}>new game</button>
+        {/* The pickers describe the *next* game, and mostly that is obvious.
+            It is not obvious at all when the seat count is one of them: four
+            deck pickers over a two-player board is a screen contradicting
+            itself, and this is the sentence that resolves it. */}
+        <button
+          onClick={restart}
+          className={
+            !isOnline && dealt.join() !== decks.join() ? "primary" : undefined
+          }
+        >
+          new game
+        </button>
+        {!isOnline && dealt.join() !== decks.join() && (
+          <span className="pending-setup">
+            {dealt.length !== decks.length
+              ? `still a ${dealt.length}-player game — deal again to change it`
+              : "deal again to use these decks"}
+          </span>
+        )}
         <button
           // Online the server holds the game, and one seat cannot rewind a
           // game the other is also playing.

@@ -4,6 +4,7 @@ import { artFor } from "./card-art.js";
 import { characteristicsOf } from "../layers.js";
 import type { GameState, CardId, Location, PlayerId } from "../state.js";
 import {
+  battlefieldLabel,
   controlOf,
   costLabel,
   describeCost,
@@ -458,7 +459,7 @@ export function Battlefields({
         // The battlefield's own printed face, laid under its contents rather
         // than beside them — a battlefield is the space the units stand in,
         // so it reads as the mat rather than as another card in a row.
-        const art = artFor(nameOf(state, battlefieldId));
+        const art = artFor(battlefieldLabel(state, battlefieldId));
 
         return (
           <div
@@ -496,7 +497,7 @@ export function Battlefields({
                 }
                 onBlur={() => pick.onHover(null)}
               >
-                {nameOf(state, battlefieldId)}
+                {battlefieldLabel(state, battlefieldId)}
               </button>
               <span className="bf-state">
                 {battlefield?.controller === null || battlefield === undefined

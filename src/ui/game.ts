@@ -74,6 +74,30 @@ export function owesMulligan(state: GameState, playerId: PlayerId): boolean {
   );
 }
 
+/**
+ * A battlefield's name, with who brought it when that is the only thing
+ * telling two of them apart.
+ *
+ * R485.5 has each player present one of their own three, and three of the five
+ * lists carry Star Spring — so a four-seat game can legitimately put two
+ * battlefields called "Star Spring" on the table. They are different cards
+ * (R485.4.a records who contributed each) and the engine keeps them apart by
+ * id, but the board showed two identical mats and the move list offered "move
+ * to Star Spring" twice for two different places.
+ *
+ * Only when it is ambiguous: naming the owner of every battlefield all the
+ * time would be noise on the nine games in ten where the names are distinct.
+ */
+export function battlefieldLabel(state: GameState, cardId: CardId): string {
+  const name = nameOf(state, cardId);
+  const twins = state.battlefieldOrder.filter(
+    (id) => id !== cardId && nameOf(state, id) === name,
+  );
+  if (twins.length === 0) return name;
+  const owner = state.battlefields[cardId]?.owner;
+  return owner === undefined ? name : `${name} (${owner}'s)`;
+}
+
 export function nameOf(state: GameState, cardId: CardId): string {
   return characteristicsOf(state, cardId).name;
 }
@@ -103,13 +127,18 @@ export function subjectOf(action: Action): CardId | undefined {
 
 /** A short label for a move, written the way the rules name the action. */
 export function describe(state: GameState, action: Action): string {
-  const label = (id: CardId) => nameOf(state, id);
+  // A battlefield can share its name with another one in play, so it is named
+  // through the labeller that says which; everything else is just its name.
+  const label = (id: CardId) =>
+    state.battlefields[id] === undefined
+      ? nameOf(state, id)
+      : battlefieldLabel(state, id);
   const where = (location: Location | undefined): string =>
     location === undefined
       ? "base"
       : location.kind === "base"
         ? "base"
-        : label(location.id);
+        : battlefieldLabel(state, location.id);
 
   /**
    * R355.1 — what a choosing cost named. Two plays that differ only in which
