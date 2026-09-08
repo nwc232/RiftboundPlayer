@@ -5,8 +5,6 @@
 A rules-enforced engine for the Riftbound TCG (Riot Games), with a React
 front-end over it — two to four players, on one screen or over a socket.
 
-![The board mid-showdown](docs/board.png)
-
 The engine decides what is legal; the interface only ever shows you what the
 engine already agreed to. `legalActions` enumerates candidate moves and
 validates each one through `applyAction` — the same code path that performs
