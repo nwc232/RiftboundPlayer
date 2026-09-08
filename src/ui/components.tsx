@@ -524,8 +524,23 @@ export function Battlefields({
             </div>
             {facedown !== undefined && (
               <div className="bf-facedown">
-                facedown · {facedown.controller} · hidden turn{" "}
-                {facedown.hiddenOnTurn}
+                {/* A card, not a line of text. R811.1.b's "beginning on the
+                    next turn … you may play this" is a real move that
+                    `legalActions` offers — but the whole interaction model
+                    here is "click the card to see what it can do", and the
+                    facedown zone was the one place on the board with no card
+                    to click. A player with a hidden Evelynn and a combat
+                    happening on top of it had nowhere to go.
+
+                    `viewOf` has already decided what this is: its controller
+                    sees the card, everyone else sees a blank with a stand-in
+                    name, so rendering it the same way for both is safe. */}
+                <Card
+                  state={state}
+                  cardId={facedown.cardId}
+                  sub={`hidden t${facedown.hiddenOnTurn}`}
+                  pick={pick}
+                />
               </div>
             )}
           </div>

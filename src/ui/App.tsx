@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { renderEvent } from "../event-text.js";
 import type { GameEvent } from "../events.js";
 import type { Action, RejectionReason } from "../actions.js";
@@ -37,6 +37,16 @@ import { explain } from "./rejections.js";
 
 interface Snapshot {
   state: GameState;
+  /**
+   * The action that produced this state, absent on the deal.
+   *
+   * Kept because the engine is deterministic: `newGame(seed, decks)` plus this
+   * list *is* the game, and replaying it reproduces every board it passed
+   * through. "I think something went wrong but I can't see what happened" is
+   * otherwise unanswerable — the event log says what the rules did, and the
+   * question is usually whether the right thing was asked for.
+   */
+  action?: Action;
   /**
    * Kept as events rather than as rendered lines. R107 makes what a player may
    * read out of the log depend on which seat they are in, and the seat can be
@@ -251,6 +261,7 @@ export function App() {
           ...past,
           {
             state: result.state,
+            action,
             events: [...previous.events, ...result.events],
           },
         ];
@@ -353,6 +364,43 @@ export function App() {
       ),
     menuFor: menu?.cardId ?? null,
   };
+
+  /**
+   * The log, and the game behind it, on the clipboard.
+   *
+   * Locally that is a replay: the seed, the lists, and every action taken, in
+   * order. `newGame(seed, decks)` plus that list reproduces the game exactly,
+   * so a board somebody thought looked wrong can be re-run rather than
+   * described. Online the client never had the seed — the server dealt — so
+   * what it can offer is the log it was sent.
+   */
+  const [copied, setCopied] = useState(false);
+  const logEnd = useRef<HTMLOListElement | null>(null);
+  const copyLog = (): void => {
+    const lines = log.map((entry) => entry.line).join("\n");
+    const replay = isOnline
+      ? ""
+      : `\n\n--- replay ---\n${JSON.stringify(
+          {
+            seed,
+            decks: dealt,
+            actions: history
+              .map((snapshot) => snapshot.action)
+              .filter((action) => action !== undefined),
+          },
+          null,
+          1,
+        )}\n`;
+    void navigator.clipboard?.writeText(`${lines}${replay}`);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  // The newest line is the one being read, so the log follows the game.
+  useEffect(() => {
+    const list = logEnd.current;
+    if (list !== null) list.scrollTop = list.scrollHeight;
+  }, [log.length]);
 
   const restart = (): void => {
     if (isOnline) {
@@ -790,9 +838,19 @@ export function App() {
           />
         </section>
         <section className="log">
-          <h3>log</h3>
-          <ol>
-            {log.slice(-40).map((entry, i) => (
+          <h3>
+            log
+            {/* The whole game, not the last forty lines, and takeable off the
+                screen. A game that went wrong is worth more as a seed and a
+                list of actions than as a description: the engine is
+                deterministic, so `newGame(seed, decks)` plus these replays
+                every board the game passed through. */}
+            <button className="log-copy" onClick={copyLog}>
+              {copied ? "copied" : "copy"}
+            </button>
+          </h3>
+          <ol ref={logEnd}>
+            {log.map((entry, i) => (
               <li key={i} className={entry.heading ? "is-heading" : ""}>
                 {entry.line}
               </li>

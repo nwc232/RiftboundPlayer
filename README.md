@@ -39,6 +39,16 @@ See `/reference` for provenance notes.
 
 `npm run demo` opens a REPL over the engine. Type `help` for commands.
 
+### When a game looks wrong
+
+The log panel has a **copy** button. In a local game it copies the whole log
+*and* a replay — the seed, the deck lists, and every action taken, in order.
+The engine is deterministic, so that is the game: `tests/replay.ts` runs it
+back and hands over every board it passed through, checking every invariant on
+the way. A board that looked wrong can be re-run rather than described.
+
+Online the client never had the seed, so there it copies the log it was sent.
+
 ### Before handing it to someone else
 
 ```

@@ -190,7 +190,14 @@ button:disabled { opacity: 0.4; cursor: default; }
 .bf-name.is-legal { color: var(--good); }
 .bf-state { color: var(--muted); font-size: 11px; }
 .bf-units { display: flex; flex-wrap: wrap; gap: 5px; }
-.bf-facedown { margin-top: 6px; color: var(--chaos); font-size: 11px; }
+/* The facedown zone holds a card now rather than a caption. Tinted and
+   dashed so it reads as "hidden here" at a glance without being mistaken for
+   a unit standing on the battlefield. */
+.bf-facedown { margin-top: 6px; display: flex; }
+.bf-facedown .card {
+  border: 1px dashed var(--chaos);
+  opacity: 0.92;
+}
 
 .chain ol, .log ol { margin: 0; padding-left: 18px; }
 .chain li { margin-bottom: 3px; }
@@ -879,3 +886,16 @@ button.concede:hover:not(:disabled) {
 /* The setup pickers describe the next game. This says so, but only while they
    have drifted from the one being played. */
 .pending-setup { color: var(--warn); }
+
+/* The whole game rather than the last forty lines, so it scrolls. */
+.log ol {
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.log h3 { display: flex; align-items: center; gap: 8px; }
+.log-copy {
+  font-size: 10px;
+  padding: 1px 6px;
+  text-transform: none;
+  letter-spacing: 0;
+}
