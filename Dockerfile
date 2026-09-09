@@ -6,7 +6,10 @@
 # The 4.7MB of community card data stays behind: `src/ui/card-art.ts` was
 # generated from it offline and nothing reads the JSON at run time.
 
-FROM node:20-alpine AS build
+# Node 22 to match CI. Vite 8 wants ^20.19 || >=22.12, so `node:20-alpine`
+# only works while that tag stays ahead of 20.19 — a version floor nothing
+# here would notice breaking. Dev, CI and production run the same major.
+FROM node:22-alpine AS build
 WORKDIR /app
 
 # Dependencies first, so a source-only change does not reinstall them.
@@ -17,7 +20,7 @@ COPY tsconfig.json vite.config.ts index.html ./
 COPY src ./src
 RUN npm run build
 
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 

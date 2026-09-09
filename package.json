@@ -9,6 +9,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "soak": "vitest run --config vitest.soak.config.ts",
+    "smoke": "tsx scripts/smoke.ts",
     "demo": "tsx src/demo/cli.ts",
     "ui": "vite",
     "ui:build": "vite build",

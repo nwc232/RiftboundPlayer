@@ -814,14 +814,26 @@ Done, in this order, and the order mattered:
 4. A README that leads with the game, a screenshot, and *how the bugs get
    found* — which was the best thing here and lived only in commit messages.
 5. GitHub Pages: the hotseat game as a static bundle, because the engine
-   imports nothing from Node. **Needs Settings → Pages → Source: GitHub
-   Actions once, by hand**; the deploy job fails until then.
+   imports nothing from Node. **Live** at
+   <https://nwc232.github.io/RiftboundPlayer/> — anyone can open the link and
+   play a full game against themselves, no install and no account.
+6. The container that carries the multiplayer server is now built and played
+   against on every push (see below). It had never been built by anything.
 
 ### Next, in order
 
-1. **Multiplayer deploy.** `Dockerfile` and `fly.toml` are written and never
-   used. One instance, no idle sleep — both settings are in `fly.toml` with
-   the reasons. Needs a host account.
+1. **Multiplayer deploy.** *Verified, and blocked only on a host account.*
+   The image builds, boots on production dependencies alone, serves the
+   front-end and runs a real two-seat game over a WebSocket — checked
+   locally and now on every push by the `image` CI job, which builds the
+   container, runs it, and plays a game against it via `scripts/smoke.ts`.
+   Two things that would have failed a first deploy were fixed on the way:
+   the base image was Node 20 while Vite 8 requires `^20.19 || >=22.12`, and
+   `scripts/` sat outside the typecheck. `fly.toml` keeps one machine with
+   no idle stop, because rooms live in memory — the reasons are in the file.
+   What is left is genuinely only `fly launch` against an account, and
+   `app = "riftbound"` will likely need renaming because the name is taken.
+   `npm run smoke -- <url>` then checks the deployed site the same way.
 2. **Accounts and persistence.** Deliberately last of the three: every
    candidate has a CRUD app with login, and nothing else here is common. Worth
    doing because backend postings screen for it, not because it improves the

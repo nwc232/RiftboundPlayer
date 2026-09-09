@@ -24,6 +24,37 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # The deployment artifact, tested as an artifact. `check` proves the source
+  # compiles and the engine is right; it says nothing about whether the image
+  # starts. Everything below has failed a real deploy for someone before:
+  # a runtime import that only existed in devDependencies, a front-end built
+  # with the wrong `base`, a WebSocket that never survives the proxy. So CI
+  # builds the image, runs it, and plays a game against it over a socket.
+  image:
+    name: container builds and plays a game
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: build the image
+        run: docker build -t riftbound:ci .
+
+      - name: run it the way the host will
+        run: docker run -d --name riftbound -p 8787:8787 -e PORT=8787 riftbound:ci
+
+      - name: play a game against it
+        run: npm run smoke -- http://127.0.0.1:8787
+
+      # A container that died on boot says why here and nowhere else.
+      - name: container logs
+        if: always()
+        run: docker logs riftbound
+
   # The wide soak is 520 games and about three minutes, which is the wrong
   # price for every push and the right price once a week. It plays every deck
   # pairing at every seat count with every invariant checked after every
