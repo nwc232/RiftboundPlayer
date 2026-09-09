@@ -834,10 +834,35 @@ Done, in this order, and the order mattered:
    What is left is genuinely only `fly launch` against an account, and
    `app = "riftbound"` will likely need renaming because the name is taken.
    `npm run smoke -- <url>` then checks the deployed site the same way.
-2. **Accounts and persistence.** Deliberately last of the three: every
-   candidate has a CRUD app with login, and nothing else here is common. Worth
-   doing because backend postings screen for it, not because it improves the
-   project.
+2. **Persistence, then accounts.** *Moved ahead of the deploy, deliberately.*
+   Rooms living in one process is the only reason `fly.toml` pins the app to
+   a single machine that may never stop, so paying for an always-on machine
+   buys a workaround for a limitation about to be deleted. Doing it first also
+   keeps the hosting choice open and cheap.
+
+   Done so far:
+
+   - `Room` is proven to survive JSON — structurally, and by playing two
+     rooms in step, one stored after every move. Both checks were confirmed
+     by reintroducing the bug they guard: a `Date` where a number was is
+     caught, and a store that forgets a column was *not*, until the fixture
+     was changed to one where `earlyMulligans` carries something.
+   - `src/server/store.ts` names where rooms live. `memoryStore` is what the
+     `Map` was; a durable store is the same four methods. Asynchronous on
+     purpose — a store across a network cannot be anything else, and paying
+     that cost later means rewriting every caller.
+   - The lost update that persistence introduces is fixed and, more to the
+     point, reproduced first: `tests/store.test.ts` shows eight concurrent
+     actions collapsing to **one** event on an ungated async store. Not a
+     crash — the board stays legal and a player's move simply never happened.
+     `inOrder` queues work per room; the same eight then all land.
+   - `src/server/index.ts` reads and writes through the store. Verified by
+     `npm run smoke`, which now also drops a player and brings them back on
+     their token, since that is the path the refactor most disturbed.
+
+   Next: a durable store behind `DATABASE_URL` (Postgres — it is what the
+   postings name, and it works from any host including free tiers), then
+   accounts on top of it.
 3. **Event-stepped animation.** The one that makes the live demo *watchable*:
    render one step behind and play the event stream out, so a chain resolving
    is something you see rather than find already done. Needs per-event

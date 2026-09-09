@@ -55,23 +55,39 @@ type Seat = {
   who: string;
   ws: WebSocket;
   seat: PlayerId | null;
+  /** What proves this is the same person coming back to the same chair. */
+  token: string | null;
   states: number;
   state: GameState | null;
 };
 
 /** Joins a room and resolves once the server has given this client a seat. */
-function join(who: string, room: string, deck: number): Promise<Seat> {
+function join(
+  who: string,
+  room: string,
+  deck: number,
+  token?: string,
+): Promise<Seat> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(socketUrl);
-    const seat: Seat = { who, ws, seat: null, states: 0, state: null };
+    const seat: Seat = { who, ws, seat: null, token: null, states: 0, state: null };
     const giveUp = setTimeout(() => reject(new Error(`${who} never got a seat`)), 20_000);
     ws.on("open", () =>
-      ws.send(JSON.stringify({ kind: "join", room, deck, players: 2 })),
+      ws.send(
+        JSON.stringify({
+          kind: "join",
+          room,
+          deck,
+          players: 2,
+          ...(token === undefined ? {} : { token }),
+        }),
+      ),
     );
     ws.on("message", (raw) => {
       const message = JSON.parse(String(raw));
       if (message.kind === "joined") {
         seat.seat = message.seat;
+        seat.token = message.token;
         clearTimeout(giveUp);
         resolve(seat);
       }
@@ -137,7 +153,26 @@ async function main(): Promise<void> {
   }
   check(played > 0, `actions are accepted and broadcast to both seats (${played})`);
 
+  // Dropping and coming back. A seat is held against a token for a grace
+  // period, so a closed laptop or a dead tunnel is not a concession — and the
+  // game that comes back has to be the same game, not a fresh deal.
+  const boardBefore = JSON.stringify(b.state);
+  const heldBy = a.token;
   a.ws.close();
+  await settle(800);
+
+  if (check(heldBy !== null, "a joiner is given a token for its seat")) {
+    const again = await join("A again", room, 0, heldBy as string);
+    await settle(1200);
+    check(again.seat === a.seat, `the token returns them to their own chair (${again.seat})`);
+    check(again.states > 0, "and they are sent the game again");
+    check(
+      JSON.stringify(b.state) === boardBefore,
+      "the other seat's board was not reset by the reconnection",
+    );
+    again.ws.close();
+  }
+
   b.ws.close();
 }
 
