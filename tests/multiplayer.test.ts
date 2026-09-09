@@ -260,15 +260,11 @@ describe("whole games with more than two seats", () => {
   }
 
   /**
-   * Three whole games each, and a three- or four-seat game is long: the driver
-   * banks its runes now rather than spending on the first legal thing, which
-   * is what let it afford anything above cost 3 and roughly doubled how many
-   * actions a game takes. These sat right on vitest's 5s default and failed
-   * about one run in three — a flaky suite before a play test is worse than a
-   * slow one, so the budget says what the work actually needs.
+   * Three whole games each, which is slow enough to have outrun vitest's 5s
+   * default. The budget is set once for the whole suite in `vitest.config.ts`
+   * — these are not the only tests that play games, and patching them one at
+   * a time meant CI found the next one rather than a developer.
    */
-  const WHOLE_GAMES_MS = 30_000;
-
   it.each(trios)(
     "R487 — three seats, decks %i/%i/%i",
     (a, b, c) => {
@@ -278,7 +274,6 @@ describe("whole games with more than two seats", () => {
         expect(state.pending).toBeNull();
       }
     },
-    WHOLE_GAMES_MS,
   );
 
   it.each(quartets)(
@@ -290,7 +285,6 @@ describe("whole games with more than two seats", () => {
         expect(state.turnOrder).toHaveLength(4);
       }
     },
-    WHOLE_GAMES_MS,
   );
 
   it.each(seeds)(
@@ -307,7 +301,6 @@ describe("whole games with more than two seats", () => {
         expect(points).toBeGreaterThan(seatOf(state, other).points);
       }
     },
-    WHOLE_GAMES_MS,
   );
 
   it.each(seeds)(
@@ -319,7 +312,6 @@ describe("whole games with more than two seats", () => {
       expect(state.pending).toBeNull();
       expect(state.turnOrder).toEqual(["p1", "p2", "p3", "p4"]);
     },
-    WHOLE_GAMES_MS,
   );
 
   /**
