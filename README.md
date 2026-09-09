@@ -22,6 +22,15 @@ them — so the move list and the rules cannot drift apart.
 - Four sanctioned Modes of Play: 1v1 Duel (R485), 1v1 Match (R486), FFA3
   Skirmish (R487), FFA4 War (R488)
 
+## Play it
+
+**[nwc232.github.io/RiftboundPlayer](https://nwc232.github.io/RiftboundPlayer/)**
+— hotseat, in the browser, nothing to install.
+
+The engine imports nothing from Node, so the whole rules engine runs client
+side; that page is a static bundle with no server behind it. Multiplayer needs
+one — see *Playing someone else* below.
+
 ## The one hard constraint
 
 Card data comes from community-published projects, **never Riot's official

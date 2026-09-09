@@ -1,0 +1,52 @@
+name: Pages
+
+# The hotseat game is a static site: the engine imports nothing from Node, so
+# the whole thing runs in a browser with no server at all. That is what makes a
+# permanent "play it here" link free.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and let a newer push win rather than queue behind an
+# older one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # A project site is served under /<repo>/, so the asset paths need that
+      # prefix baked in; VITE_NO_SERVER tells the UI to offer hotseat only,
+      # because there is no socket behind this build to open a room on.
+      - run: npm run build
+        env:
+          BASE_PATH: /RiftboundPlayer/
+          VITE_NO_SERVER: "1"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

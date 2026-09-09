@@ -55,6 +55,12 @@ interface Snapshot {
   events: GameEvent[];
 }
 
+/**
+ * Whether this build has a server behind it. Set at build time — the static
+ * demo is built with it on, and every other build leaves it off.
+ */
+const NO_SERVER = import.meta.env.VITE_NO_SERVER === "1";
+
 /** A room code in the URL is what makes a link a link: `?room=badger`. */
 function roomFromUrl(): string | null {
   const room = new URLSearchParams(window.location.search).get("room");
@@ -480,11 +486,11 @@ export function App() {
         </p>
         <p className="lobby-share">
           Send them this link:
-          <code>{`${window.location.origin}/?room=${room}`}</code>
+          <code>{`${window.location.origin}${import.meta.env.BASE_URL}?room=${room}`}</code>
         </p>
         <button
           onClick={() => {
-            window.history.replaceState(null, "", window.location.pathname);
+            window.history.replaceState(null, "", import.meta.env.BASE_URL);
             setRoom(null);
           }}
         >
@@ -618,6 +624,17 @@ export function App() {
                 </select>
               </label>
             ))}
+        {/* A build with no server behind it says so rather than offering a
+            socket that cannot connect. The static demo on GitHub Pages is one
+            of those: the engine has no Node imports, so the whole game runs in
+            the browser — but there is nothing to open a room *on*, and a
+            "disconnected" screen is a worse first impression than an honest
+            absence. */}
+        {NO_SERVER ? (
+          <span className="pending-setup">
+            static demo — hotseat only; multiplayer needs the server
+          </span>
+        ) : (
         <label className="decks">
           room
           <input
@@ -629,7 +646,7 @@ export function App() {
           <button
             onClick={() => {
               if (isOnline) {
-                window.history.replaceState(null, "", window.location.pathname);
+                window.history.replaceState(null, "", import.meta.env.BASE_URL);
                 setRoom(null);
                 return;
               }
@@ -641,6 +658,7 @@ export function App() {
             {isOnline ? "leave" : "play online"}
           </button>
         </label>
+        )}
         <label className="seed">
           seed
           <input

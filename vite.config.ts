@@ -29,4 +29,13 @@ const resolveTsFromJs = {
 export default defineConfig({
   plugins: [resolveTsFromJs, react()],
   server: { port: 5173 },
+  /**
+   * Where the built app will be served from.
+   *
+   * `/` for the dev server and for `npm run server`, which serves the bundle
+   * at the root of its own origin. GitHub Pages serves a project site under
+   * `/<repo>/`, so its assets need that prefix baked in at build time — hence
+   * an environment variable rather than a constant.
+   */
+  base: process.env.BASE_PATH ?? "/",
 });

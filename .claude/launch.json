@@ -18,6 +18,20 @@
         "server"
       ],
       "port": 8787
+    },
+    {
+      "name": "riftbound-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--port",
+        "4173",
+        "--base",
+        "/RiftboundPlayer/"
+      ],
+      "port": 4173,
+      "url": "http://localhost:4173"
     }
   ]
 }
