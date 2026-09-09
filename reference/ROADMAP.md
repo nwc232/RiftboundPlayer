@@ -773,3 +773,71 @@ damage.
 **d. A resolved trigger that targeted something must change something.**
 Already prototyped and currently clean; worth keeping once (a) makes the
 deeper chains common enough for it to mean anything.
+
+---
+
+## 8. Where things stand (2026-09-08)
+
+`main` is current and everything below is on it. `npm test` is 1,327 tests
+across 74 files; `npm run typecheck` and `npm run build` are clean.
+
+### Rules coverage, measured
+
+| | count |
+|---|---|
+| Top-level rules in the Core Rules | 409 |
+| Every numbered statement, all depths | 2,381 |
+| Distinct top-level rules cited in `src/` | 167 |
+| …across the whole repo | 184 |
+| Distinct full citations (with sub-rules) in `src/` | 600 |
+
+**Read that carefully.** 167 of 409 is not "41% of the game". Of the 242
+uncited, about 70 are bare section titles — *"100. Game Concepts"*, *"105.
+Spaces"*, *"119. Game Objects"* — and most of the rest are definitions, the
+Golden and Silver Rules, deck construction and tournament matter. Several are
+implemented without being cited: R111–113 place the Legend, Champion and
+Battlefields at setup, and the code cites R107/R108 for the zones instead.
+
+The honest inventory of what is *not* built is the deviations list at the end
+of `mechanic-survey.md`: **81 entries, 7 of them closed.** That list, not the
+citation count, is what to read before claiming coverage.
+
+### Presentation and deployment
+
+Done, in this order, and the order mattered:
+
+1. `main` was 61 commits behind and is now current — the repository's front
+   door was a version of the project without any of the recent work in it.
+2. CI on every push (typecheck, tests, build), badge in the README, with the
+   520-game soak as a separate weekly job.
+3. MIT licence plus the fan-project notice the card data requires.
+4. A README that leads with the game, a screenshot, and *how the bugs get
+   found* — which was the best thing here and lived only in commit messages.
+5. GitHub Pages: the hotseat game as a static bundle, because the engine
+   imports nothing from Node. **Needs Settings → Pages → Source: GitHub
+   Actions once, by hand**; the deploy job fails until then.
+
+### Next, in order
+
+1. **Multiplayer deploy.** `Dockerfile` and `fly.toml` are written and never
+   used. One instance, no idle sleep — both settings are in `fly.toml` with
+   the reasons. Needs a host account.
+2. **Accounts and persistence.** Deliberately last of the three: every
+   candidate has a CRUD app with login, and nothing else here is common. Worth
+   doing because backend postings screen for it, not because it improves the
+   project.
+3. **Event-stepped animation.** The one that makes the live demo *watchable*:
+   render one step behind and play the event stream out, so a chain resolving
+   is something you see rather than find already done. Needs per-event
+   snapshots from the engine — which `applyAction` already threads through and
+   throws away — and input locked while a sequence plays.
+
+### Open UI questions, decided but unbuilt
+
+- **Passing priority is 37% of all actions** and 96% of those passes happen
+  with no card to play. No conditional auto-pass: it leaks whether you held a
+  reaction. The remaining candidate is an *unconditional* brief window — the
+  same beat every time, so the timing says nothing.
+- **Indicators**: nothing on screen says who holds priority or focus, and the
+  pass buttons do not say what they will cause.
+- The opponent's hand renders at 46px, which is neither reachable nor legible.
