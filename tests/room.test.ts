@@ -18,7 +18,7 @@ import {
 import type { Room } from "../src/server/room.js";
 import { HIDDEN_CARD } from "../src/view.js";
 import { seatOf } from "../src/state.js";
-import type { PlayerId } from "../src/state.js";
+import type { GameState, PlayerId } from "../src/state.js";
 
 /**
  * A room, without a socket. Everything worth checking about playing over a
@@ -385,5 +385,118 @@ describe("R117 — mulligans answered out of order", () => {
     room = answer(room, "p3");
 
     expect(restart(room, 42).earlyMulligans).toEqual({});
+  });
+});
+
+/**
+ * The precondition for persistence.
+ *
+ * Rooms live in a `Map` in one server process today, and that is the whole
+ * reason `fly.toml` pins the app to a single machine that is never allowed to
+ * stop: a second machine would be a second set of rooms, and stopping the one
+ * machine would discard every game in progress. Moving rooms into storage
+ * removes both constraints — but only if a room is *data*, all the way down.
+ *
+ * `Room` was written to be, and nothing in it is a socket: a seat is a player,
+ * a deck index, a token and possibly the moment it went away. This is the test
+ * that keeps it that way, because the failure is silent. A `Map`, a `Set`, a
+ * `Date` or an `undefined` inside the game state all survive being put in a
+ * `Map` and none of them survive `JSON.stringify` — the room would store
+ * cleanly, read back subtly wrong, and diverge mid-game rather than at save.
+ *
+ * Structural equality is the cheap half. The half that matters is that a room
+ * read back from storage still *plays* the same, so both are checked.
+ */
+describe("a room is data, so it can be stored", () => {
+  /** What a store would write and read back. */
+  const throughStorage = (room: Room): Room =>
+    JSON.parse(JSON.stringify(room)) as Room;
+
+  it("survives a JSON round trip unchanged, mid-game", () => {
+    const room = seeded();
+
+    expect(throughStorage(room)).toEqual(room);
+  });
+
+  it("survives it while a seat is away and still holding its chair", () => {
+    const room = leave(seeded(), "p2", 1_000);
+
+    const back = throughStorage(room);
+    expect(back).toEqual(room);
+    // The grace period is a timestamp; a `Date` here would come back a string.
+    expect(awaySeats(back)).toEqual(["p2"]);
+    expect(seatFor(back, "tok-p2")).toBe("p2");
+  });
+
+  /**
+   * `earlyMulligans` is empty in most fixtures, because a room that has
+   * finished its mulligans has nothing held. A store that forgot the column
+   * would therefore pass every other test here and lose a real answer only
+   * when three people sat down and one of them was quick — which is precisely
+   * the bug persistence introduces and the hardest kind to see. So the round
+   * trip is checked in the one state where the field carries something.
+   */
+  it("keeps an answer held from a seat whose turn has not come", () => {
+    let room = emptyRoom("abc", 3);
+    seatsOf(room).forEach((seat, at) => {
+      room = join(room, seat, at % 5, 1, `tok-${seat}`);
+    });
+    // p1 is the one being asked, so p3's answer is early by two and is held.
+    const early = act(room, "p3", { type: "decide", playerId: "p3", targets: [] });
+    if (!early.ok) throw new Error(`refused: ${early.reason}`);
+    expect(early.room.earlyMulligans.p3).toEqual([]);
+
+    const back = throughStorage(early.room);
+
+    expect(back.earlyMulligans).toEqual(early.room.earlyMulligans);
+    expect(Object.keys(back.earlyMulligans)).toEqual(["p3"]);
+    // And it is still spent in R117's order rather than dropped or replayed.
+    expect(back.game?.state.pending?.player).toBe("p1");
+  });
+
+  it("offers the same moves after the round trip as before it", () => {
+    const room = seeded();
+    const state = room.game?.state;
+    if (state === undefined) throw new Error("fixture is not dealt");
+
+    const back = throughStorage(room).game?.state;
+    if (back === undefined) throw new Error("game did not survive storage");
+
+    for (const seat of seatsOf(room)) {
+      expect(legalActions(back, seat)).toEqual(legalActions(state, seat));
+    }
+  });
+
+  /**
+   * The one that would actually catch a lossy round trip. Two rooms, one
+   * stored and one not, played the same way: if anything came back wrong the
+   * boards diverge, and a board is a much finer sieve than a move list.
+   */
+  it("plays identically to the room it was stored from", () => {
+    let live = seeded();
+    let restored = throughStorage(live);
+
+    for (let move = 0; move < 12; move++) {
+      const seat = seatsOf(live).find(
+        (s) => live.game !== undefined && legalActions(live.game.state, s).length > 0,
+      );
+      if (seat === undefined) break;
+
+      const next = legalActions((live.game as { state: GameState }).state, seat)[0];
+      if (next === undefined) break;
+      const onLive = act(live, seat, next);
+      const onRestored = act(restored, seat, next);
+
+      expect(onRestored.ok).toBe(onLive.ok);
+      if (!onLive.ok || !onRestored.ok) break;
+
+      live = onLive.room;
+      // Stored again each move, the way a store would after every action.
+      restored = throughStorage(onRestored.room);
+      expect(restored).toEqual(live);
+    }
+
+    // A fixture that never moved would pass every assertion above vacuously.
+    expect(live.game?.events.length ?? 0).toBeGreaterThan(0);
   });
 });
